@@ -1,0 +1,15 @@
+[package]
+name = "ws-parity"
+description = "Runs a network through the Rust engine and writes full-precision results for comparison with OWA-EPANET."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+epanet-rs = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+ws-study = { workspace = true }
+
+[lints]
+workspace = true

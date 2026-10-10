@@ -1,0 +1,15 @@
+[package]
+name = "ws-wasm"
+description = "The WebAssembly boundary of WaterStudio's engine: the only crate allowed unsafe code."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+ws-study = { workspace = true }
+epanet-rs = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

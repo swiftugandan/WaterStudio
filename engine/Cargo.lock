@@ -967,6 +967,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "ws-parity"
+version = "0.0.1"
+dependencies = [
+ "serde",
+ "serde_json",
+ "ws-hyd",
+ "ws-study",
+]
+
+[[package]]
+name = "ws-study"
+version = "0.0.1"
+dependencies = [
+ "serde",
+ "serde_json",
+ "ws-hyd",
+]
+
+[[package]]
+name = "ws-wasm"
+version = "0.0.1"
+dependencies = [
+ "serde",
+ "serde_json",
+ "ws-hyd",
+ "ws-study",
+]
+
+[[package]]
 name = "zerocopy"
 version = "0.8.62"
 source = "registry+https://github.com/rust-lang/crates.io-index"
