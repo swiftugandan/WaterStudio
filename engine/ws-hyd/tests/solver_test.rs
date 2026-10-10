@@ -1,0 +1,525 @@
+//! Integration test for the hydraulic solver using pump.inp
+
+use epanet_rs::model::link::LinkStatus;
+use epanet_rs::model::network::{LinkUpdate, Network, NodeUpdate};
+use epanet_rs::simulation::Simulation;
+use epanet_rs::solver::result::SolverResult;
+
+fn verify_heads_and_flows(
+    network: &Network,
+    result: &SolverResult,
+    expected_heads: &Vec<(&str, f64)>,
+    expected_flows: &Vec<(&str, f64)>,
+) {
+    let result_length = result.heads.len();
+    // Verify heads
+    for (node_id, expected_head) in expected_heads {
+        let idx = *network
+            .node_map
+            .get(*node_id)
+            .unwrap_or_else(|| panic!("Node {} not found", node_id));
+        let actual_head = result.heads[result_length - 1][idx];
+        assert!(
+            (actual_head - expected_head).abs() < 0.01,
+            "Head mismatch for node {}: expected {:.2}, got {:.2}",
+            node_id,
+            expected_head,
+            actual_head
+        );
+    }
+
+    // Verify flows
+    for (link_id, expected_flow) in expected_flows {
+        let idx = *network
+            .link_map
+            .get(*link_id)
+            .unwrap_or_else(|| panic!("Link {} not found", link_id));
+        let actual_flow = result.flows[result_length - 1][idx];
+        assert!(
+            (actual_flow - expected_flow).abs() < 0.01,
+            "Flow mismatch for link {}: expected {:.2}, got {:.2}",
+            link_id,
+            expected_flow,
+            actual_flow
+        );
+    }
+}
+
+/// Test solving pump.inp and verify exact head and flow values
+#[test]
+fn test_solve_pump_network() {
+    let mut simulation =
+        Simulation::from_file("tests/pump.inp").expect("Failed to create simulation");
+    let result = simulation
+        .solve_hydraulics(false)
+        .expect("Failed to solve hydraulics");
+
+    // Expected heads (in feet)
+    let expected_heads: Vec<(&str, f64)> = vec![
+        ("1", 166.00),
+        ("2", 164.35),
+        ("3", 164.61),
+        ("4", 163.76),
+        ("5", 163.67),
+        ("6", 163.05),
+        ("7", 162.95),
+        ("FH", 100.00),
+        ("FH2", 85.00),
+    ];
+
+    // Expected flows (in CFS)
+    let expected_flows: Vec<(&str, f64)> = vec![
+        ("B", 4.29),
+        ("C", 4.71),
+        ("D", 2.71),
+        ("E", 3.29),
+        ("F", 1.00),
+        ("G", 3.00),
+        ("H", 1.00),
+        ("I", 0.00),
+        ("1", 10.00), // pump
+    ];
+
+    verify_heads_and_flows(
+        &simulation.network,
+        &result,
+        &expected_heads,
+        &expected_flows,
+    );
+}
+
+/// Disabling a leaf junction should give it zero head, zero demand, and close
+/// its incident link, while the rest of the network still solves.
+#[test]
+fn test_disabled_leaf_junction() {
+    let mut simulation =
+        Simulation::from_file("tests/pump.inp").expect("Failed to create simulation");
+
+    simulation
+        .network
+        .update_node(
+            "5",
+            &NodeUpdate {
+                disabled: Some(true),
+                ..Default::default()
+            },
+        )
+        .expect("Failed to disable node");
+
+    let result = simulation
+        .solve_hydraulics(false)
+        .expect("Failed to solve hydraulics");
+
+    let last = result.heads.len() - 1;
+    let node = |id: &str| *simulation.network.node_map.get(id).unwrap();
+    let link = |id: &str| *simulation.network.link_map.get(id).unwrap();
+
+    // disabled node: zero head, zero demand
+    assert_eq!(result.heads[last][node("5")], 0.0, "disabled node head");
+    assert_eq!(result.demands[last][node("5")], 0.0, "disabled node demand");
+    // incident link is closed with zero flow
+    assert_eq!(result.flows[last][link("F")], 0.0, "incident link flow");
+
+    // the rest of the network is unaffected (reservoir head still fixed)
+    assert!((result.heads[last][node("FH")] - 100.00).abs() < 0.01);
+    assert!(result.heads[last][node("1")] > 0.0);
+}
+
+/// Disabling a node that sits between the network and a check-valve-fed
+/// reservoir should close both incident links (including the CV link).
+#[test]
+fn test_disabled_node_closes_check_valve_branch() {
+    let mut simulation =
+        Simulation::from_file("tests/pump.inp").expect("Failed to create simulation");
+
+    simulation
+        .network
+        .update_node(
+            "7",
+            &NodeUpdate {
+                disabled: Some(true),
+                ..Default::default()
+            },
+        )
+        .expect("Failed to disable node");
+
+    let result = simulation
+        .solve_hydraulics(false)
+        .expect("Failed to solve hydraulics");
+
+    let last = result.heads.len() - 1;
+    let node = |id: &str| *simulation.network.node_map.get(id).unwrap();
+    let link = |id: &str| *simulation.network.link_map.get(id).unwrap();
+
+    assert_eq!(result.heads[last][node("7")], 0.0, "disabled node head");
+    assert_eq!(result.demands[last][node("7")], 0.0, "disabled node demand");
+    // both incident links carry zero flow (H is a pipe, I is a check valve)
+    assert_eq!(result.flows[last][link("H")], 0.0, "pipe H flow");
+    assert_eq!(result.flows[last][link("I")], 0.0, "check valve I flow");
+}
+
+/// A check valve in a zero-flow network must not introduce an artificial head gain.
+#[test]
+fn test_zero_flow_check_valve_head() {
+    let mut simulation =
+        Simulation::from_file("tests/zeroflow-cv.inp").expect("Failed to create simulation");
+    let result = simulation
+        .solve_hydraulics(false)
+        .expect("Failed to solve hydraulics");
+
+    let expected_heads = vec![
+        ("ajee1o-in", 5.0),
+        ("ajee1o-out", 5.0),
+        ("itq07v-inout", 5.0),
+        ("y1mt10-in", 5.0),
+        ("itq07v-reservoir", 5.0),
+    ];
+    let expected_flows = vec![
+        ("itq07v-link", 0.0),
+        ("itq07v(inout)<->ajee1o(out)", 0.0),
+        ("ajee1o(in)<->y1mt10(in)", 0.0),
+        ("ajee1o", 0.0),
+    ];
+
+    verify_heads_and_flows(
+        &simulation.network,
+        &result,
+        &expected_heads,
+        &expected_flows,
+    );
+}
+
+/// Test solving valve.inp and verify exact head and flow values
+#[test]
+fn test_solve_valve_network() {
+    let mut simulation =
+        Simulation::from_file("tests/valves.inp").expect("Failed to create simulation");
+    let result = simulation
+        .solve_hydraulics(false)
+        .expect("Failed to solve hydraulics");
+
+    // Expected heads (in CFS)
+    let expected_flows: Vec<(&str, f64)> = vec![
+        ("2", 1.000000),
+        ("3", 1.000000),
+        ("4", 1.000000),
+        ("5", 5.000000),
+        ("6", 50.000001),
+        ("7", 50.000001),
+        ("8", 76.813932),
+        ("9", 76.813789),
+        ("PRV", 1.000000),
+        ("PBV", 1.000000),
+        ("TCV", 1.000000),
+        ("PCV", 5.000000),
+        ("FCV", 50.000001),
+        ("PSV", 76.813931),
+        ("FCV-WARN", 50.0000),
+    ];
+
+    let expected_heads: Vec<(&str, f64)> = vec![
+        ("2", 100.000000),
+        ("3", 100.000000),
+        ("4", 100.000000),
+        ("5", 99.999998),
+        ("PRV-o", 23.078698),
+        ("PBV-o", 76.921302),
+        ("TCV-o", 97.482999),
+        ("PCV-o", 49.659997),
+        ("9", 99.999985),
+        ("10", 0.000003),
+        ("7", 56.157397),
+        ("8", 0.296530),
+        ("1", 100.000000),
+        ("6", 0.000000),
+        ("13", 100.000),
+        ("14", 100.000),
+        ("15", 90.000),
+        ("16", 49.659997),
+    ];
+
+    verify_heads_and_flows(
+        &simulation.network,
+        &result,
+        &expected_heads,
+        &expected_flows,
+    );
+}
+
+#[test]
+fn test_solve_tanks_network() {
+    let mut simulation =
+        Simulation::from_file("tests/tanks.inp").expect("Failed to create simulation");
+    let result = simulation
+        .solve_hydraulics(false)
+        .expect("Failed to solve hydraulics");
+
+    let expected_heads: Vec<(&str, f64)> = vec![
+        ("1", 15.00),
+        ("3", 25.00),
+        ("4", 10.00),
+        ("5", 5.00),
+        ("6", 5.00),
+    ];
+
+    let expected_flows: Vec<(&str, f64)> = vec![
+        ("1", 0.00),
+        ("2", 0.00),
+        ("3", 8.58),
+        ("4", 15.52),
+        ("5", 29.73),
+    ];
+
+    verify_heads_and_flows(
+        &simulation.network,
+        &result,
+        &expected_heads,
+        &expected_flows,
+    );
+}
+
+/// Test solving 2tanks.inp and verify exact head and flow values
+#[test]
+fn test_solve_2tanks_controls_network() {
+    let mut simulation =
+        Simulation::from_file("tests/2tanks-controls.inp").expect("Failed to create simulation");
+    let result = simulation
+        .solve_hydraulics(false)
+        .expect("Failed to solve hydraulics");
+
+    let expected_heads: Vec<(&str, f64)> = vec![("1", 5.00), ("3", 4.00), ("2", 3.86)];
+    let expected_flows: Vec<(&str, f64)> = vec![("1", 0.00), ("2", 1.00)];
+    verify_heads_and_flows(
+        &simulation.network,
+        &result,
+        &expected_heads,
+        &expected_flows,
+    );
+}
+
+#[test]
+fn test_solve_emitters_network() {
+    let mut simulation =
+        Simulation::from_file("tests/emitter.inp").expect("Failed to create simulation");
+    let result = simulation
+        .solve_hydraulics(false)
+        .expect("Failed to solve hydraulics");
+
+    let expected_heads: Vec<(&str, f64)> = vec![
+        ("1", 10.00),
+        ("2", 6.41),
+        ("3", 4.85),
+        ("4", 3.13),
+        ("5", 2.84),
+    ];
+    let expected_flows: Vec<(&str, f64)> = vec![
+        ("1", 8.61),
+        ("2", 2.56),
+        ("3", 2.70),
+        ("4", 1.03),
+        ("5", -4.00),
+    ];
+
+    verify_heads_and_flows(
+        &simulation.network,
+        &result,
+        &expected_heads,
+        &expected_flows,
+    );
+}
+
+#[test]
+fn test_solve_pda_network() {
+    let mut simulation =
+        Simulation::from_file("tests/pda.inp").expect("Failed to create simulation");
+    let result = simulation
+        .solve_hydraulics(false)
+        .expect("Failed to solve hydraulics");
+
+    let expected_flows: Vec<(&str, f64)> = vec![
+        ("A", 35.994202),
+        ("B", 15.244768),
+        ("C", 16.814336),
+        ("D", 9.042474),
+        ("E", 11.350634),
+        ("F", 3.866947),
+        ("G", 8.785734),
+        ("H", 1.075225),
+    ];
+
+    let expected_heads: Vec<(&str, f64)> = vec![
+        ("1", 1.548499),
+        ("2", 1.510046),
+        ("3", 1.516428),
+        ("4", 1.497855),
+        ("5", 1.495327),
+        ("6", 1.486298),
+        ("7", 0.028894),
+        ("FH", 100.000000),
+    ];
+
+    verify_heads_and_flows(
+        &simulation.network,
+        &result,
+        &expected_heads,
+        &expected_flows,
+    );
+}
+
+#[test]
+fn test_pump_speed_cv_network() {
+    let mut simulation =
+        Simulation::from_file("tests/pump-cv.inp").expect("Failed to create simulation");
+    let result = simulation
+        .solve_hydraulics(false)
+        .expect("Failed to solve hydraulics");
+
+    let expected_heads: Vec<(&str, f64)> =
+        vec![("1", 0.00), ("2", 3.21), ("3", 10.00), ("4", 0.00)];
+    let expected_flows: Vec<(&str, f64)> = vec![("1", 1.94), ("2", 1.94), ("3", 0.00)];
+
+    verify_heads_and_flows(
+        &simulation.network,
+        &result,
+        &expected_heads,
+        &expected_flows,
+    );
+}
+
+#[test]
+// Bug with tankmodel.inp
+fn test_solve_tankmodel_network() {
+    let mut simulation =
+        Simulation::from_file("tests/tankmodel.inp").expect("Failed to create simulation");
+    let result = simulation
+        .solve_hydraulics(false)
+        .expect("Failed to solve hydraulics");
+
+    let expected_heads: Vec<(&str, f64)> = vec![("Tank", 133.17), ("N1", 133.13), ("N2", 133.12)];
+    let expected_flows: Vec<(&str, f64)> = vec![("P1", 90.00), ("P2", 50.00)];
+    verify_heads_and_flows(
+        &simulation.network,
+        &result,
+        &expected_heads,
+        &expected_flows,
+    );
+}
+
+#[test]
+// Bug with PCV valve minor loss and SI units
+fn test_solve_pcv_valve_minor_loss_si_units() {
+    let mut simulation =
+        Simulation::from_file("tests/pcv-si.inp").expect("Failed to create simulation");
+    let result = simulation
+        .solve_hydraulics(false)
+        .expect("Failed to solve hydraulics");
+
+    let expected_heads: Vec<(&str, f64)> = vec![("N1", 5.00), ("N2", 4.00)];
+    let expected_flows: Vec<(&str, f64)> = vec![("v1", 1.45)];
+
+    verify_heads_and_flows(
+        &simulation.network,
+        &result,
+        &expected_heads,
+        &expected_flows,
+    );
+}
+
+/// Emitter exponent is stored internally as 1/γ; INP write must emit γ so a
+/// save/reload round-trip preserves both the exponent and coefficients.
+#[test]
+fn test_emitter_inp_roundtrip() {
+    let network = epanet_rs::model::network::Network::from_file("tests/emitter.inp")
+        .expect("Failed to load emitter.inp");
+
+    let original_exponent = network.options.emitter_exponent;
+    let original_coeffs: Vec<(Box<str>, f64)> = network
+        .nodes
+        .iter()
+        .filter_map(|node| match &node.node_type {
+            epanet_rs::model::node::NodeType::Junction(j) if j.emitter_coefficient > 0.0 => {
+                Some((node.id.clone(), j.emitter_coefficient))
+            }
+            _ => None,
+        })
+        .collect();
+
+    let dir = std::env::temp_dir();
+    let path = dir.join("epanet-rs-emitter-roundtrip.inp");
+    network
+        .save_network(path.to_str().unwrap())
+        .expect("Failed to save network");
+
+    let reloaded = epanet_rs::model::network::Network::from_file(path.to_str().unwrap())
+        .expect("Failed to reload saved network");
+
+    assert!(
+        (reloaded.options.emitter_exponent - original_exponent).abs() < 1e-12,
+        "Emitter exponent changed after round-trip: original {}, reloaded {}",
+        original_exponent,
+        reloaded.options.emitter_exponent
+    );
+
+    for (id, coeff) in original_coeffs {
+        let idx = *reloaded
+            .node_map
+            .get(&id)
+            .expect("node missing after reload");
+        let epanet_rs::model::node::NodeType::Junction(j) = &reloaded.nodes[idx].node_type else {
+            panic!("node {} is not a junction", id);
+        };
+        assert!(
+            (j.emitter_coefficient - coeff).abs() < 1e-9,
+            "Emitter coefficient for {} changed: original {}, reloaded {}",
+            id,
+            coeff,
+            j.emitter_coefficient
+        );
+    }
+
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+// Bug with PCV valve losing setting when initial status is changed
+fn test_solve_pcv_valve_minor_loss_si_units_status_change() {
+    let mut simulation =
+        Simulation::from_file("tests/pcv-si.inp").expect("Failed to create simulation");
+
+    simulation
+        .network
+        .update_link(
+            "v1",
+            &LinkUpdate {
+                initial_status: Some(LinkStatus::Open),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+    let result = simulation
+        .solve_hydraulics(false)
+        .expect("Failed to solve hydraulics");
+
+    let expected_heads: Vec<(&str, f64)> = vec![("N1", 5.00), ("N2", 4.00)];
+    let expected_flows: Vec<(&str, f64)> = vec![("v1", 49.52)];
+
+    verify_heads_and_flows(
+        &simulation.network,
+        &result,
+        &expected_heads,
+        &expected_flows,
+    );
+}
+
+#[test]
+fn test_bidirectional_gpv_curve() {
+    let mut simulation =
+        Simulation::from_file("tests/bidirectional.inp").expect("Failed to create simulation");
+
+    let result = simulation
+        .solve_hydraulics(false)
+        .expect("Failed to solve hydraulics");
+
+    assert!(result.flows[0][0].abs() - 100.0 < 1e-9)
+}
