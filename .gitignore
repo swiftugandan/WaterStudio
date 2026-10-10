@@ -1,0 +1,26 @@
+# Rust
+engine/target/
+
+# Node
+node_modules/
+dist/
+.vite/
+coverage/
+playwright-report/
+test-results/
+
+# Reference engine and corpus, fetched and built by oracle/*.sh
+oracle/.build/
+oracle/.corpus/
+oracle/.reports/
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# Python
+__pycache__/
+*.pyc
