@@ -6,7 +6,6 @@ use crate::model::link::{LinkCoefficients, LinkTrait};
 use crate::model::options::{HeadlossFormula, SimulationOptions};
 use crate::model::units::{Cfs, Ft, UnitConversion, UnitSystem};
 
-use fastapprox;
 use serde::{Deserialize, Serialize};
 
 // Constants used for computing Darcy-Weisbach friction factor (src: hydcoefs.c from EPANET 2.3)
@@ -178,11 +177,10 @@ impl Pipe {
         // Re >= 4000, use Swamee & Jain approximation
 
         if w >= A1 {
-            // let y1 = A8 / w.powf(0.9);
-            let y1 = A8 / fastapprox::fast::pow(w as f32, 0.9) as f64;
+            // WaterStudio: exact f64 math as in EPANET (upstream used f32 fast approximations).
+            let y1 = A8 / w.powf(0.9);
             let y2 = e / 3.7 + y1;
-            // let y3 = A9 * y2.ln();
-            let y3 = A9 * fastapprox::fast::ln(y2 as f32) as f64;
+            let y3 = A9 * y2.ln();
             let f = 1.0 / y3.powi(2);
             let dfdq = 1.8 * f * y1 * A9 / y2 / y3 / q;
 
@@ -191,8 +189,7 @@ impl Pipe {
         // Use interpolating polynomials by E. Dunlop for transition flow (2000 < Re < 4000)
         } else {
             let y2 = e / 3.7 + AB;
-            // let y3 = A9 * y2.ln();
-            let y3 = A9 * fastapprox::fast::ln(y2 as f32) as f64;
+            let y3 = A9 * y2.ln();
             let fa = 1.0 / (y3 * y3);
             let fb = (2.0 + AC / (y2 * y3)) * fa;
             let r = w / A2;

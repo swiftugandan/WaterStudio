@@ -104,8 +104,23 @@ impl Network {
         Ok(())
     }
 
+    /// Read a network from INP text held in memory (WaterStudio: used by the
+    /// WebAssembly build, which has no filesystem).
+    pub fn from_inp_str(text: &str) -> Result<Network, InputError> {
+        let mut network = Network::default();
+        network.read_inp_from(BufReader::new(text.as_bytes()))?;
+        Ok(network)
+    }
+
     /// Read a network from an INP file.
     pub fn read_inp(&mut self, inp: &str) -> Result<(), InputError> {
+        let file = File::open(inp)
+            .map_err(|e| InputError::new(format!("Failed to open file '{}': {}", inp, e)))?;
+        self.read_inp_from(BufReader::new(file))
+    }
+
+    /// Read a network from any buffered INP source.
+    pub fn read_inp_from<R: BufRead>(&mut self, mut reader: R) -> Result<(), InputError> {
         // set the initial state to none
         let mut state = ReadState::None;
         let mut line_number: usize = 0;
@@ -115,12 +130,6 @@ impl Network {
         // the relevant junction
         let mut demands_cleared: HashSet<Box<str>> = HashSet::new();
 
-        // open the INP file
-        let file = File::open(inp)
-            .map_err(|e| InputError::new(format!("Failed to open file '{}': {}", inp, e)))?;
-
-        // create a new reader
-        let mut reader = BufReader::new(file);
         let mut line_buffer = String::with_capacity(512);
 
         // buffer for reading RULES (multiple lines)
