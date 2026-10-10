@@ -21,7 +21,7 @@ jobs:
       run:
         working-directory: engine
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install the pinned toolchain
         run: rustup toolchain install   # reads engine/rust-toolchain.toml
       - uses: Swatinem/rust-cache@v2
@@ -32,7 +32,7 @@ jobs:
       - run: cargo test --release
       - run: cargo build --release
       - run: cargo build --release --target wasm32-unknown-unknown -p ws-wasm
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: engine-builds
           path: |
@@ -45,21 +45,21 @@ jobs:
     needs: engine
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: engine-builds
           path: engine/target
       - name: Restore executable bits
         run: chmod +x engine/target/release/ws-parity
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: oracle/.build
           key: owa-epanet-${{ hashFiles('oracle/build.sh') }}
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: oracle/.corpus
           key: corpus-${{ hashFiles('oracle/fetch-corpus.sh') }}
@@ -69,7 +69,7 @@ jobs:
       - name: Parity report
         if: always()
         run: cat docs/PARITY.md >> "$GITHUB_STEP_SUMMARY" || true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: parity-reports
