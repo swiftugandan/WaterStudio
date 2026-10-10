@@ -1,0 +1,191 @@
+[TITLE]
+WaterStudio feature fixture
+Exercises every .inp section the reader folds into elements.
+
+[OPTIONS]
+ Units              LPS
+ Headloss           D-W
+ Quality            Chlorine mg/L
+ Demand Model       PDA
+ Minimum Pressure   0
+ Required Pressure  20
+ Pressure Exponent  0.5
+ Trials             60
+ Accuracy           0.0001
+ Pattern            Daily
+
+[TIMES]
+ Duration           24:00
+ Hydraulic Timestep 1:00
+ Quality Timestep   0:05
+ Pattern Timestep   2:00
+ Report Timestep    1:00
+ Start ClockTime    6 AM
+ Statistic          NONE
+
+[JUNCTIONS]
+;;ID     Elev   Demand  Pattern
+ 10      30     2.5     Daily    ;Main street
+ 11      28     0
+ 12      25     1.2
+ 13      22     0.8
+ 14      20     1.0
+ 15      18     0.5
+ 16      19     0.7
+ 17      21     0.3
+
+[RESERVOIRS]
+ SRC     80     Flat    ;Treatment works
+
+[TANKS]
+ T1      50     4   1   9   15   0   *        YES
+ T2      48     3   0.5 6   0    0   TankVol  NO
+ R2      70
+
+[PIPES]
+ 1   SRC 10  1500  400  0.1   0    Open
+ 2   10  11  800   300  0.1   0    Open
+ 3   11  12  600   250  0.1   0.5  Open
+ 4   12  13  600   200  0.1   0    Open
+ 5   13  14  400   150  0.1   0    CV
+ 6   14  15  400   150  0.1   0    Open
+ 7   12  T1  300   200  0.1   0    Open
+ 8   15  16  300   100  0.1   0    Open
+ 9   16  17  300   100  0.1   0    Open
+ 10  11  T2  200   150  0.1   0    Open
+ 11  R2  16  900   200  0.1   0    Closed
+
+[PUMPS]
+ P1  14  T2  HEAD PumpCurve  SPEED 0.9  PATTERN Speed
+ P2  13  17  POWER 15
+
+[VALVES]
+ V1  10  12  200  PRV  45   0.2
+ V2  15  17  100  GPV  Loss
+ V3  16  17  100  PCV  60   0   PcvCurve
+ V4  12  15  150  TCV  5
+
+[TAGS]
+ NODE 10  Downtown
+ LINK 1   Trunk
+
+[DEMANDS]
+ 12  1.0  Daily   ;Residential
+ 12  0.4  Flat    ;Commercial
+ 13  0.6          ;Leak allowance
+
+[STATUS]
+ P2   CLOSED
+ V4   OPEN
+ 3    5   Open
+ V1   50
+
+[PATTERNS]
+;Diurnal residential
+ Daily  0.6 0.5 0.8 1.2 1.4 1.1
+ Daily  1.0 0.9 1.3 1.5 1.0 0.7
+ Flat   1
+ Speed  1 1 0.8 0.8 1 1
+
+[CURVES]
+;Pump head curve
+ PumpCurve  0    60   PUMP
+ PumpCurve  50   50
+ PumpCurve  100  30
+ TankVol    0    0    VOLUME
+ TankVol    6    250
+ Loss       0    0    HEADLOSS
+ Loss       20   3
+ PcvCurve   0    0    VALVE
+ PcvCurve   100  100
+ Effic      0    40   EFFICIENCY
+ Effic      100  70
+
+[CONTROLS]
+ LINK 2 CLOSED IF NODE T1 ABOVE 8.5
+ LINK 2 OPEN IF NODE T1 BELOW 3   ;refill
+ LINK P2 OPEN AT CLOCKTIME 2 PM
+ LINK P2 CLOSED AT TIME 20 DISABLED
+
+[RULES]
+RULE R1
+IF TANK T2 LEVEL ABOVE 5
+THEN PUMP P1 STATUS IS CLOSED
+PRIORITY 2
+; keeps T2 from overflowing
+
+RULE R2
+IF SYSTEM CLOCKTIME >= 22:00
+AND TANK T2 LEVEL BELOW 2
+THEN PUMP P1 STATUS IS OPEN
+ELSE PUMP P1 SPEED IS 0.7
+
+[ENERGY]
+ Global Efficiency  75
+ Global Price       0.12
+ Demand Charge      2.5
+ Pump P1 Efficiency Effic
+ Pump P1 Price      0.15
+ Pump P1 Pattern    Daily
+
+[EMITTERS]
+ 15  0.8
+ 16  0.2
+
+[LEAKAGE]
+ 3   0.5  0.1
+ 4   0.2  0.05
+
+[QUALITY]
+ 10  12   0.5
+ SRC 1.2
+
+[SOURCES]
+ SRC  SETPOINT  1.0
+ 13   MASS      100   Daily
+
+[REACTIONS]
+ Order Bulk  1
+ Order Wall  1
+ Global Bulk -0.5
+ Global Wall -0.1
+ Limiting Potential 0
+ Bulk  1  -0.3
+ Wall  2  4  -0.2
+ Tank  T1 -0.4
+
+[MIXING]
+ T1  2COMP 0.25
+ T2  FIFO
+
+[REPORT]
+ Status  No
+ Summary No
+
+[COORDINATES]
+ SRC  0     0
+ 10   100   0
+ 11   200   0
+ 12   300   0
+ 13   400   0
+ 14   500   0
+ 15   600   0
+ 16   600   100
+ 17   500   100
+ T1   300   100
+ T2   200   100
+ R2   700   100
+
+[VERTICES]
+ 1   50  10
+ 1   75  -5
+
+[LABELS]
+ 150  50  "Pressure zone A"  12
+ 400  150 "Pumping station"
+
+[BACKDROP]
+ DIMENSIONS  0 -10 700 160
+ UNITS       Meters
+
+[END]

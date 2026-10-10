@@ -950,6 +950,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ws-cli"
+version = "0.0.1"
+dependencies = [
+ "ws-io",
+ "ws-model",
+]
+
+[[package]]
 name = "ws-hyd"
 version = "0.0.1"
 dependencies = [
@@ -964,6 +972,20 @@ dependencies = [
  "strum",
  "thiserror 2.0.21",
  "time",
+]
+
+[[package]]
+name = "ws-io"
+version = "0.0.1"
+dependencies = [
+ "ws-model",
+]
+
+[[package]]
+name = "ws-model"
+version = "0.0.1"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

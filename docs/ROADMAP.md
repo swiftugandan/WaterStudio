@@ -5,15 +5,16 @@ starts. The full design is in [PLAN.md](PLAN.md). Items are ticked as they land 
 
 ## Phase 0: Foundations
 
-Gate: `.inp` round-trip lossless on every corpus file; oracle pipeline green.
+Gate: `.inp` round-trip lossless on every corpus file; oracle pipeline green. **Engine half met.**
 
 - [x] Licences, contribution rules, governance, security policy
 - [x] Engine workspace; epanet-rs forked as `ws-hyd`, builds for wasm32 with SIMD128
 - [x] Oracle: OWA-EPANET v2.3.5 pinned build, pinned corpus, comparator, ratchet
 - [x] CI: fmt, clippy, tests, wasm build, parity on native and WebAssembly
-- [x] Architecture decision records 0001 to 0004
-- [ ] `ws-model` and `ws-io`: canonical model and lossless `.inp` reader/writer (all sections, comments kept)
-- [ ] Round-trip test over the whole corpus, gated in CI
+- [x] Architecture decision records 0001 to 0005
+- [x] `ws-model` and `ws-io`: canonical model and lossless `.inp` reader/writer (ADR 0005)
+- [x] Round-trip test over the whole corpus and fixtures, gated in CI (60/60 bit-identical)
+- [x] `ws` command-line tool: `check`, `canon`
 - [ ] JavaScript workspace: pnpm, TypeScript strict, Vite, Vitest, Playwright, lint
 - [ ] Design tokens; app icon set; engineering symbol masters (SVG)
 
@@ -21,6 +22,7 @@ Gate: `.inp` round-trip lossless on every corpus file; oracle pipeline green.
 
 Gate: hydraulics within tolerance on the whole corpus; a 50,000-pipe network pans within budget on both renderers.
 
+- [ ] Solver reads networks through `ws-io`/`ws-model` only (one parser; fixes zero-diameter tanks and ignored sections)
 - [ ] Close the 12 known parity gaps in `oracle/known-failures.txt`
     - [ ] FCV status logic (2fcvs, 5fcvs)
     - [ ] PRV pair flow split (2PRVs-a)

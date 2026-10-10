@@ -12,6 +12,8 @@ release. The reference only checks our results; it is never part of what we ship
 | `ratchet.py` | Fails on any network outside `known-failures.txt` that stops matching |
 | `known-failures.txt` | Networks that do not match yet, each with what is known |
 | `report.py` | Writes `docs/PARITY.md` |
+| `roundtrip.py`, `roundtrip.sh` | Rewrites every network canonically and requires bit-identical OWA-EPANET results (ADR 0005) |
+| `fixtures/` | Our own networks covering features the corpus does not (licensed with the repository) |
 
 `compare.py --accuracy 1e-8` rewrites ACCURACY in both engines before solving. Use it to tell apart differences
 caused by where each solver stops iterating from differences in the algorithm itself.

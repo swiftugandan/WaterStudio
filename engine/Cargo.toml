@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["ws-hyd", "ws-study", "ws-wasm", "ws-parity"]
+members = ["ws-model", "ws-io", "ws-hyd", "ws-study", "ws-wasm", "ws-parity", "ws-cli"]
 
 [workspace.package]
 version = "0.0.1"
@@ -15,6 +15,8 @@ epanet-rs = { path = "ws-hyd", package = "ws-hyd" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 ws-study = { path = "ws-study" }
+ws-model = { path = "ws-model" }
+ws-io = { path = "ws-io" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

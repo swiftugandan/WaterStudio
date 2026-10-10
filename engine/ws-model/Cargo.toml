@@ -1,0 +1,12 @@
+[package]
+name = "ws-model"
+description = "WaterStudio's canonical network model: every object and setting an EPANET input file can hold."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+
+[lints]
+workspace = true

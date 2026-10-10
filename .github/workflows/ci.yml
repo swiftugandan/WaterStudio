@@ -37,11 +37,12 @@ jobs:
           name: engine-builds
           path: |
             engine/target/release/ws-parity
+            engine/target/release/ws
             engine/target/wasm32-unknown-unknown/release/ws_wasm.wasm
           retention-days: 7
 
   parity:
-    name: Parity with OWA-EPANET
+    name: Round trip and parity with OWA-EPANET
     needs: engine
     runs-on: ubuntu-24.04
     steps:
@@ -54,7 +55,7 @@ jobs:
           name: engine-builds
           path: engine/target
       - name: Restore executable bits
-        run: chmod +x engine/target/release/ws-parity
+        run: chmod +x engine/target/release/ws-parity engine/target/release/ws
       - uses: actions/cache@v6
         with:
           path: oracle/.build
@@ -65,6 +66,7 @@ jobs:
           key: corpus-${{ hashFiles('oracle/fetch-corpus.sh') }}
       - run: oracle/build.sh
       - run: oracle/fetch-corpus.sh
+      - run: oracle/roundtrip.sh
       - run: oracle/parity.sh --write-doc
       - name: Parity report
         if: always()

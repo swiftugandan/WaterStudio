@@ -1,0 +1,17 @@
+[package]
+name = "ws-cli"
+description = "WaterStudio's command-line tool: check, rewrite and solve EPANET networks."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "ws"
+path = "src/main.rs"
+
+[dependencies]
+ws-io = { workspace = true }
+ws-model = { workspace = true }
+
+[lints]
+workspace = true

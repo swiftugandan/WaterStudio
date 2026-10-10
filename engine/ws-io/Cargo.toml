@@ -1,0 +1,12 @@
+[package]
+name = "ws-io"
+description = "Reads and writes EPANET .inp files to and from WaterStudio's canonical model."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+ws-model = { workspace = true }
+
+[lints]
+workspace = true
