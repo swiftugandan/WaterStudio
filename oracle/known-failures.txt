@@ -1,0 +1,22 @@
+# Networks that do not yet match OWA-EPANET v2.3.5 within tolerance.
+# oracle/parity.sh fails if any OTHER network stops matching, and tells you when one of
+# these starts matching so it can be removed. Each line: corpus path  # what is known.
+# Every entry is tracked as Phase 1 work in docs/ROADMAP.md.
+
+# Extended-period drift: heads 0.06 ft and flows 9 gpm off by 23:00; controls/tank timing.
+owa-epanet/Net3.inp
+# Wrong FCV head and flow; flow-control valve status logic differs.
+owa-examples/epanet-tests/valves/2fcvs.inp
+owa-examples/epanet-tests/valves/5fcvs.inp
+# PRV pair settles on a different flow split (0.16 flow units).
+owa-examples/epanet-tests/valves/2PRVs-a.inp
+# Large networks: heads agree, a few flows differ beyond 0.01 % even at ACCURACY 1e-8.
+owa-examples/epanet-tests/exeter/exnet-3.inp
+owa-examples/epanet-tests/exeter/exnet-3H.inp
+owa-examples/epanet-tests/exeter/wolf-3.inp
+owa-examples/epanet-tests/large/57460.inp
+owa-examples/epanet-tests/large/NW_Model.inp
+owa-examples/epanet-tests/large/NW_Model1.inp
+# Pumped networks: a handful of pump/pipe flows differ by 0.005 to 0.12 flow units.
+owa-examples/epanet-tests/exeter/anytown-3.inp
+owa-examples/epanet-tests/exeter/mod_anytown-3.inp
