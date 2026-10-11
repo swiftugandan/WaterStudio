@@ -3,6 +3,7 @@
  * instance, behind a promise-based API. Requests go to the least busy worker.
  */
 
+import type { CriticalityResult, FireFlowResult, StudyRequest, StudyResult } from './study.ts';
 import type { model } from '@waterstudio/core';
 import {
   EngineError,
@@ -44,6 +45,7 @@ interface Replies {
   'run-hydraulics': HydraulicReport;
   'run-files': EpanetFiles;
   check: string | null;
+  study: FireFlowResult[] | CriticalityResult[];
 }
 
 type Body = EngineRequest extends infer R ? (R extends { id: number } ? Omit<R, 'id'> : never) : never;
@@ -120,6 +122,11 @@ export class EngineClient {
   /** Run a model as EPANET's runepanet does, for its report and output file. */
   runFiles(request: FilesRequest): Promise<Timed<EpanetFiles>> {
     return this.typed({ kind: 'run-files', request });
+  }
+
+  /** Run a study on one worker; split long lists across workers with several calls. */
+  study<R extends StudyRequest>(request: R): Promise<Timed<StudyResult<R>>> {
+    return this.typed({ kind: 'study', request }) as Promise<Timed<StudyResult<R>>>;
   }
 
   /** The error EPANET would refuse the model with (bad controls or rules, say), or null. */

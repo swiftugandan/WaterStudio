@@ -91,6 +91,16 @@ describe.skipIf(!have)('WebAssembly engine', async () => {
     expect(() => e().run(model)).toThrow(EngineError);
   });
 
+  it('runs fire flow and criticality studies', () => {
+    const text = readFileSync(new URL('apps/web/public/samples/Net1.inp', root), 'utf8');
+    const { model } = e().readInp(text);
+    const ff = e().study({ kind: 'fireFlow', model, options: { hydrants: ['32'], flow: 500, residual: 20 } });
+    expect(ff).toHaveLength(1);
+    expect(ff[0]).toMatchObject({ id: '32', meets: true, error: null });
+    const cr = e().study({ kind: 'criticality', model, options: { links: ['111'], pressure: 100 } });
+    expect(cr[0]).toMatchObject({ id: '111', failed: false });
+  });
+
   it('checks a model without solving it', () => {
     const { model } = e().readInp(NET);
     expect(e().check(model)).toBeNull();

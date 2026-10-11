@@ -19,7 +19,7 @@ import { toModel } from './convert.ts';
 
 /** Fields and document keys every scenario shares. */
 const SHARED_FIELDS = new Set(['id', 'kind', 'x', 'y', 'vertices', 'from', 'to']);
-const SHARED_DOC = new Set<DocKey>(['title', 'backdrop', 'labels', 'extraSections']);
+const SHARED_DOC = new Set<DocKey>(['title', 'backdrop', 'labels', 'extraSections', 'isolationValves']);
 
 export interface Scenario {
   id: string;

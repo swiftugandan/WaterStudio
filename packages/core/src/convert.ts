@@ -155,6 +155,7 @@ export function fillFromModel(tx: Tx, model: Model): void {
     backdrop: model.backdrop,
     labels: model.labels,
     extraSections: model.extraSections,
+    isolationValves: [],
   };
   for (const [k, v] of Object.entries(data)) tx.setDoc(k as keyof DocData, v as never);
 }

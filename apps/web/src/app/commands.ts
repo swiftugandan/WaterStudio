@@ -8,6 +8,8 @@ import {
   CommandBus,
   copyProperties,
   pasteProperties,
+  valvesEveryEnd,
+  valvesNMinusOne,
   deleteElements,
   reverseLinks,
   scenarioText,
@@ -35,6 +37,7 @@ const PANEL_ICONS: Record<string, string> = {
   legend: 'palette',
   formats: 'hash',
   scenarios: 'layers',
+  studies: 'flame',
 };
 
 export const SAMPLES = ['Net1', 'Net2', 'Net3'] as const;
@@ -417,6 +420,32 @@ export function createCommands(state: AppState): CommandBus<AppState> {
     tool('pump', 'Add pump', 'pump', 'U'),
     tool('valve', 'Add valve', 'valve', 'L'),
     tool('label', 'Add or edit map label', 'type', 'B'),
+    tool('isovalve', 'Add or remove an isolation valve', 'valve', 'I'),
+    ...(
+      [
+        ['everyEnd', 'Isolation valves at every pipe end', valvesEveryEnd],
+        ['nMinus1', 'Isolation valves by the N−1 rule', valvesNMinusOne],
+      ] as const
+    ).map(([key, title, rule]): Cmd => ({
+      id: `segments.${key}`,
+      title,
+      icon: 'valve',
+      category: 'Analysis',
+      enabled: (s) => s.store.doc.links.liveCount > 0,
+      run: (s) => {
+        const valves = rule(s.store.doc);
+        s.store.transact(title, (tx) => tx.setDoc('isolationValves', valves));
+        s.log('info', `Placed ${valves.length} isolation valves.`);
+      },
+    })),
+    {
+      id: 'segments.clear',
+      title: 'Remove every isolation valve',
+      icon: 'trash',
+      category: 'Analysis',
+      enabled: (s) => s.store.doc.data.isolationValves.length > 0,
+      run: (s) => s.store.transact('Remove isolation valves', (tx) => tx.setDoc('isolationValves', [])),
+    },
     ...(
       [
         ['nodeIds', 'Show node IDs'],
@@ -536,6 +565,7 @@ export function createCommands(state: AppState): CommandBus<AppState> {
         ['legend', 'Legend editor'],
         ['formats', 'Number formats'],
         ['scenarios', 'Scenarios'],
+        ['studies', 'Studies'],
       ] as const
     ).map(([id, title]): Cmd => ({
       id: `view.panel.${id}`,

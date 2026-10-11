@@ -3,6 +3,7 @@
  * through generated declarations (@waterstudio/core), so the two sides cannot drift.
  */
 
+import type { CriticalityResult, FireFlowResult, StudyRequest } from './study.ts';
 import type { model } from '@waterstudio/core';
 import type { RunResults } from './results.ts';
 
@@ -52,7 +53,8 @@ export type EngineRequest =
   | { id: number; kind: 'run'; model: model.Model }
   | { id: number; kind: 'run-hydraulics'; inp: string }
   | { id: number; kind: 'run-files'; request: FilesRequest }
-  | { id: number; kind: 'check'; model: model.Model };
+  | { id: number; kind: 'check'; model: model.Model }
+  | { id: number; kind: 'study'; request: StudyRequest };
 
 export type EngineReply =
   | { kind: 'read-inp'; value: ReadResult }
@@ -60,7 +62,8 @@ export type EngineReply =
   | { kind: 'run'; value: RunResults }
   | { kind: 'run-hydraulics'; value: HydraulicReport }
   | { kind: 'run-files'; value: EpanetFiles }
-  | { kind: 'check'; value: string | null };
+  | { kind: 'check'; value: string | null }
+  | { kind: 'study'; value: FireFlowResult[] | CriticalityResult[] };
 
 export type EngineResponse =
   { id: number; ok: true; reply: EngineReply; ms: number } | { id: number; ok: false; error: string };

@@ -25,6 +25,7 @@ import { LegendPanel } from '../panels/LegendPanel.tsx';
 import { OptionsPanel } from '../panels/OptionsPanel.tsx';
 import { QueryPanel } from '../panels/QueryPanel.tsx';
 import { ScenariosPanel } from '../panels/ScenariosPanel.tsx';
+import { StudiesPanel } from '../panels/StudiesPanel.tsx';
 import { GraphPanel, graphTitle, type GraphParams } from '../panels/GraphPanel.tsx';
 import { ReportPanel } from '../panels/ReportPanel.tsx';
 import { MessagesPanel } from '../panels/MessagesPanel.tsx';
@@ -33,7 +34,7 @@ import { ResultsPanel } from '../panels/ResultsPanel.tsx';
 import { MapView } from '../viewport/MapView.tsx';
 
 const LAYOUT_KEY = 'ws.layout.v1';
-const DATA_EDITORS = new Set(['patterns', 'curves', 'controls']);
+const DATA_EDITORS = new Set(['patterns', 'curves', 'controls', 'studies']);
 
 const PANELS: Record<
   string,
@@ -57,6 +58,7 @@ const PANELS: Record<
     position: () => ({ referencePanel: 'properties', direction: 'within' }),
   },
   scenarios: { title: 'Scenarios', position: () => ({ referencePanel: 'browser', direction: 'within' }) },
+  studies: { title: 'Studies', position: () => ({ referencePanel: 'map', direction: 'right' }) },
 };
 
 const components = {
@@ -76,6 +78,7 @@ const components = {
   legend: () => <LegendPanel />,
   formats: () => <FormatsPanel />,
   scenarios: () => <ScenariosPanel />,
+  studies: () => <StudiesPanel />,
   graph: (props: IDockviewPanelProps<GraphParams>) => <GraphPanel {...props} />,
 };
 

@@ -34,7 +34,17 @@ import type { Prefs } from './prefs.ts';
 import type { ViewApi } from './view.ts';
 
 export type Tool =
-  'select' | 'pan' | 'junction' | 'reservoir' | 'tank' | 'pipe' | 'pump' | 'valve' | 'label' | 'backdrop';
+  | 'select'
+  | 'pan'
+  | 'junction'
+  | 'reservoir'
+  | 'tank'
+  | 'pipe'
+  | 'pump'
+  | 'valve'
+  | 'label'
+  | 'backdrop'
+  | 'isovalve';
 
 export interface Message {
   time: number;

@@ -1,6 +1,13 @@
 export * from './schema.ts';
 export * from './units.ts';
-export { Document, emptyDocData, type DocData, type DocKey, type Op } from './document.ts';
+export {
+  Document,
+  emptyDocData,
+  type DocData,
+  type DocKey,
+  type IsolationValve,
+  type Op,
+} from './document.ts';
 export {
   Store,
   Tx,
@@ -19,3 +26,4 @@ export * from './options.ts';
 export * from './data.ts';
 export * from './scenario.ts';
 export * from './scenarios.ts';
+export * from './segments.ts';

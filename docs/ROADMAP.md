@@ -80,7 +80,9 @@ Gate: MSX examples within tolerance; all performance budgets met; agent evaluati
 
 - [ ] EPANET-MSX (`ws-msx`)
 - [x] Scenario manager (ADR 0013): property overrides that inherit as a tree over a shared network; compare any two
-- [ ] Fire flow, criticality, isolation segments
+- [x] Fire flow (available flow at a residual and system pressure, warm-started bisection), criticality (each link out
+  of service over the whole simulation), isolation segments (valves at pipe ends, N−1 and every-end rules, unintended
+  isolation); studies split across the engine pool
 - [ ] DEM elevations, demand allocation; SQLite project file
 - [ ] C toolkit API (`ws-ffi`) and CLI
 - [ ] Proposal and review UI; MCP server

@@ -31,6 +31,8 @@ function handle(e: Engine, req: EngineRequest): EngineReply {
       return { kind: 'run-hydraulics', value: e.runHydraulicsInp(req.inp) };
     case 'run-files':
       return { kind: 'run-files', value: e.runFiles(req.request) };
+    case 'study':
+      return { kind: 'study', value: e.study(req.request) };
     case 'check':
       return { kind: 'check', value: e.check(req.model) };
   }

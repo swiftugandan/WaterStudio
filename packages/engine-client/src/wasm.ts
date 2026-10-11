@@ -7,6 +7,7 @@
  * `ws_free(ptr, 8 + length)`.
  */
 
+import type { CriticalityResult, FireFlowResult, StudyRequest } from './study.ts';
 import type { model } from '@waterstudio/core';
 import {
   EngineError,
@@ -29,6 +30,7 @@ interface Exports {
   ws_run_hydraulics_inp: Entry;
   ws_run_files: Entry;
   ws_check: Entry;
+  ws_study: Entry;
 }
 
 export interface Engine {
@@ -39,6 +41,7 @@ export interface Engine {
   runFiles(req: FilesRequest): EpanetFiles;
   /** The error EPANET's input stage would refuse the model with, or null. */
   check(m: model.Model): string | null;
+  study(req: StudyRequest): FireFlowResult[] | CriticalityResult[];
 }
 
 export async function instantiateEngine(source: BufferSource | WebAssembly.Module): Promise<Engine> {
@@ -81,6 +84,8 @@ export async function instantiateEngine(source: BufferSource | WebAssembly.Modul
       const n = new DataView(body.buffer, body.byteOffset, 4).getUint32(0, true);
       return { report: decoder.decode(body.subarray(4, 4 + n)), out: body.slice(4 + n) };
     },
+    study: (req) =>
+      JSON.parse(decoder.decode(call(x.ws_study, json(req)))) as FireFlowResult[] | CriticalityResult[],
     check: (m) => {
       try {
         call(x.ws_check, json(m));

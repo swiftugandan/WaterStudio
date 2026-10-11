@@ -1466,3 +1466,22 @@ button.link {
 .compare-top tbody tr {
   cursor: pointer;
 }
+
+/* Studies */
+.studies-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+}
+.studies .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ws-space-1);
+}
+.studies-table tbody tr {
+  cursor: pointer;
+}
+.studies-table tr.fails th,
+.studies-table tr.fails td {
+  color: var(--ws-color-danger-text);
+}

@@ -43,6 +43,7 @@ mod status;
 mod types;
 
 pub use error::SolverError;
+pub use input::hour;
 pub use types::{Field, LinkType, NodeType, Status};
 
 use types::*;
@@ -197,6 +198,46 @@ impl Hydraulics {
 
     fn ucf(&self, f: Field) -> f64 {
         self.pr.units.ucf[f as usize]
+    }
+
+    /// The last hydraulic warning (EPANET's code: 1 unbalanced, 2 unstable, 4 pump,
+    /// 5 valve, 6 negative pressures; 0 if none).
+    pub fn warning(&self) -> i32 {
+        self.pr.warnflag
+    }
+
+    /// Junctions come first in solver order: nodes `0..junction_count()` are junctions.
+    pub fn junction_count(&self) -> usize {
+        self.pr.net.njuncs
+    }
+
+    /// Study API, not EPANET's: add a constant demand (user flow units) at a junction
+    /// (solver index), as a fire flow or a hydrant test draws, before the next
+    /// [`Hydraulics::run`]. The demand multiplier does not scale it.
+    pub fn add_constant_demand(&mut self, node: usize, flow: f64) -> Result<(), SolverError> {
+        let i = node + 1;
+        if node >= self.pr.net.njuncs {
+            return Err(SolverError::new(203, "a constant demand needs a junction"));
+        }
+        const CONSTANT: &str = "\u{0}constant";
+        let pat = match self.pr.net.pattern.iter().position(|p| p.id == CONSTANT) {
+            Some(k) => k,
+            None => {
+                self.pr.net.pattern.push(Pattern {
+                    id: CONSTANT.into(),
+                    f: vec![1.0],
+                });
+                self.pr.net.pattern.len() - 1
+            }
+        };
+        let dmult = if self.pr.hyd.dmult == 0.0 {
+            1.0
+        } else {
+            self.pr.hyd.dmult
+        };
+        let base = flow / self.ucf(Field::Demand) / dmult;
+        self.pr.net.node[i].d.push(Demand { base, pat });
+        Ok(())
     }
 
     /// Hydraulic heads in user units.

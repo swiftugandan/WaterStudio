@@ -117,6 +117,7 @@ export function drawAnnotations(
   }
 
   if (opts.flowArrows && flows.size > 0) drawArrows(ctx, view, doc, flows, colours.arrow);
+  drawIsolationValves(ctx, view, doc, colours.arrow, colours.halo);
 
   const wantNodes = opts.nodeIds || nodeValues.size > 0;
   const wantLinks = opts.linkIds || linkValues.size > 0;
@@ -211,5 +212,53 @@ function drawArrows(
     ctx.lineTo(x - dx * size + dy * size * 0.7, y - dy * size - dx * size * 0.7);
     ctx.closePath();
     ctx.fill();
+  }
+}
+
+/** Isolation valves as small bow ties on the pipe, a little way from the node they sit next to. */
+function drawIsolationValves(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  doc: Document,
+  colour: string,
+  fill: string,
+): void {
+  const valves = doc.data.isolationValves;
+  if (valves.length === 0) return;
+  ctx.strokeStyle = colour;
+  ctx.fillStyle = fill;
+  ctx.lineWidth = 1.5;
+  let n = 0;
+  for (const v of valves) {
+    const l = doc.findLink(v.link);
+    const at = doc.findNode(v.node);
+    if (l === undefined || at === undefined) continue;
+    const a = doc.num(l, 'from');
+    const other = a === at ? doc.num(l, 'to') : a;
+    const vs = doc.get(l, 'vertices') as number[];
+    const toward: [number, number] =
+      vs.length >= 2
+        ? a === at
+          ? [vs[0]!, vs[1]!]
+          : [vs[vs.length - 2]!, vs[vs.length - 1]!]
+        : [doc.num(other, 'x'), doc.num(other, 'y')];
+    const [x0, y0] = view.toScreen(doc.num(at, 'x'), doc.num(at, 'y'));
+    const [x1, y1] = view.toScreen(toward[0], toward[1]);
+    const d = Math.hypot(x1 - x0, y1 - y0);
+    if (d < 24 || x0 < -20 || y0 < -20 || x0 > view.width + 20 || y0 > view.height + 20) continue;
+    if (++n > 5000) break;
+    const ux = (x1 - x0) / d;
+    const uy = (y1 - y0) / d;
+    const cx = x0 + ux * Math.min(14, d / 3);
+    const cy = y0 + uy * Math.min(14, d / 3);
+    const s = 5;
+    ctx.beginPath();
+    ctx.moveTo(cx - ux * s - uy * s, cy - uy * s + ux * s);
+    ctx.lineTo(cx + ux * s + uy * s, cy + uy * s - ux * s);
+    ctx.lineTo(cx + ux * s - uy * s, cy + uy * s + ux * s);
+    ctx.lineTo(cx - ux * s + uy * s, cy - uy * s - ux * s);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
   }
 }

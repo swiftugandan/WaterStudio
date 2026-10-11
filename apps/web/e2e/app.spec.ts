@@ -923,6 +923,45 @@ test('manages scenarios and compares two of them', async ({ page }) => {
   await expect(page.locator('.statusbar')).toContainText('Base network');
 });
 
+test('runs fire flow and criticality studies across the engine pool', async ({ page }) => {
+  await ready(page);
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Analysis' }).click();
+  await page.getByRole('button', { name: 'Show studies' }).click();
+  const panel = page.locator('.panel.studies');
+  await panel.getByRole('button', { name: 'Test 9 hydrants' }).click();
+  await expect(panel.getByRole('status')).toContainText('9 hydrants tested');
+  await expect(panel.locator('.studies-table tbody tr')).toHaveCount(9);
+  await panel.getByRole('tab', { name: 'Criticality' }).click();
+  await panel.getByRole('button', { name: 'Take out 12 links in turn' }).click();
+  await expect(panel.getByRole('status')).toContainText('12 links tested');
+  await expect(panel.locator('.studies-table tbody tr')).toHaveCount(12);
+  await panel.getByRole('button', { name: /Select critical links/ }).click();
+  // Segments: valves by the N−1 rule, then one more with the tool.
+  await panel.getByRole('tab', { name: 'Segments' }).click();
+  await expect(panel).toContainText('0 isolation valves make 1 segments');
+  await panel.getByRole('button', { name: 'N−1 rule' }).click();
+  await expect(panel).toContainText(/\d+ isolation valves make \d+ segments/);
+  const valves = () =>
+    ws(
+      page,
+      (w) => (w.state.store.doc.data as unknown as { isolationValves: unknown[] }).isolationValves.length,
+    );
+  const before = await valves();
+  await panel.getByRole('button', { name: 'Isolate' }).first().click();
+  await expect(panel.getByRole('status')).toContainText('isolates segment');
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Draw' }).click();
+  await page.getByRole('button', { name: 'Add or remove an isolation valve' }).click();
+  const a = await nodeOnScreen(page, '21');
+  const b = await nodeOnScreen(page, '22');
+  await page.mouse.click(a.x + (b.x - a.x) * 0.2, a.y + (b.y - a.y) * 0.2);
+  await expect.poll(valves).not.toBe(before);
+  const axe = await new AxeBuilder({ page })
+    .include('.panel.studies')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  expect(axe.violations.map((v) => v.id)).toEqual([]);
+});
+
 test('the editors have no WCAG 2.2 AA violations', async ({ page }) => {
   await ready(page);
   await ws(page, (w) => {

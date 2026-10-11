@@ -11,3 +11,4 @@ export {
 } from './protocol.ts';
 export * from './outfile.ts';
 export * from './results.ts';
+export * from './study.ts';

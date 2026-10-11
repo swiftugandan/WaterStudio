@@ -33,6 +33,14 @@ export interface DocData {
   backdrop: KeywordSection;
   labels: Label[];
   extraSections: RawSection[];
+  /** Isolation valves at pipe ends (WaterStudio's own; EPANET files have no place for them). */
+  isolationValves: IsolationValve[];
+}
+
+/** An isolation valve on a link next to one of its end nodes. */
+export interface IsolationValve {
+  link: string;
+  node: string;
 }
 
 export type DocKey = keyof DocData;
@@ -53,6 +61,7 @@ export function emptyDocData(): DocData {
     backdrop: section(),
     labels: [],
     extraSections: [],
+    isolationValves: [],
   };
 }
 

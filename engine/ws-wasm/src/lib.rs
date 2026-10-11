@@ -138,6 +138,44 @@ pub unsafe extern "C" fn ws_check(ptr: *const u8, len: usize) -> *mut u8 {
 }
 
 #[derive(serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+enum StudyRequest {
+    #[serde(rename_all = "camelCase")]
+    FireFlow {
+        model: ws_model::Model,
+        options: ws_study::studies::FireFlowOptions,
+    },
+    #[serde(rename_all = "camelCase")]
+    Criticality {
+        model: ws_model::Model,
+        options: ws_study::studies::CriticalityOptions,
+    },
+}
+
+/// Run a study (fire flow or criticality) on a model; the reply is the results as JSON.
+///
+/// # Safety
+/// `ptr..ptr+len` must be readable memory the host wrote.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ws_study(ptr: *const u8, len: usize) -> *mut u8 {
+    // SAFETY: guaranteed by the caller.
+    let bytes = unsafe { std::slice::from_raw_parts(ptr, len) };
+    let outcome = serde_json::from_slice::<StudyRequest>(bytes)
+        .map_err(|e| format!("request: {e}"))
+        .and_then(|req| match req {
+            StudyRequest::FireFlow { model, options } => {
+                ws_study::studies::fire_flow(&model, &options)
+                    .and_then(|r| serde_json::to_vec(&r).map_err(|e| e.to_string()))
+            }
+            StudyRequest::Criticality { model, options } => {
+                ws_study::studies::criticality(&model, &options)
+                    .and_then(|r| serde_json::to_vec(&r).map_err(|e| e.to_string()))
+            }
+        });
+    reply(outcome)
+}
+
+#[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct FilesRequest {
     model: ws_model::Model,

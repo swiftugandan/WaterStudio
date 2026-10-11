@@ -120,7 +120,13 @@ const TABS: Tab[] = [
         ],
       },
       { label: 'Keyboard', items: [{ cmd: 'view.panel.add', size: 'large', label: 'Add element' }] },
-      { label: 'Annotate', items: [{ cmd: 'tool.label', size: 'large', label: 'Label' }] },
+      {
+        label: 'Annotate',
+        items: [
+          { cmd: 'tool.label', size: 'large', label: 'Label' },
+          { cmd: 'tool.isovalve', size: 'large', label: 'Isolation valve' },
+        ],
+      },
       {
         label: 'Edit',
         items: [
@@ -153,6 +159,10 @@ const TABS: Tab[] = [
     groups: [
       { label: 'Setup', items: [{ cmd: 'view.panel.options', size: 'large', label: 'Options' }] },
       { label: 'Run', items: [{ cmd: 'analysis.run', size: 'large', label: 'Run hydraulics' }] },
+      {
+        label: 'Studies',
+        items: [{ cmd: 'view.panel.studies', size: 'large', label: 'Fire flow, criticality' }],
+      },
       { label: 'AI', items: [{ cmd: 'view.panel.assistant', size: 'large', label: 'Assistant' }] },
     ],
   },

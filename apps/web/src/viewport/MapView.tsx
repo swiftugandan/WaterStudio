@@ -850,6 +850,30 @@ export function MapView() {
     if (e.button !== 0) return;
     const cam = c.renderer.camera;
     const tool = state.tool;
+    if (tool === 'isovalve') {
+      const hit = c.pick(x, y);
+      if (hit?.table !== 'link' || state.store.doc.linkKind(hit.handle) !== 'pipe') {
+        state.log('info', 'Click a pipe near the end where the valve goes.');
+        return;
+      }
+      const doc = state.store.doc;
+      const cam = c.renderer.camera;
+      const a = doc.num(hit.handle, 'from');
+      const b = doc.num(hit.handle, 'to');
+      const [ax, ay] = cam.toScreen(doc.num(a, 'x'), doc.num(a, 'y'));
+      const [bx, by] = cam.toScreen(doc.num(b, 'x'), doc.num(b, 'y'));
+      const node = Math.hypot(x - ax, y - ay) <= Math.hypot(x - bx, y - by) ? a : b;
+      const v = { link: doc.id(hit.handle), node: doc.id(node) };
+      const list = doc.data.isolationValves;
+      const has = list.some((x) => x.link === v.link && x.node === v.node);
+      state.store.transact(has ? 'Remove isolation valve' : 'Add isolation valve', (tx) =>
+        tx.setDoc(
+          'isolationValves',
+          has ? list.filter((x) => !(x.link === v.link && x.node === v.node)) : [...list, v],
+        ),
+      );
+      return;
+    }
     if (tool === 'backdrop') {
       c.gesture = { kind: 'align', x0: x, y0: y, x1: x, y1: y, id: e.pointerId };
       overlay.current?.setPointerCapture(e.pointerId);
