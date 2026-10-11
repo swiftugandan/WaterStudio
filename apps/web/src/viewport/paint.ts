@@ -31,6 +31,7 @@ export const VARIABLE_QUANTITY: Record<NodeVariable | LinkVariable, Quantity | '
   headloss: 'headloss',
   status: 'none',
   setting: 'none',
+  quality: 'concentration',
 };
 
 const legendCache = new WeakMap<RunResults, Map<string, Legend>>();

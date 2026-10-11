@@ -47,7 +47,8 @@ budget on both renderers (**met for Canvas 2D in CI; WebGPU measured on real GPU
 
 Gate: every EPANET 2.2 GUI function available; quality within tolerance; WCAG 2.2 AA audit passes.
 
-- [ ] Water quality (`ws-qual`): chemical, age, trace; bulk and wall reactions; four tank mixing models
+- [x] Water quality (in `ws-solver`, ADR 0006): chemical, age, trace; bulk and wall reactions of any order; sources;
+  four tank mixing models. Bit-identical with OWA-EPANET's `EN_solveQ` on 14 quality networks, native and wasm
 - [ ] All EPANET reports, graphs and tables; time player
 - [ ] MapLibre basemap, CRS, backdrop images
 - [ ] GIS and DXF import and export; `.out` and `.rpt` writers

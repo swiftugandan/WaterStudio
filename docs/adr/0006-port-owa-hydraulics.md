@@ -54,3 +54,15 @@ the routines glibc uses (ADR 0003), every network in the corpus and both of our 
 every valve and pump type) is bit-identical to OWA-EPANET 2.3.5, natively and in WebAssembly. `ws-study`,
 `ws-parity` and `ws-wasm` now run `ws-solver`; `ws-hyd` remains as a benchmark (`ws-parity --reference`).
 Water quality (step 6) is Phase 2 work.
+
+## Outcome of step 6 (2026-10-11)
+
+Water quality is a port of `quality.c`, `qualroute.c` and `qualreact.c` inside `ws-solver` (module `quality`)
+rather than a separate `ws-qual` crate: it reads and writes the same `Project` state (tank concentrations, link
+rate coefficients, source mass) that EPANET's quality solver shares with its hydraulics. As `EN_solveQ` does, it
+routes over hydraulic solutions recorded during the hydraulic run at the hydraulics file's f32 precision, and it
+keeps EPANET's quirk of reading tank volumes as the hydraulic run left them. Only the fields routing reads are kept
+(demands, flows, statuses). Chemical, age and trace analyses, every reaction order, limiting potential, roughness
+correlation, all four source types and all four mixing models are bit-identical to OWA-EPANET 2.3.5 on the 14
+quality networks in the corpus and fixtures, natively and in WebAssembly.
+

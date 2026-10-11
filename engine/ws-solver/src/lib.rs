@@ -2,8 +2,8 @@
 // Derived from OWA-EPANET 2.3.5, Copyright (c) 2019 OWA-EPANET authors.
 // See LICENSES/OWA-EPANET.txt.
 
-//! WaterStudio's hydraulic engine: a function-by-function Rust port of OWA-EPANET
-//! 2.3.5's hydraulic solver (ADR 0006).
+//! WaterStudio's engine: a function-by-function Rust port of OWA-EPANET 2.3.5's
+//! hydraulic and water-quality solvers (ADR 0006).
 //!
 //! The port keeps EPANET's data layout (1-based arrays, junctions before tanks), its
 //! order of operations and its floating-point association, so results match the
@@ -11,7 +11,9 @@
 //! follow the C source so the two can be read side by side.
 //!
 //! [`Hydraulics`] steps a run the way `EN_openH`/`EN_initH`/`EN_runH`/`EN_nextH` do;
-//! [`solve_hydraulics`] runs a whole simulation and keeps the report periods.
+//! [`WaterQuality`] then routes quality over the recorded solutions as
+//! `EN_openQ`/`EN_initQ`/`EN_runQ`/`EN_nextQ` do; [`simulate`] runs both over a whole
+//! simulation and keeps the report periods.
 
 // The port mirrors the C source line for line. These lints would rewrite loops and
 // constants away from that shape without changing a single result.
@@ -30,6 +32,7 @@ mod hydraul;
 mod input;
 mod leakage;
 pub mod math;
+mod quality;
 mod rules;
 mod smatrix;
 mod solver;
@@ -52,6 +55,7 @@ pub struct Project {
     pub(crate) times: Times,
     pub(crate) units: Units,
     pub(crate) rules: Vec<rules::Rule>,
+    pub(crate) qual: quality::Quality,
     /// For each solver node index (1-based; entry 0 unused), its index in `Model::nodes`.
     pub(crate) node_order: Vec<usize>,
 }
@@ -60,6 +64,8 @@ pub struct Project {
 #[derive(Clone, Debug)]
 pub struct Hydraulics {
     pr: Project,
+    /// Solutions kept for a water-quality run (EPANET's hydraulics file).
+    records: Option<Vec<quality::HydRecord>>,
 }
 
 impl Hydraulics {
@@ -70,7 +76,46 @@ impl Hydraulics {
         hydraul::openhyd(&mut pr)?;
         leakage::openleakage(&mut pr);
         hydraul::inithyd(&mut pr, false);
-        Ok(Hydraulics { pr })
+        Ok(Hydraulics { pr, records: None })
+    }
+
+    /// Whether the model asks for a water-quality analysis (chemical, age or trace).
+    pub fn has_quality(&self) -> bool {
+        self.pr.qual.qualflag != QualType::None
+    }
+
+    /// Keep every hydraulic solution from now on, so [`Hydraulics::into_quality`] can
+    /// route water quality over them (`EN_initH` with `EN_SAVE`). Call before the
+    /// first [`Hydraulics::run`].
+    pub fn record_for_quality(&mut self) {
+        self.records = Some(Vec::new());
+    }
+
+    /// Initial qualities in user units: what EPANET reports for nodes when no quality
+    /// analysis runs.
+    pub fn initial_qualities(&self) -> Vec<f64> {
+        let u = self.ucf(Field::Quality);
+        self.pr.net.node[1..].iter().map(|n| n.c0 * u).collect()
+    }
+
+    /// After the hydraulic run has finished, start a water-quality run over the
+    /// recorded solutions (`EN_closeH`, `EN_openQ`, `EN_initQ`).
+    pub fn into_quality(self) -> Result<WaterQuality, SolverError> {
+        let Some(records) = self.records else {
+            return Err(SolverError::new(
+                104,
+                "no hydraulics recorded for a quality run",
+            ));
+        };
+        let mut pr = self.pr;
+        quality::openqual(&mut pr)
+            .map_err(|c| SolverError::new(c, "cannot open the quality solver"))?;
+        quality::initqual(&mut pr);
+        Ok(WaterQuality {
+            pr,
+            records,
+            next: 0,
+        })
     }
 
     /// Solve at the current time (`EN_runH`). Returns the current time in seconds.
@@ -82,7 +127,17 @@ impl Hydraulics {
     /// Advance to the next hydraulic event (`EN_nextH`). Returns the step taken in
     /// seconds; 0 when the simulation is over.
     pub fn advance(&mut self) -> i64 {
-        hydraul::nexthyd(&mut self.pr)
+        match &mut self.records {
+            Some(records) => {
+                // nexthyd saves the solution before it moves on, then the step.
+                let mut r = quality::savehyd(&self.pr, self.pr.times.htime);
+                let step = hydraul::nexthyd(&mut self.pr);
+                r.hydstep = step;
+                records.push(r);
+                step
+            }
+            None => hydraul::nexthyd(&mut self.pr),
+        }
     }
 
     /// Current simulation time in seconds.
@@ -273,10 +328,70 @@ impl Hydraulics {
     }
 }
 
+/// A water-quality run over a finished hydraulic run, stepped the way
+/// `EN_runQ`/`EN_nextQ` do.
+#[derive(Clone, Debug)]
+pub struct WaterQuality {
+    pr: Project,
+    records: Vec<quality::HydRecord>,
+    next: usize,
+}
+
+impl WaterQuality {
+    /// Load the hydraulic solution at the current time (`EN_runQ`). Returns the
+    /// current time in seconds.
+    pub fn run(&mut self) -> Result<i64, SolverError> {
+        let t = &self.pr.times;
+        if t.qtime == t.htime {
+            let r = self
+                .records
+                .get(self.next)
+                .ok_or_else(|| SolverError::new(307, "ran past the recorded hydraulics"))?
+                .clone();
+            self.next += 1;
+            quality::readhyd(&mut self.pr, &r);
+            self.pr.times.htime = r.htime;
+            if self.pr.times.htime >= self.pr.times.rtime {
+                self.pr.times.rtime += self.pr.times.rstep;
+            }
+            quality::runqual_update(&mut self.pr)
+                .map_err(|c| SolverError::new(c, "cannot order nodes by flow direction"))?;
+            self.pr.times.htime = r.htime + r.hydstep;
+        }
+        Ok(self.pr.times.qtime)
+    }
+
+    /// Route quality to the next hydraulic event (`EN_nextQ`). Returns the step taken
+    /// in seconds; 0 when the simulation is over.
+    pub fn advance(&mut self) -> i64 {
+        quality::nextqual(&mut self.pr)
+    }
+
+    /// Node qualities in user units: concentration, age in hours or percent traced.
+    pub fn node_qualities(&self) -> Vec<f64> {
+        let u = self.pr.units.ucf[Field::Quality as usize];
+        self.pr.qual.node_qual[1..].iter().map(|c| c * u).collect()
+    }
+
+    /// Average quality along each link, in user units.
+    pub fn link_qualities(&self) -> Vec<f64> {
+        let u = self.pr.units.ucf[Field::LinkQual as usize];
+        (1..=self.pr.net.nlinks)
+            .map(|k| quality::avgqual(&self.pr, k) * u)
+            .collect()
+    }
+
+    /// The system mass balance ratio (mass out / mass in); 1 is perfect.
+    pub fn mass_balance_ratio(&self) -> f64 {
+        self.pr.qual.mass.ratio
+    }
+}
+
 /// Results of a whole run at each report period, in the model's units. Series are
 /// indexed `[period][element]`; period k is at `report_start + k * report_step`.
+/// The quality series are empty when the model asks for no quality analysis.
 #[derive(Clone, Debug, Default)]
-pub struct HydraulicResults {
+pub struct SimulationResults {
     pub report_start: i64,
     pub report_step: i64,
     pub node_ids: Vec<String>,
@@ -284,15 +399,22 @@ pub struct HydraulicResults {
     pub heads: Vec<Vec<f64>>,
     pub demands: Vec<Vec<f64>>,
     pub flows: Vec<Vec<f64>>,
+    pub node_quality: Vec<Vec<f64>>,
+    pub link_quality: Vec<Vec<f64>>,
 }
 
-/// Run a model's hydraulics over its whole duration (`EN_solveH`), keeping the
-/// solution of each report period the way EPANET's output file does: a period
-/// takes the first solution at or after its time.
-pub fn solve_hydraulics(model: &Model) -> Result<HydraulicResults, SolverError> {
+/// Run a model over its whole duration as EPANET's `EN_solveH` then `EN_solveQ` do,
+/// keeping the solution of each report period the way EPANET's output file does: a
+/// period takes the first solution at or after its time. Water quality runs only when
+/// the model asks for it.
+pub fn simulate(model: &Model) -> Result<SimulationResults, SolverError> {
     let mut h = Hydraulics::new(model)?;
+    let quality = h.has_quality();
+    if quality {
+        h.record_for_quality();
+    }
     let (rstart, rstep) = (h.pr.times.rstart, h.pr.times.rstep);
-    let mut out = HydraulicResults {
+    let mut out = SimulationResults {
         report_start: rstart,
         report_step: rstep,
         node_ids: h.node_ids().map(str::to_string).collect(),
@@ -310,6 +432,21 @@ pub fn solve_hydraulics(model: &Model) -> Result<HydraulicResults, SolverError> 
         }
         if h.advance() <= 0 {
             break;
+        }
+    }
+    if quality {
+        let mut q = h.into_quality()?;
+        let mut rtime = rstart;
+        loop {
+            let t = q.run()?;
+            if t >= rtime {
+                out.node_quality.push(q.node_qualities());
+                out.link_quality.push(q.link_qualities());
+                rtime += rstep;
+            }
+            if q.advance() <= 0 {
+                break;
+            }
         }
     }
     Ok(out)

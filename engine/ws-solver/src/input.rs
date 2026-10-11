@@ -10,12 +10,13 @@
 use std::collections::HashMap;
 
 use ws_model::{
-    KeywordSection, LinkKind, Model, NodeKind, OpenClosed, PipeStatus, PumpCurve, ValveSetting,
-    ValveType, keyword_matches as m,
+    KeywordSection, LinkKind, MixModel as ModelMix, Model, NodeKind, OpenClosed, PipeStatus,
+    PumpCurve, SourceKind, ValveSetting, ValveType, keyword_matches as m,
 };
 
 use crate::Project;
 use crate::error::SolverError;
+use crate::quality::{AGETOL, CHEMTOL, DIFFUS, L_PER_FT3, MixModel, Source, SourceType};
 use crate::types::*;
 
 fn getfloat(s: &str) -> Option<f64> {
@@ -74,27 +75,18 @@ pub fn hour(time: &str, units: &str) -> f64 {
     -1.0
 }
 
-/// Option and quality settings that only matter while building.
+/// Option settings that only matter while building.
 pub struct Settings {
     pub def_pat_id: String,
-    pub qualflag: QualType,
-    pub ctol: f64,
-    pub diffus: f64,
-    pub kbulk: f64,
-    pub kwall: f64,
-    pub rfactor: f64,
+    /// The TRACE node's ID, resolved once nodes exist.
+    pub trace_id: Option<String>,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Settings {
             def_pat_id: "1".to_string(),
-            qualflag: QualType::None,
-            ctol: MISSING,
-            diffus: MISSING,
-            kbulk: 0.0,
-            kwall: 0.0,
-            rfactor: 0.0,
+            trace_id: None,
         }
     }
 }
@@ -201,7 +193,8 @@ fn option_choice(
             return Ok(true);
         }
         let t1 = tok[1].as_str();
-        set.qualflag = if m(t1, "NONE") {
+        let q = &mut pr.qual;
+        q.qualflag = if m(t1, "NONE") {
             QualType::None
         } else if m(t1, "CHEM") {
             QualType::Chem
@@ -210,8 +203,24 @@ fn option_choice(
         } else if m(t1, "TRACE") {
             QualType::Trace
         } else {
+            q.chem_name = t1.to_string();
+            if n >= 2 {
+                q.chem_units = tok[2].clone();
+            }
             QualType::Chem
         };
+        if q.qualflag == QualType::Trace {
+            if n < 2 {
+                return Err(err(201, "QUALITY TRACE needs a node"));
+            }
+            set.trace_id = Some(tok[2].clone());
+            q.chem_name = "%".into();
+            q.chem_units = tok[2].clone();
+        }
+        if q.qualflag == QualType::Age {
+            q.chem_name = "AGE".into();
+            q.chem_units = "hrs".into();
+        }
     } else if m(t0, "MAP") || m(t0, "VERI") {
     } else if m(t0, "UNBA") {
         if n < 1 {
@@ -281,7 +290,7 @@ fn atoi(s: &str) -> i32 {
 
 fn option_value(
     pr: &mut Project,
-    set: &mut Settings,
+    _set: &mut Settings,
     tok: &[String],
     n: usize,
 ) -> Result<(), SolverError> {
@@ -312,14 +321,14 @@ fn option_value(
         if y < 0.0 {
             return Err(bad());
         }
-        set.ctol = y;
+        pr.qual.ctol = y;
         return Ok(());
     }
     if m(t0, "DIFF") {
         if y < 0.0 {
             return Err(bad());
         }
-        set.diffus = y;
+        pr.qual.diffus = y;
         return Ok(());
     }
     if m(t0, "DAMPLIMIT") {
@@ -503,6 +512,23 @@ pub fn build(model: &Model) -> Result<Project, SolverError> {
             .ok_or_else(|| err(206, format!("undefined curve {id}")))
     };
 
+    let source = |s: &Option<ws_model::Source>| -> Result<Option<Source>, SolverError> {
+        Ok(match s {
+            None => None,
+            Some(s) => Some(Source {
+                kind: match s.kind {
+                    SourceKind::Concen => SourceType::Concen,
+                    SourceKind::Mass => SourceType::Mass,
+                    SourceKind::Setpoint => SourceType::Setpoint,
+                    SourceKind::FlowPaced => SourceType::FlowPaced,
+                },
+                c0: s.strength,
+                pat: pat(&s.pattern)?,
+                smass: 0.0,
+            }),
+        })
+    };
+
     options(&mut pr, &mut set, &model.options)?;
     times(&mut pr.times, &model.times)?;
 
@@ -528,21 +554,50 @@ pub fn build(model: &Model) -> Result<Project, SolverError> {
             }
         }
     }
-    // Global reaction settings that affect pipe and tank coefficients (reactdata).
+    // Global reaction settings (reactdata). Per-pipe and per-tank coefficients are
+    // already on the elements.
     for line in &model.reactions.lines {
         let t = &line.tokens;
         let n = t.len();
         if n < 3 {
             continue;
         }
-        let y = getfloat(&t[n - 1]).unwrap_or(0.0);
-        if m(&t[0], "ROUG") {
-            set.rfactor = y;
-        } else if m(&t[0], "GLOB") {
+        let num =
+            || getfloat(&t[n - 1]).ok_or_else(|| err(202, format!("illegal number {}", t[n - 1])));
+        let q = &mut pr.qual;
+        if m(&t[0], "ORDER") {
+            let y = num()?;
             if m(&t[1], "BULK") {
-                set.kbulk = y;
+                q.bulk_order = y;
+            } else if m(&t[1], "TANK") {
+                q.tank_order = y;
             } else if m(&t[1], "WALL") {
-                set.kwall = y;
+                if y == 0.0 || y == 1.0 {
+                    q.wall_order = y;
+                } else {
+                    return Err(err(
+                        213,
+                        format!("illegal wall reaction order {}", t[n - 1]),
+                    ));
+                }
+            } else {
+                return Err(err(213, format!("illegal reaction order keyword {}", t[1])));
+            }
+        } else if m(&t[0], "ROUG") {
+            q.rfactor = num()?;
+        } else if m(&t[0], "LIMIT") {
+            q.climit = num()?;
+        } else if m(&t[0], "GLOB") {
+            let y = num()?;
+            if m(&t[1], "BULK") {
+                q.kbulk = y;
+            } else if m(&t[1], "WALL") {
+                q.kwall = y;
+            } else {
+                return Err(err(
+                    213,
+                    format!("illegal GLOBAL reaction keyword {}", t[1]),
+                ));
             }
         }
     }
@@ -556,6 +611,7 @@ pub fn build(model: &Model) -> Result<Project, SolverError> {
         c0: 0.0,
         ke: 0.0,
         node_type: NodeType::Junction,
+        source: None,
     });
     pr.net.tank.push(Tank::default());
     pr.node_order.push(usize::MAX);
@@ -577,6 +633,7 @@ pub fn build(model: &Model) -> Result<Project, SolverError> {
                 c0: n.initial_quality.unwrap_or(0.0),
                 ke: j.emitter.unwrap_or(0.0),
                 node_type: NodeType::Junction,
+                source: source(&n.source)?,
             });
         }
     }
@@ -590,6 +647,7 @@ pub fn build(model: &Model) -> Result<Project, SolverError> {
                     h0: r.level,
                     pat: pat(&r.pattern)?,
                     kb: MISSING,
+                    v1frac: 1.0,
                     ..Tank::default()
                 },
                 NodeType::Reservoir,
@@ -617,6 +675,19 @@ pub fn build(model: &Model) -> Result<Project, SolverError> {
                             None => 0,
                         },
                         can_overflow: t.overflow == Some(true),
+                        // mixingdata: a zero fraction means 1, and only 2COMP uses it.
+                        mix_model: match t.mixing.as_ref().map(|x| x.model) {
+                            None | Some(ModelMix::Mixed) => MixModel::Mix1,
+                            Some(ModelMix::TwoComp) => MixModel::Mix2,
+                            Some(ModelMix::Fifo) => MixModel::Fifo,
+                            Some(ModelMix::Lifo) => MixModel::Lifo,
+                        },
+                        v1frac: match &t.mixing {
+                            Some(x) if x.model == ModelMix::TwoComp && x.fraction != 0.0 => {
+                                x.fraction
+                            }
+                            _ => 1.0,
+                        },
                         ..Tank::default()
                     },
                     NodeType::Tank,
@@ -633,11 +704,17 @@ pub fn build(model: &Model) -> Result<Project, SolverError> {
             c0: n.initial_quality.unwrap_or(0.0),
             ke: 0.0,
             node_type,
+            source: source(&n.source)?,
         });
         pr.net.tank.push(Tank { node: i, ..tank });
     }
     pr.net.nnodes = pr.net.node.len() - 1;
     pr.net.ntanks = pr.net.tank.len() - 1;
+    if let Some(id) = &set.trace_id {
+        pr.qual.trace_node = *node_index
+            .get(id.as_str())
+            .ok_or_else(|| err(212, format!("undefined trace node {id}")))?;
+    }
 
     // Links in file order.
     let mut link_index: HashMap<&str, usize> = HashMap::new();
@@ -657,6 +734,7 @@ pub fn build(model: &Model) -> Result<Project, SolverError> {
         link_type: LinkType::Pipe,
         init_status: Status::Open,
         init_setting: 0.0,
+        rc: 0.0,
     });
     pr.net.pump.push(Pump {
         link: 0,
@@ -699,6 +777,7 @@ pub fn build(model: &Model) -> Result<Project, SolverError> {
             link_type: LinkType::Pipe,
             init_status: Status::Open,
             init_setting: 0.0,
+            rc: 0.0,
         };
         match &l.kind {
             LinkKind::Pipe(p) => {
@@ -938,7 +1017,7 @@ fn parse_control(
 }
 
 /// `adjustdata` (input1.c).
-fn adjustdata(pr: &mut Project, set: &Settings, patterns: &HashMap<&str, usize>) {
+fn adjustdata(pr: &mut Project, set_: &Settings, patterns: &HashMap<&str, usize>) {
     let t = &mut pr.times;
     if t.pstep <= 0 {
         t.pstep = 3600;
@@ -966,6 +1045,14 @@ fn adjustdata(pr: &mut Project, set: &Settings, patterns: &HashMap<&str, usize>)
     }
     t.rulestep = t.rulestep.min(t.hstep);
     t.qstep = t.qstep.min(t.hstep);
+    let q = &mut pr.qual;
+    if q.ctol == MISSING {
+        q.ctol = if q.qualflag == QualType::Age {
+            AGETOL
+        } else {
+            CHEMTOL
+        };
+    }
 
     let u = &mut pr.units;
     u.unitsflag = match u.flowflag {
@@ -997,6 +1084,14 @@ fn adjustdata(pr: &mut Project, set: &Settings, patterns: &HashMap<&str, usize>)
     } else {
         hyd.viscos /= ucf;
     }
+    let q = &mut pr.qual;
+    if q.diffus == MISSING {
+        q.diffus = DIFFUS;
+    } else if q.diffus > 1.0e-4 {
+        q.diffus *= DIFFUS;
+    } else {
+        q.diffus /= ucf;
+    }
     hyd.hexp = if hyd.formflag == Formula::Hw {
         1.852
     } else {
@@ -1004,6 +1099,7 @@ fn adjustdata(pr: &mut Project, set: &Settings, patterns: &HashMap<&str, usize>)
     };
 
     let formflag = hyd.formflag;
+    let set = &pr.qual;
     for link in pr.net.link.iter_mut().skip(1) {
         if link.link_type > LinkType::Pipe {
             continue;
@@ -1030,7 +1126,7 @@ fn adjustdata(pr: &mut Project, set: &Settings, patterns: &HashMap<&str, usize>)
             tank.kb = set.kbulk;
         }
     }
-    if let Some(&i) = patterns.get(set.def_pat_id.as_str())
+    if let Some(&i) = patterns.get(set_.def_pat_id.as_str())
         && i > 0
     {
         pr.hyd.def_pat = i;
@@ -1124,7 +1220,11 @@ fn initunits(pr: &mut Project) {
         PressUnits::Feet => 1.0,
         _ => PSI_PER_FT * sg,
     };
-    let ccf = 1.0; // quality conversion is applied by the quality engine
+    let ccf = if pr.qual.qualflag == QualType::Chem {
+        1.0 / L_PER_FT3
+    } else {
+        1.0
+    };
     let f = &mut u.ucf;
     f[Field::Demand as usize] = qcf;
     f[Field::Elev as usize] = hcf;
@@ -1193,6 +1293,11 @@ fn convertunits(pr: &mut Project) {
     }
     hyd.flow_change_limit /= u(Field::Flow);
     hyd.head_error_limit /= u(Field::Head);
+    let q = &mut pr.qual;
+    q.climit /= u(Field::Quality);
+    q.ctol /= u(Field::Quality);
+    q.kbulk /= SECPERDAY as f64;
+    q.kwall /= SECPERDAY as f64;
 
     let formflag = hyd.formflag;
     for link in net.link.iter_mut().skip(1) {

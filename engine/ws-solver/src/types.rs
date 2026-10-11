@@ -94,6 +94,25 @@ pub enum Status {
     Overflowing = 10,
 }
 
+impl Status {
+    /// The status for its numeric code, as EPANET's hydraulics file stores it.
+    pub fn from_code(c: i8) -> Status {
+        match c {
+            0 => Status::XHead,
+            1 => Status::TempClosed,
+            2 => Status::Closed,
+            3 => Status::Open,
+            4 => Status::Active,
+            5 => Status::XFlow,
+            6 => Status::XFcv,
+            7 => Status::XPressure,
+            8 => Status::Filling,
+            9 => Status::Emptying,
+            _ => Status::Overflowing,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NodeType {
     Junction,
@@ -208,6 +227,7 @@ pub struct Node {
     pub c0: f64,
     pub ke: f64,
     pub node_type: NodeType,
+    pub source: Option<crate::quality::Source>,
 }
 
 #[derive(Clone, Debug)]
@@ -227,6 +247,8 @@ pub struct Link {
     pub link_type: LinkType,
     pub init_status: Status,
     pub init_setting: f64,
+    /// Wall reaction rate coefficient for the current flow (`Rc`).
+    pub rc: f64,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -245,6 +267,9 @@ pub struct Tank {
     pub pat: usize,
     pub vcurve: usize,
     pub can_overflow: bool,
+    pub mix_model: crate::quality::MixModel,
+    /// Mixing-compartment volume fraction (`V1frac`).
+    pub v1frac: f64,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -365,6 +390,7 @@ pub struct Times {
     pub rtime: i64,
     pub htime: i64,
     pub hydstep: i64,
+    pub qtime: i64,
     pub qstep: i64,
     pub rulestep: i64,
     pub dur: i64,
@@ -383,6 +409,7 @@ impl Default for Times {
             rtime: 0,
             htime: 0,
             hydstep: 0,
+            qtime: 0,
             qstep: 0,
             rulestep: 0,
             dur: 0,

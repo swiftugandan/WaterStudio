@@ -4,11 +4,13 @@
 For each .inp file this runs, each in its own process:
   * OWA-EPANET's toolkit (libepanet2 from oracle/build.sh) -> full-precision JSON
   * the engine under test (ws-parity or its WebAssembly wrapper) -> full-precision JSON
-and compares heads, demands and flows at every report period, matching elements by ID.
+and compares heads, demands, flows and water quality at every report period, matching
+elements by ID.
 
-The reference is driven exactly as runepanet drives it (EN_openH, EN_initH, then
-EN_runH/EN_nextH to the end), and a report period takes the first solution at or after
-its time, as EPANET's output file does. Values are read in double precision through
+The reference is driven exactly as runepanet drives it (EN_openH, EN_initH saving the
+hydraulics, EN_runH/EN_nextH to the end; then, when the network has a quality analysis,
+EN_openQ, EN_initQ and EN_runQ/EN_nextQ over the saved hydraulics), and a report period
+takes the first solution at or after its time, as EPANET's output file does. Values are read in double precision through
 the toolkit rather than from the binary output file, which stores 32-bit floats and
 would hide differences below about 1e-7 relative.
 
@@ -34,6 +36,8 @@ import tempfile
 HEAD_ATOL_FT = 1e-3          # 0.001 ft, converted to metres for SI networks
 FLOW_RTOL = 1e-4             # 0.01 % of the larger flow magnitude...
 FLOW_ATOL_FLOOR = 1e-3       # ...or this, in the network's flow units, near zero flow
+QUAL_RTOL = 1e-4             # 0.01 % of the quality value...
+QUAL_ATOL_FLOOR = 1e-3       # ...or this, in the network's quality units, near zero
 TIMEOUT_S = 300
 
 # Keep glibc on its portable pow/exp/log (see the module docstring).
@@ -43,6 +47,8 @@ EN_NODECOUNT, EN_LINKCOUNT = 0, 2
 EN_REPORTSTEP, EN_REPORTSTART = 5, 6
 EN_DEMAND, EN_HEAD = 9, 10
 EN_FLOW = 8
+EN_QUALITY, EN_LINKQUAL = 12, 14
+EN_SAVE = 1
 SI_FLOW_UNITS = set(range(5, 11))  # LPS, LPM, MLD, CMH, CMD, CMS
 
 
@@ -74,7 +80,8 @@ def dump_reference(epanet_dir, inp, out_path):
         links.append(buf.value.decode("latin-1"))
     res = {"nodes": nodes, "links": links, "si": units.value in SI_FLOW_UNITS,
            "report_start": rstart.value, "report_step": rstep.value,
-           "times": [], "heads": [], "demands": [], "flows": []}
+           "times": [], "heads": [], "demands": [], "flows": [],
+           "quality_times": [], "node_quality": [], "link_quality": []}
     v = ctypes.c_double()
 
     def node_values(code):
@@ -84,9 +91,16 @@ def dump_reference(epanet_dir, inp, out_path):
             out.append(v.value)
         return out
 
+    def link_values(code):
+        out = []
+        for i in range(1, nl.value + 1):
+            lib.EN_getlinkvalue(ph, i, code, ctypes.byref(v))
+            out.append(v.value)
+        return out
+
     code = lib.EN_openH(ph)
     if code <= 100:
-        code = lib.EN_initH(ph, 0)
+        code = lib.EN_initH(ph, EN_SAVE)
     t, tstep = ctypes.c_long(), ctypes.c_long()
     rtime = rstart.value
     while code <= 100:
@@ -97,17 +111,35 @@ def dump_reference(epanet_dir, inp, out_path):
             res["times"].append(t.value)
             res["heads"].append(node_values(EN_HEAD))
             res["demands"].append(node_values(EN_DEMAND))
-            flows = []
-            for i in range(1, nl.value + 1):
-                lib.EN_getlinkvalue(ph, i, EN_FLOW, ctypes.byref(v))
-                flows.append(v.value)
-            res["flows"].append(flows)
+            res["flows"].append(link_values(EN_FLOW))
             rtime += rstep.value
         code = lib.EN_nextH(ph, ctypes.byref(tstep))
         if tstep.value <= 0:
             break
     if code > 100:
         res["error"] = f"hydraulics error {code}"
+    lib.EN_closeH(ph)
+    qual_type, trace_node = ctypes.c_int(), ctypes.c_int()
+    lib.EN_getqualtype(ph, ctypes.byref(qual_type), ctypes.byref(trace_node))
+    if code <= 100 and qual_type.value != 0:
+        code = lib.EN_openQ(ph)
+        if code <= 100:
+            code = lib.EN_initQ(ph, 0)
+        rtime = rstart.value
+        while code <= 100:
+            code = lib.EN_runQ(ph, ctypes.byref(t))
+            if code > 100:
+                break
+            if t.value >= rtime:
+                res["quality_times"].append(t.value)
+                res["node_quality"].append(node_values(EN_QUALITY))
+                res["link_quality"].append(link_values(EN_LINKQUAL))
+                rtime += rstep.value
+            code = lib.EN_nextQ(ph, ctypes.byref(tstep))
+            if tstep.value <= 0:
+                break
+        if code > 100:
+            res["error"] = f"quality error {code}"
     with open(out_path, "w") as f:
         json.dump(res, f)
 
@@ -155,8 +187,13 @@ def compare_one(inp, args, work):
     if missing:
         return {**row, "status": "id-mismatch", "detail": ", ".join(missing[:5])}
 
-    worst = {"head": (0.0, None), "demand": (0.0, None), "flow": (0.0, None)}
-    fails = {"head": 0, "demand": 0, "flow": 0}
+    worst = {k: (0.0, None) for k in ("head", "demand", "flow", "quality")}
+    fails = {k: 0 for k in ("head", "demand", "flow", "quality")}
+    has_quality = bool(ref.get("quality_times"))
+    if has_quality and len(rs.get("node_quality", [])) != len(ref["quality_times"]):
+        return {**row, "status": "period-mismatch",
+                "detail": f"reference {len(ref['quality_times'])} quality periods, "
+                          f"engine {len(rs.get('node_quality', []))}"}
     inexact = 0
     total = 0
     for p, t in enumerate(ref["times"]):
@@ -174,6 +211,15 @@ def compare_one(inp, args, work):
             checks.append(("demand", n, ref["demands"][p][i], rs["demands"][k][j]))
         for i, l in enumerate(links):
             checks.append(("flow", l, ref["flows"][p][i], rs["flows"][k][rs_link[l]]))
+        if has_quality:
+            # Quality periods are the hydraulic periods: both take the first solution at
+            # or after each report time.
+            if ref["quality_times"][p] != t:
+                return {**row, "status": "step-mismatch", "detail": "quality periods differ"}
+            for i, n in enumerate(nodes):
+                checks.append(("quality", n, ref["node_quality"][p][i], rs["node_quality"][k][rs_node[n]]))
+            for i, l in enumerate(links):
+                checks.append(("quality", l, ref["link_quality"][p][i], rs["link_quality"][k][rs_link[l]]))
         for key, name, refv, rsv in checks:
             total += 1
             if rsv is None or not math.isfinite(rsv):
@@ -182,7 +228,12 @@ def compare_one(inp, args, work):
                 err = abs(rsv - refv)
             if rsv != refv:
                 inexact += 1
-            tol = head_atol if key == "head" else max(FLOW_ATOL_FLOOR, FLOW_RTOL * abs(refv))
+            if key == "head":
+                tol = head_atol
+            elif key == "quality":
+                tol = max(QUAL_ATOL_FLOOR, QUAL_RTOL * abs(refv))
+            else:
+                tol = max(FLOW_ATOL_FLOOR, FLOW_RTOL * abs(refv))
             if err > worst[key][0]:
                 worst[key] = (err, f"{name} @ {when}")
             if err > tol:
@@ -196,6 +247,8 @@ def compare_one(inp, args, work):
         "max_head_err": worst["head"][0], "at_head": worst["head"][1],
         "max_demand_err": worst["demand"][0], "at_demand": worst["demand"][1],
         "max_flow_err": worst["flow"][0], "at_flow": worst["flow"][1],
+        "quality": has_quality,
+        "max_quality_err": worst["quality"][0], "at_quality": worst["quality"][1],
         "fail_counts": fails, "values": total, "inexact_values": inexact,
         "exact": inexact == 0,
     })
@@ -234,7 +287,9 @@ def main():
             if r["status"] in ("ok", "out-of-tolerance"):
                 exact = "exact" if r["exact"] else f"{r['inexact_values']}/{r['values']} differ"
                 print(f"{r['status']:17} {short}  {exact}  head {r['max_head_err']:.2e} ({r['at_head']})  "
-                      f"flow {r['max_flow_err']:.2e} ({r['at_flow']})  fails {r['fail_counts']}")
+                      f"flow {r['max_flow_err']:.2e} ({r['at_flow']})"
+                      + (f"  quality {r['max_quality_err']:.2e} ({r['at_quality']})" if r["quality"] else "")
+                      + f"  fails {r['fail_counts']}")
             else:
                 print(f"{r['status']:17} {short}  {r.get('detail', '')}")
             sys.stdout.flush()

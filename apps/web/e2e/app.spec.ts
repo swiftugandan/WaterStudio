@@ -58,6 +58,9 @@ test('opens Net1, runs it, and shows EPANET-identical results', async ({ page })
   await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Results' }).click();
   await page.getByRole('slider', { name: 'Report time' }).fill('12');
   await expect(page.getByTestId('report-time')).toHaveText('12:00');
+  // Net1 models chlorine; OWA-EPANET gives node 22 0.568 mg/L at 12:00.
+  await expect(page.locator('.results .grid-header')).toContainText('Quality mg/L');
+  await expect(page.locator('.results .grid-row', { hasText: /^22/ }).first()).toContainText('0.57');
   // No renderer errors, whichever backend runs.
   const errors = await ws(page, (w) =>
     w.state.messages.filter((m) => m.level === 'error').map((m) => m.text),

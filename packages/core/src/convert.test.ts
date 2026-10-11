@@ -158,12 +158,27 @@ describe('model conversion', () => {
 
   it('reads the unit system from the options', () => {
     const u = unitSystem(MODEL.options);
-    expect(u).toEqual({ flow: 'LPS', si: true, headloss: 'D-W', pressure: 'METERS' });
+    expect(u).toEqual({
+      flow: 'LPS',
+      si: true,
+      headloss: 'D-W',
+      pressure: 'METERS',
+      quality: { kind: 'none', name: '', units: '' },
+    });
     expect(unitLabel('diameter', u)).toBe('mm');
     expect(unitLabel('roughness', u)).toBe('mm');
     const us = unitSystem(section([]));
     expect(us.flow).toBe('GPM');
     expect(unitLabel('pressure', us)).toBe('psi');
     expect(unitSystem(section([['UNITS', 'si']])).flow).toBe('LPS');
+  });
+
+  it('reads the quality analysis and labels quality in its units', () => {
+    const q = (...t: string[]) => unitSystem(section([['QUALITY', ...t]]));
+    expect(q('Chlorine', 'ug/L').quality).toEqual({ kind: 'chemical', name: 'Chlorine', units: 'ug/L' });
+    expect(q('chem').quality.units).toBe('mg/L');
+    expect(unitLabel('concentration', q('Age'))).toBe('hrs');
+    expect(q('Trace', 'R1').quality).toEqual({ kind: 'trace', name: 'Trace R1', units: '%' });
+    expect(q('None').quality.kind).toBe('none');
   });
 });

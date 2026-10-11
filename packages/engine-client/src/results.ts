@@ -4,8 +4,24 @@
  * where `i` is the element's position among the model's nodes (links likewise).
  */
 
-export const NODE_VARIABLES = ['demand', 'head', 'pressure', 'deficit', 'emitter', 'leakage'] as const;
-export const LINK_VARIABLES = ['flow', 'velocity', 'headloss', 'status', 'setting', 'leakage'] as const;
+export const NODE_VARIABLES = [
+  'demand',
+  'head',
+  'pressure',
+  'deficit',
+  'emitter',
+  'leakage',
+  'quality',
+] as const;
+export const LINK_VARIABLES = [
+  'flow',
+  'velocity',
+  'headloss',
+  'status',
+  'setting',
+  'leakage',
+  'quality',
+] as const;
 export type NodeVariable = (typeof NODE_VARIABLES)[number];
 export type LinkVariable = (typeof LINK_VARIABLES)[number];
 

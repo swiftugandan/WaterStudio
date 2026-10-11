@@ -13,11 +13,26 @@ export type FlowUnits = (typeof US_FLOW_UNITS)[number] | (typeof SI_FLOW_UNITS)[
 export type HeadlossFormula = 'H-W' | 'D-W' | 'C-M';
 export type PressureUnits = 'PSI' | 'KPA' | 'METERS' | 'BAR' | 'FEET';
 
+export type QualityKind = 'none' | 'chemical' | 'age' | 'trace';
+
 export interface UnitSystem {
   flow: FlowUnits;
   si: boolean;
   headloss: HeadlossFormula;
   pressure: PressureUnits;
+  /** The water-quality analysis and the units its values are in (QUALITY option). */
+  quality: { kind: QualityKind; name: string; units: string };
+}
+
+/** The QUALITY option as EPANET reads it (`optionchoice`, input3.c). */
+export function qualityOf(options: KeywordSection): UnitSystem['quality'] {
+  const t = sectionGet(options, ['QUALITY']);
+  const t1 = t?.[0];
+  if (!t1 || keywordMatches(t1, 'NONE')) return { kind: 'none', name: '', units: '' };
+  if (keywordMatches(t1, 'AGE')) return { kind: 'age', name: 'Age', units: 'hrs' };
+  if (keywordMatches(t1, 'TRACE')) return { kind: 'trace', name: `Trace ${t[1] ?? ''}`.trim(), units: '%' };
+  if (keywordMatches(t1, 'CHEM')) return { kind: 'chemical', name: 'Chemical', units: 'mg/L' };
+  return { kind: 'chemical', name: t1, units: t[1] ?? 'mg/L' };
 }
 
 /** EPANET's keyword match: case-insensitive, and the token need only begin with the keyword. */
@@ -64,7 +79,7 @@ export function unitSystem(options: KeywordSection): UnitSystem {
   if (p) {
     for (const k of ['PSI', 'KPA', 'METERS', 'BAR', 'FEET'] as const) if (keywordMatches(p, k)) pressure = k;
   }
-  return { flow, si, headloss, pressure };
+  return { flow, si, headloss, pressure, quality: qualityOf(options) };
 }
 
 const FLOW_LABEL: Record<FlowUnits, string> = {
@@ -116,7 +131,7 @@ export function unitLabel(q: Quantity, u: UnitSystem): string {
     case 'emitter':
       return `${FLOW_LABEL[u.flow]}/${PRESSURE_LABEL[u.pressure]}^½`;
     case 'concentration':
-      return 'mg/L';
+      return u.quality.kind === 'none' ? 'mg/L' : u.quality.units;
     case 'bulkRate':
       return '1/d';
     case 'wallRate':

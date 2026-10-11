@@ -25,6 +25,11 @@ pub struct HydraulicReport {
     pub heads: Vec<Vec<f64>>,
     pub demands: Vec<Vec<f64>>,
     pub flows: Vec<Vec<f64>>,
+    /// Node and link water quality, empty when the network has no quality analysis.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub node_quality: Vec<Vec<f64>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub link_quality: Vec<Vec<f64>>,
 }
 
 /// Read INP text and solve its hydraulics with WaterStudio's engine.
@@ -41,7 +46,7 @@ pub fn run_hydraulics_inp(text: &str) -> Result<HydraulicReport, String> {
 
 /// Solve a model's hydraulics over its whole duration with WaterStudio's engine.
 pub fn run_hydraulics(model: &ws_model::Model) -> Result<HydraulicReport, String> {
-    let r = ws_solver::solve_hydraulics(model).map_err(|e| e.to_string())?;
+    let r = ws_solver::simulate(model).map_err(|e| e.to_string())?;
     Ok(HydraulicReport {
         engine: concat!("waterstudio-engine ", env!("CARGO_PKG_VERSION")),
         report_start: r.report_start,
@@ -51,6 +56,8 @@ pub fn run_hydraulics(model: &ws_model::Model) -> Result<HydraulicReport, String
         heads: r.heads,
         demands: r.demands,
         flows: r.flows,
+        node_quality: r.node_quality,
+        link_quality: r.link_quality,
     })
 }
 
@@ -75,6 +82,8 @@ pub fn run_hydraulics_reference(text: &str) -> Result<HydraulicReport, String> {
         heads: result.heads,
         demands,
         flows: result.flows,
+        node_quality: Vec::new(),
+        link_quality: Vec::new(),
     })
 }
 

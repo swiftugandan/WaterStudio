@@ -6,14 +6,16 @@ use serde::Serialize;
 use ws_solver::Hydraulics;
 
 /// Node result variables, in column order.
-pub const NODE_VARIABLES: [&str; 6] = [
-    "demand", "head", "pressure", "deficit", "emitter", "leakage",
+pub const NODE_VARIABLES: [&str; 7] = [
+    "demand", "head", "pressure", "deficit", "emitter", "leakage", "quality",
 ];
 /// Link result variables, in column order. `status` holds EPANET's internal status
 /// codes (0 XHEAD .. 10 OVERFLOWING).
-pub const LINK_VARIABLES: [&str; 6] = [
-    "flow", "velocity", "headloss", "status", "setting", "leakage",
+pub const LINK_VARIABLES: [&str; 7] = [
+    "flow", "velocity", "headloss", "status", "setting", "leakage", "quality",
 ];
+const NODE_QUALITY: usize = 6;
+const LINK_QUALITY: usize = 6;
 
 /// Results of a run. Column `v` of `nodes` holds variable `NODE_VARIABLES[v]` for every
 /// period: `nodes[v][period * node_count + i]` is node `i` of the model.
@@ -35,10 +37,26 @@ impl RunResults {
     }
 }
 
-/// Solve a model's hydraulics over its whole duration, keeping each report period the
-/// way EPANET's output file does.
+/// Put solver-ordered node values into a column in model order.
+fn push_nodes(col: &mut Vec<f32>, values: Vec<f64>, order: &[usize]) {
+    let start = col.len();
+    col.resize(start + order.len(), 0.0);
+    for (solver_i, v) in values.into_iter().enumerate() {
+        if let Some(&mi) = order.get(solver_i) {
+            col[start + mi] = v as f32;
+        }
+    }
+}
+
+/// Solve a model's hydraulics, then its water quality, over the whole duration,
+/// keeping each report period the way EPANET's output file does (`EN_solveH`, then
+/// `EN_solveQ` over the saved hydraulics).
 pub fn run_model(model: &ws_model::Model) -> Result<RunResults, String> {
     let mut h = Hydraulics::new(model).map_err(|e| e.to_string())?;
+    let quality = h.has_quality();
+    if quality {
+        h.record_for_quality();
+    }
     let (rstart, rstep, _) = h.report_times();
     let order: Vec<usize> = h.node_model_index().to_vec();
     let (nn, nl) = (h.node_count(), h.link_count());
@@ -65,13 +83,13 @@ pub fn run_model(model: &ws_model::Model) -> Result<RunResults, String> {
                 h.node_leakages(),
             ];
             for (col, values) in out.nodes.iter_mut().zip(node_cols) {
-                let start = col.len();
-                col.resize(start + nn, 0.0);
-                for (solver_i, v) in values.into_iter().enumerate() {
-                    if let Some(&mi) = order.get(solver_i) {
-                        col[start + mi] = v as f32;
-                    }
-                }
+                push_nodes(col, values, &order);
+            }
+            if !quality {
+                // Without a quality analysis EPANET reports initial quality at nodes
+                // and zero in links.
+                push_nodes(&mut out.nodes[NODE_QUALITY], h.initial_qualities(), &order);
+                out.links[LINK_QUALITY].extend(std::iter::repeat_n(0.0, nl));
             }
             let status: Vec<f64> = h.statuses().into_iter().map(|s| s as u8 as f64).collect();
             let link_cols = [
@@ -89,6 +107,21 @@ pub fn run_model(model: &ws_model::Model) -> Result<RunResults, String> {
         }
         if h.advance() <= 0 {
             break;
+        }
+    }
+    if quality {
+        let mut q = h.into_quality().map_err(|e| e.to_string())?;
+        let mut rtime = rstart;
+        loop {
+            let t = q.run().map_err(|e| e.to_string())?;
+            if t >= rtime {
+                push_nodes(&mut out.nodes[NODE_QUALITY], q.node_qualities(), &order);
+                out.links[LINK_QUALITY].extend(q.link_qualities().into_iter().map(|v| v as f32));
+                rtime += rstep;
+            }
+            if q.advance() <= 0 {
+                break;
+            }
         }
     }
     Ok(out)
@@ -180,7 +213,7 @@ mod tests {
         let header: serde_json::Value = serde_json::from_slice(&bytes[4..4 + hlen]).unwrap();
         assert_eq!(header["nodeCount"], 3);
         let start = (4 + hlen).div_ceil(4) * 4;
-        let n_values = 6 * 3 * 3 + 6 * 2 * 3;
+        let n_values = 7 * 3 * 3 + 7 * 2 * 3;
         assert_eq!(bytes.len(), start + 4 * n_values);
         let head0 = f32::from_le_bytes(bytes[start + 4 * 9..start + 4 * 10].try_into().unwrap());
         assert_eq!(head0, 200.0);

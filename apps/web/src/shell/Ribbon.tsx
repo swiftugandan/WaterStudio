@@ -197,6 +197,7 @@ const VAR_LABEL: Record<string, string> = {
   headloss: 'Unit head loss',
   status: 'Status',
   setting: 'Setting',
+  quality: 'Quality',
 };
 
 function MapTheme() {

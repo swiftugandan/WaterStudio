@@ -126,7 +126,7 @@ The engine is a Cargo workspace that reproduces EPANET 2.3's algorithms step for
 | ws-sparse | SparseSolver trait over faer: symbolic Cholesky with AMD ordering once per topology, numeric factorisation each iteration; dense reference solver for tests |
 | ws-hyd | Global Gradient Algorithm (Todini and Pilati), from epanet-rs: headloss formulas, minor losses, pumps, all valve types including PCV, check valves, DDA and PDA, FAVAD leakage, emitters, tanks, simple controls, rules, time stepping |
 | ws-energy | Pump energy, efficiency, cost and demand charge, as in the energy report |
-| ws-qual | Lagrangian time-driven segment method: chemical, age, trace; bulk and wall kinetics with mass transfer; complete-mix, two-compartment, FIFO and LIFO tanks |
+| ws-qual | (in ws-solver, ADR 0006) Lagrangian time-driven segment method: chemical, age, trace; bulk and wall kinetics with mass transfer; complete-mix, two-compartment, FIFO and LIFO tanks |
 | ws-msx | MSX 2.0: expression compiler to a bytecode VM (no eval, CSP-safe), Euler, adaptive RK5 and Rosenbrock integrators, Newton for equilibrium species, dispersion |
 | ws-study | Fire flow, criticality, isolation segments, Monte Carlo, calibration (Levenberg-Marquardt), pipe sizing search, run reports and hashes |
 | ws-wasm | The only crate with unsafe: ws\_alloc, ws\_free, ws\_call over binary envelopes |

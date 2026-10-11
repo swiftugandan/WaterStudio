@@ -1,0 +1,73 @@
+[TITLE]
+WaterStudio quality fixture: water age with every mixing model
+
+[OPTIONS]
+ Units              GPM
+ Headloss           H-W
+ Quality            Age
+ Tolerance          0.1
+
+[TIMES]
+ Duration           48:00
+ Hydraulic Timestep 1:00
+ Quality Timestep   0:03
+ Pattern Timestep   3:00
+ Report Timestep    2:00
+
+[JUNCTIONS]
+;;ID  Elev  Demand  Pattern
+ J1    20    150    Day
+ J2    18    100    Day
+ J3    15    120    Night
+ J4    12    80    Day
+ J5    16    0
+ J6    14    60    Night
+ J7    10    40
+
+[RESERVOIRS]
+ W     40
+
+[TANKS]
+ TA    45    3   0.5  6   12   0
+ TB    42    2   0    5   8    0
+ TC    44    1   0.2  4   6    0
+
+[PIPES]
+ 1   W   J5  50    16  110  0  Open
+ 2   J1  J2  400   10  110  0  Open
+ 3   J2  J3  400   10  110  0  Open
+ 4   J3  J4  300   6 110 0  Open
+ 5   J4  J1  500   6 110 0  Open
+ 6   J2  TA  200   10  110  0  Open
+ 7   J4  TB  250   10  110  0  Open
+ 8   J3  J6  300   6 110 0  Open
+ 9   J6  J7  300   6 110 0  Open
+ 10  J7  TC  150   6 110 0  Open
+ 11  J6  J4  350   6 110 0  Open
+
+[PUMPS]
+ PU  J5  J1  HEAD Curve  PATTERN Run
+
+[PATTERNS]
+ Day    0.5 0.8 1.4 1.2 1.0 1.3 0.9 0.4
+ Night  1.5 1.2 0.5 0.3 0.6 0.8 1.2 1.6
+ Run    1 1 1 0 0 1 1 0
+ Pulse  0 1 3 0 2 0 1 0
+
+[CURVES]
+ Curve  600 30
+
+[QUALITY]
+ TA  24
+ TB  12
+
+[SOURCES]
+
+[REACTIONS]
+
+[MIXING]
+ TA  LIFO
+ TB  FIFO
+ TC  2COMP 0.4
+
+[END]
