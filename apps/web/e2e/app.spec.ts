@@ -170,6 +170,16 @@ test('graphs results over time, along a path and as a distribution', async ({ pa
   const series = page.locator('.panel.graph figure').first();
   await expect(series.locator('figcaption')).toContainText('Pressure: 10, 22');
   await expect(series.getByRole('img')).toBeVisible();
+  // Graph options: a title and axis limits of one's own.
+  const graph = page.locator('.panel.graph').first();
+  await graph.getByRole('button', { name: 'Options' }).click();
+  await graph.getByLabel('Title').fill('Pressure at two junctions');
+  await graph.getByLabel('Y from').fill('100');
+  await graph.getByLabel('Y to').fill('140');
+  await graph.getByLabel('Y to').blur();
+  await expect(series.locator('figcaption')).toHaveText('Pressure at two junctions');
+  const yLabels = await series.locator('.chart-axis text[text-anchor="end"]').allTextContents();
+  expect([yLabels[0], yLabels.at(-1)]).toEqual(['100', '140']);
   await page.locator('.panel.graph').first().getByRole('button', { name: 'Table' }).click();
   // Net1 reports 25 periods.
   await expect(series.locator('tbody tr')).toHaveCount(25);

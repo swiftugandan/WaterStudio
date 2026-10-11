@@ -76,7 +76,7 @@ splitters need dragging; panels can be closed, reopened and tabbed instead). EPA
 
 Gate: MSX examples within tolerance; all performance budgets met; agent evaluation baseline recorded.
 
-- [ ] Graph options: titles, axis ranges, series colours (the last EPANET GUI function)
+- [x] Graph options: title, axis limits, grid lines (the last EPANET GUI function)
 
 - [ ] EPANET-MSX (`ws-msx`)
 - [ ] Scenario manager; fire flow, criticality, isolation segments

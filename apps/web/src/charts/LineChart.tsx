@@ -32,6 +32,27 @@ export interface LineChartProps {
   step?: boolean;
   /** Show the data as a table instead of the plot. */
   table?: boolean;
+  /** Axis limits set by hand; anything left out follows the data. */
+  range?: { xMin?: number; xMax?: number; yMin?: number; yMax?: number };
+  /** Draw grid lines (default true). */
+  grid?: boolean;
+}
+
+/** Nice ticks over the data, with any limit set by hand kept exactly. */
+function axisTicks(data: [number, number], lo: number | undefined, hi: number | undefined, count: number) {
+  const a = lo ?? data[0];
+  const b = hi ?? data[1];
+  const t = niceTicks(Math.min(a, b), Math.max(a, b), count);
+  if (lo === undefined && hi === undefined) return t;
+  const min = lo ?? t.min;
+  const max = hi ?? t.max;
+  if (!(max > min)) return t;
+  return {
+    ...t,
+    min,
+    max,
+    values: t.values.filter((v) => v >= min - 1e-9 * t.step && v <= max + 1e-9 * t.step),
+  };
 }
 
 const M = { left: 60, right: 26, top: 10, bottom: 38 };
@@ -83,6 +104,8 @@ export function LineChart({
   marker,
   step = false,
   table = false,
+  range,
+  grid = true,
 }: LineChartProps) {
   const box = useRef<HTMLDivElement>(null);
   const [w, h] = useSize(box);
@@ -96,13 +119,11 @@ export function LineChart({
       for (let i = 0; i < s.x.length; i++) xs.push(s.x[i]!);
       for (let i = 0; i < s.y.length; i++) ys.push(s.y[i]!);
     }
-    const [x0, x1] = extent(xs);
-    const [y0, y1] = extent(ys);
     return {
-      xt: niceTicks(x0, x1, Math.max(2, Math.floor(w / 90))),
-      yt: niceTicks(y0, y1, Math.max(2, Math.floor(h / 50))),
+      xt: axisTicks(extent(xs), range?.xMin, range?.xMax, Math.max(2, Math.floor(w / 90))),
+      yt: axisTicks(extent(ys), range?.yMin, range?.yMax, Math.max(2, Math.floor(h / 50))),
     };
-  }, [series, w, h]);
+  }, [series, w, h, range]);
 
   const pw = w - M.left - M.right;
   const ph = h - M.top - M.bottom;
@@ -176,7 +197,12 @@ export function LineChart({
             onPointerMove={onMove}
             onPointerLeave={() => setHover(null)}
           >
-            <g className="chart-grid">
+            <defs>
+              <clipPath id={`${id}-clip`}>
+                <rect x={M.left} y={M.top} width={Math.max(0, pw)} height={Math.max(0, ph)} />
+              </clipPath>
+            </defs>
+            <g className="chart-grid" display={grid ? undefined : 'none'}>
               {yt.values.map((v) => (
                 <line key={`y${v}`} x1={M.left} x2={M.left + pw} y1={sy(v)} y2={sy(v)} />
               ))}
@@ -211,27 +237,29 @@ export function LineChart({
             {marker !== undefined && marker >= xt.min && marker <= xt.max && (
               <line className="chart-marker" x1={sx(marker)} x2={sx(marker)} y1={M.top} y2={M.top + ph} />
             )}
-            {series.map((s, i) =>
-              s.line === false ? null : (
-                <path
-                  key={s.name}
-                  className={`chart-line c${(i % COLOURS) + 1}`}
-                  d={pathOf(s, sx, sy, step)}
-                />
-              ),
-            )}
-            {series.map(
-              (s, i) =>
-                s.dots && (
-                  <g key={`${s.name}-dots`} className={`chart-dots c${(i % COLOURS) + 1}`}>
-                    {Array.from({ length: s.x.length }, (_, k) =>
-                      Number.isFinite(s.x[k]) && Number.isFinite(s.y[k]) ? (
-                        <circle key={k} cx={sx(s.x[k]!)} cy={sy(s.y[k]!)} r={3.5} />
-                      ) : null,
-                    )}
-                  </g>
+            <g clipPath={`url(#${id}-clip)`}>
+              {series.map((s, i) =>
+                s.line === false ? null : (
+                  <path
+                    key={s.name}
+                    className={`chart-line c${(i % COLOURS) + 1}`}
+                    d={pathOf(s, sx, sy, step)}
+                  />
                 ),
-            )}
+              )}
+              {series.map(
+                (s, i) =>
+                  s.dots && (
+                    <g key={`${s.name}-dots`} className={`chart-dots c${(i % COLOURS) + 1}`}>
+                      {Array.from({ length: s.x.length }, (_, k) =>
+                        Number.isFinite(s.x[k]) && Number.isFinite(s.y[k]) ? (
+                          <circle key={k} cx={sx(s.x[k]!)} cy={sy(s.y[k]!)} r={3.5} />
+                        ) : null,
+                      )}
+                    </g>
+                  ),
+              )}
+            </g>
             {hover !== null && xs && (
               <line
                 className="chart-cross"

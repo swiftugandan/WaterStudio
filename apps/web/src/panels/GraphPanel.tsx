@@ -32,8 +32,77 @@ import { themeLegend, variableUnit } from '../viewport/paint.ts';
 import { ContourPlot } from '../charts/ContourPlot.tsx';
 import type { AppState } from '../app/state.ts';
 
+/** EPANET's graph options: a title, axis limits and grid lines. */
+export interface GraphOptions {
+  title?: string;
+  xMin?: number;
+  xMax?: number;
+  yMin?: number;
+  yMax?: number;
+  grid?: boolean;
+}
+
 export interface GraphParams {
   spec: GraphSpec;
+  options?: GraphOptions;
+}
+
+function OptionsForm({ options, onChange }: { options: GraphOptions; onChange: (o: GraphOptions) => void }) {
+  const num = (key: 'xMin' | 'xMax' | 'yMin' | 'yMax', label: string) => (
+    <label>
+      <span>{label}</span>
+      <input
+        type="text"
+        inputMode="decimal"
+        placeholder="Auto"
+        defaultValue={options[key] === undefined ? '' : String(options[key])}
+        onBlur={(e) => {
+          const t = e.target.value.trim();
+          const v = t === '' ? undefined : Number(t);
+          if (v !== undefined && !Number.isFinite(v)) {
+            e.target.setCustomValidity('Enter a number, or leave it empty for automatic.');
+            e.target.reportValidity();
+            return;
+          }
+          e.target.setCustomValidity('');
+          const next: GraphOptions = Object.fromEntries(Object.entries(options).filter(([k]) => k !== key));
+          if (v !== undefined) next[key] = v;
+          onChange(next);
+        }}
+      />
+    </label>
+  );
+  return (
+    <div className="graph-options" role="group" aria-label="Graph options">
+      <label className="wide">
+        <span>Title</span>
+        <input
+          type="text"
+          placeholder="Automatic"
+          defaultValue={options.title ?? ''}
+          onBlur={(e) => {
+            const t = e.target.value.trim();
+            const next = { ...options };
+            if (t) next.title = t;
+            else delete next.title;
+            onChange(next);
+          }}
+        />
+      </label>
+      {num('xMin', 'X from')}
+      {num('xMax', 'X to')}
+      {num('yMin', 'Y from')}
+      {num('yMax', 'Y to')}
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={options.grid !== false}
+          onChange={(e) => onChange({ ...options, grid: e.target.checked })}
+        />
+        <span>Grid lines</span>
+      </label>
+    </div>
+  );
 }
 
 export function graphTitle(spec: GraphSpec): string {
@@ -55,10 +124,13 @@ export function GraphPanel(props: IDockviewPanelProps<GraphParams>) {
   const { state } = useApp();
   const [table, setTable] = useState(false);
   const spec = props.params.spec;
+  const options = props.params.options ?? {};
+  const [showOptions, setShowOptions] = useState(false);
   const setSpec = (next: GraphSpec) => {
-    props.api.updateParameters({ spec: next });
+    props.api.updateParameters({ spec: next, options });
     props.api.setTitle(graphTitle(next));
   };
+  const setOptions = (next: GraphOptions) => props.api.updateParameters({ spec, options: next });
   const r = state.run;
   const doc = state.store.doc;
   const u = state.units;
@@ -174,7 +246,9 @@ export function GraphPanel(props: IDockviewPanelProps<GraphParams>) {
         </p>
       ) : (
         <LineChart
-          title={title}
+          title={options.title ?? title}
+          range={options}
+          grid={options.grid !== false}
           series={series}
           xLabel={xLabel}
           yLabel={yLabel}
@@ -213,7 +287,16 @@ export function GraphPanel(props: IDockviewPanelProps<GraphParams>) {
         <button type="button" className="btn" disabled={copyRows === null} onClick={copy}>
           Copy
         </button>
+        <button
+          type="button"
+          className="btn"
+          aria-expanded={showOptions}
+          onClick={() => setShowOptions((v) => !v)}
+        >
+          Options
+        </button>
       </div>
+      {showOptions && <OptionsForm options={options} onChange={setOptions} />}
       {body}
     </div>
   );

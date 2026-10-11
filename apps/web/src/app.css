@@ -1402,3 +1402,30 @@ button.link {
   font-size: var(--ws-font-size-sm);
   resize: vertical;
 }
+
+/* Graph options */
+.graph-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ws-space-2);
+}
+.graph-options label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--ws-font-size-xs);
+  color: var(--ws-color-text-secondary);
+}
+.graph-options label.check {
+  flex-direction: row;
+  align-items: center;
+  min-height: var(--ws-size-control);
+}
+.graph-options input[type='text'] {
+  width: 80px;
+  height: calc(var(--ws-size-control) - 4px);
+}
+.graph-options label.wide input {
+  width: 220px;
+}
