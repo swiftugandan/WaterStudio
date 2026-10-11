@@ -174,7 +174,13 @@ const TABS: Tab[] = [
           { cmd: 'graph.contour', size: 'large', label: 'Contour' },
         ],
       },
-      { label: 'Reports', items: [{ cmd: 'view.panel.report', size: 'large', label: 'Reports' }] },
+      {
+        label: 'Reports',
+        items: [
+          { cmd: 'view.panel.report', size: 'large', label: 'Reports' },
+          { cmd: 'view.panel.formats', size: 'large', label: 'Formats' },
+        ],
+      },
     ],
   },
   {
@@ -205,6 +211,7 @@ const TABS: Tab[] = [
           { cmd: 'view.map.linkValues', label: 'Link values' },
           { cmd: 'view.map.flowArrows', label: 'Flow arrows' },
           { cmd: 'view.map.mapLabels', label: 'Labels' },
+          { cmd: 'view.map.overview', label: 'Overview' },
           { cmd: 'view.map.larger', label: 'Larger' },
           { cmd: 'view.map.smaller', label: 'Smaller' },
         ],
@@ -238,6 +245,7 @@ const TABS: Tab[] = [
           { cmd: 'view.basemap', size: 'large', label: 'Street map' },
           { cmd: 'map.crs', size: 'large', label: 'Coordinates' },
           { cmd: 'map.backdrop', label: 'Backdrop' },
+          { cmd: 'tool.backdrop', label: 'Align backdrop' },
           { cmd: 'map.backdrop.hide', label: 'No backdrop' },
         ],
       },

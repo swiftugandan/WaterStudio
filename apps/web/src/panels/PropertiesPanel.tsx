@@ -185,7 +185,8 @@ function ResultValues({ state, handle }: { state: AppState; handle: number }) {
             <div key={v}>
               <dt>{variableLabel(v)}</dt>
               <dd>
-                {v === 'status' ? (STATUS[val] ?? val) : val.toFixed(3)} {v === 'status' ? '' : unit}
+                {v === 'status' ? (STATUS[val] ?? val) : val.toFixed(state.prefs.places(v))}{' '}
+                {v === 'status' ? '' : unit}
               </dd>
             </div>
           );

@@ -1379,3 +1379,19 @@ button.link {
   gap: var(--ws-space-1);
   margin-top: var(--ws-space-1);
 }
+
+.map-overview {
+  position: absolute;
+  right: var(--ws-space-2);
+  bottom: var(--ws-space-6);
+  width: 180px;
+  height: 130px;
+  z-index: 4;
+  border: 1px solid var(--ws-color-border-default);
+  border-radius: var(--ws-radius-sm);
+  box-shadow: var(--ws-shadow-sm);
+  cursor: crosshair;
+}
+.map-overview[hidden] {
+  display: none;
+}

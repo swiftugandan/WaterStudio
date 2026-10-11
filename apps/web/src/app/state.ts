@@ -25,7 +25,8 @@ import type { GraphSpec } from './graphs.ts';
 import type { Prefs } from './prefs.ts';
 import type { ViewApi } from './view.ts';
 
-export type Tool = 'select' | 'pan' | 'junction' | 'reservoir' | 'tank' | 'pipe' | 'pump' | 'valve' | 'label';
+export type Tool =
+  'select' | 'pan' | 'junction' | 'reservoir' | 'tank' | 'pipe' | 'pump' | 'valve' | 'label' | 'backdrop';
 
 export interface Message {
   time: number;

@@ -189,7 +189,7 @@ export function ResultsPanel() {
               <span>{doc.has(h) ? doc.id(h) : '(deleted)'}</span>
               {frames.map((f, k) => (
                 <span key={k} className="num">
-                  {f[row]!.toFixed(vars[k] === 'status' ? 0 : 2)}
+                  {f[row]!.toFixed(state.prefs.places(vars[k]!))}
                 </span>
               ))}
             </div>

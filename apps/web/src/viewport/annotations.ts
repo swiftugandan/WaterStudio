@@ -46,10 +46,8 @@ class Occupancy {
   }
 }
 
-function fmt(v: number): string {
-  if (!Number.isFinite(v)) return '';
-  const a = Math.abs(v);
-  return a >= 100 ? v.toFixed(0) : a >= 10 ? v.toFixed(1) : v.toFixed(2);
+function fmt(v: number, places: number): string {
+  return Number.isFinite(v) ? v.toFixed(places) : '';
 }
 
 /** Screen boxes of the model's map labels, for picking them with the label tool. */
@@ -133,7 +131,7 @@ export function drawAnnotations(
       const parts: string[] = [];
       if (opts.nodeIds) parts.push(doc.id(h));
       const v = nodeValues.get(h);
-      if (v !== undefined) parts.push(fmt(v));
+      if (v !== undefined) parts.push(fmt(v, state.prefs.places(state.mapTheme.node ?? '')));
       const s = parts.join('  ');
       if (!s) continue;
       const w = ctx.measureText(s).width;
@@ -150,7 +148,7 @@ export function drawAnnotations(
       const parts: string[] = [];
       if (opts.linkIds) parts.push(doc.id(h));
       const v = linkValues.get(h);
-      if (v !== undefined) parts.push(fmt(v));
+      if (v !== undefined) parts.push(fmt(v, state.prefs.places(state.mapTheme.link ?? '')));
       const s = parts.join('  ');
       if (!s) continue;
       const w = ctx.measureText(s).width;

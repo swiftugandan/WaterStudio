@@ -33,6 +33,7 @@ const PANEL_ICONS: Record<string, string> = {
   query: 'filter',
   add: 'plus',
   legend: 'palette',
+  formats: 'hash',
 };
 
 export const SAMPLES = ['Net1', 'Net2', 'Net3'] as const;
@@ -415,11 +416,12 @@ export function createCommands(state: AppState): CommandBus<AppState> {
         ['linkValues', 'Show link values'],
         ['flowArrows', 'Show flow arrows'],
         ['mapLabels', 'Show map labels'],
+        ['overview', 'Show overview map'],
       ] as const
     ).map(([key, title]): Cmd => ({
       id: `view.map.${key}`,
       title,
-      icon: key === 'flowArrows' ? 'arrow-right' : 'type',
+      icon: key === 'flowArrows' ? 'arrow-right' : key === 'overview' ? 'map' : 'type',
       category: 'View',
       checked: (s) => s.prefs.map[key],
       run: (s) => s.prefs.setMap({ [key]: !s.prefs.map[key] }),
@@ -523,6 +525,7 @@ export function createCommands(state: AppState): CommandBus<AppState> {
         ['query', 'Query and group edit'],
         ['add', 'Add element'],
         ['legend', 'Legend editor'],
+        ['formats', 'Number formats'],
       ] as const
     ).map(([id, title]): Cmd => ({
       id: `view.panel.${id}`,
@@ -608,6 +611,15 @@ export function createCommands(state: AppState): CommandBus<AppState> {
           );
           s.emit();
         }),
+    },
+    {
+      id: 'tool.backdrop',
+      title: 'Align backdrop',
+      icon: 'hand',
+      category: 'Map',
+      enabled: (s) => s.backdrop !== null,
+      checked: (s) => s.tool === 'backdrop',
+      run: (s) => s.setTool(s.tool === 'backdrop' ? 'select' : 'backdrop'),
     },
     {
       id: 'map.backdrop.hide',

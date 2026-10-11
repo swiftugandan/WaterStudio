@@ -9,6 +9,7 @@ import {
   addNode,
   EditError,
   moveNodes,
+  sectionGet,
   setVertices,
   unitLabel,
   type Change,
@@ -29,7 +30,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { useApp, useAppContext } from '../app/context.tsx';
 import { Basemap, OSM_ATTRIBUTION } from '../geo/basemap.ts';
-import { backdropPlacement, modelCrs, type ModelCrs } from '../geo/model.ts';
+import { backdropPlacement, modelCrs, withBackdropLine, type ModelCrs } from '../geo/model.ts';
 import type { AppState } from '../app/state.ts';
 import { variableLabel } from '../shell/Ribbon.tsx';
 import { computePaint, themeLegend, VARIABLE_QUANTITY } from './paint.ts';
@@ -56,7 +57,8 @@ type Gesture =
     }
   | { kind: 'move'; x0: number; y0: number; x1: number; y1: number; nodes: number[]; id: number }
   | { kind: 'link'; tool: LinkKind; from: number; points: number[] }
-  | { kind: 'vertex'; link: number; index: number; x: number; y: number; id: number };
+  | { kind: 'vertex'; link: number; index: number; x: number; y: number; id: number }
+  | { kind: 'align'; x0: number; y0: number; x1: number; y1: number; id: number };
 
 interface SceneIndex {
   scene: Scene;
@@ -90,6 +92,12 @@ class MapController {
   gesture: Gesture = { kind: 'none' };
   overlay: HTMLCanvasElement | null = null;
   annotations: HTMLCanvasElement | null = null;
+  overview: HTMLCanvasElement | null = null;
+  private overviewCache: {
+    key: string;
+    image: HTMLCanvasElement;
+    bounds: [number, number, number, number];
+  } | null = null;
   private annotationFrame = 0;
   private lastMapOptions: unknown = null;
   cursor: [number, number] | null = null;
@@ -179,8 +187,11 @@ class MapController {
     const cam = this.renderer.camera;
     const [left, top] = cam.toScreen(Math.min(at.x1, at.x2), Math.max(at.y1, at.y2));
     const [right, bottom] = cam.toScreen(Math.max(at.x1, at.x2), Math.min(at.y1, at.y2));
-    img.style.left = `${left}px`;
-    img.style.top = `${top}px`;
+    // While the backdrop is being aligned it follows the pointer.
+    const g = this.gesture;
+    const [dx, dy] = g.kind === 'align' ? [g.x1 - g.x0, g.y1 - g.y0] : [0, 0];
+    img.style.left = `${left + dx}px`;
+    img.style.top = `${top + dy}px`;
     img.style.width = `${right - left}px`;
     img.style.height = `${bottom - top}px`;
   }
@@ -228,7 +239,92 @@ class MapController {
     this.annotationFrame = requestAnimationFrame(() => {
       this.annotationFrame = 0;
       this.drawAnnotations();
+      this.drawOverview();
     });
+  }
+
+  /** The overview map: the whole network, cached per revision, with the view outlined. */
+  drawOverview(): void {
+    const o = this.overview;
+    if (!o) return;
+    const s = this.state;
+    o.hidden = !s.prefs.map.overview;
+    if (o.hidden) return;
+    const ctx = o.getContext('2d');
+    if (!ctx) return;
+    const dpr = devicePixelRatio || 1;
+    const W = o.clientWidth;
+    const H = o.clientHeight;
+    if (o.width !== Math.round(W * dpr)) o.width = Math.round(W * dpr);
+    if (o.height !== Math.round(H * dpr)) o.height = Math.round(H * dpr);
+    const css = getComputedStyle(o);
+    const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
+    const key = `${s.generation}:${s.store.rev}:${W}x${H}:${s.prefs.resolvedTheme}`;
+    if (this.overviewCache?.key !== key) {
+      const doc = s.store.doc;
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const h of doc.nodeHandles()) {
+        const x = doc.num(h, 'x');
+        const y = doc.num(h, 'y');
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+      }
+      const pad = Math.max(maxX - minX, maxY - minY, 1) * 0.05;
+      const bounds: [number, number, number, number] = [minX - pad, minY - pad, maxX + pad, maxY + pad];
+      const image = document.createElement('canvas');
+      image.width = o.width;
+      image.height = o.height;
+      const ic = image.getContext('2d');
+      if (ic && Number.isFinite(minX)) {
+        ic.scale(dpr, dpr);
+        const [tx] = overviewTransform(bounds, W, H);
+        ic.strokeStyle = v('--ws-color-canvas-link', '#3d4653');
+        ic.lineWidth = 1;
+        ic.beginPath();
+        for (const l of doc.linkHandles()) {
+          const a = doc.num(l, 'from');
+          const b = doc.num(l, 'to');
+          ic.moveTo(...tx(doc.num(a, 'x'), doc.num(a, 'y')));
+          const vs = doc.get(l, 'vertices') as number[];
+          for (let k = 0; k + 1 < vs.length; k += 2) ic.lineTo(...tx(vs[k]!, vs[k + 1]!));
+          ic.lineTo(...tx(doc.num(b, 'x'), doc.num(b, 'y')));
+        }
+        ic.stroke();
+      }
+      this.overviewCache = { key, image, bounds };
+    }
+    const cache = this.overviewCache;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = v('--ws-color-bg-surface', '#ffffff');
+    ctx.fillRect(0, 0, o.width, o.height);
+    ctx.drawImage(cache.image, 0, 0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const vb = this.renderer.camera.viewBounds();
+    const [tx] = overviewTransform(cache.bounds, W, H);
+    const [x0, y0] = tx(vb.minX, vb.maxY);
+    const [x1, y1] = tx(vb.maxX, vb.minY);
+    ctx.strokeStyle = v('--ws-color-canvas-selection', '#e8590c');
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+  }
+
+  /** Centre the view on a point of the overview map. */
+  overviewGo(px: number, py: number): void {
+    const o = this.overview;
+    const cache = this.overviewCache;
+    if (!o || !cache) return;
+    const [, back] = overviewTransform(cache.bounds, o.clientWidth, o.clientHeight);
+    const [wx, wy] = back(px, py);
+    const cam = this.renderer.camera;
+    cam.panBy((cam.cx - wx) * cam.scale, -(cam.cy - wy) * cam.scale);
+    this.renderer.redraw();
+    this.drawOverlay();
   }
 
   /** Labels and flow arrows, on their own canvas under the overlay. */
@@ -596,6 +692,21 @@ function Legends() {
   );
 }
 
+/** World to overview pixels, and back. */
+function overviewTransform(
+  b: [number, number, number, number],
+  W: number,
+  H: number,
+): [(x: number, y: number) => [number, number], (px: number, py: number) => [number, number]] {
+  const scale = Math.min(W / Math.max(b[2] - b[0], 1e-9), H / Math.max(b[3] - b[1], 1e-9));
+  const ox = (W - (b[2] - b[0]) * scale) / 2;
+  const oy = (H - (b[3] - b[1]) * scale) / 2;
+  return [
+    (x, y) => [ox + (x - b[0]) * scale, oy + (b[3] - y) * scale],
+    (px, py) => [(px - ox) / scale + b[0], b[3] - (py - oy) / scale],
+  ];
+}
+
 /** The index of the polyline segment nearest a screen point. */
 function nearestSegment(pts: [number, number][], x: number, y: number): number {
   let best = 0;
@@ -622,6 +733,7 @@ export function MapView() {
   const host = useRef<HTMLDivElement>(null);
   const overlay = useRef<HTMLCanvasElement>(null);
   const annotations = useRef<HTMLCanvasElement>(null);
+  const overviewRef = useRef<HTMLCanvasElement>(null);
   const ctl = useRef<MapController | null>(null);
   const [rendererKey, setRendererKey] = useState(state.prefs.renderer);
 
@@ -644,6 +756,7 @@ export function MapView() {
     const c = new MapController(el, state);
     c.overlay = overlay.current;
     c.annotations = annotations.current;
+    c.overview = overviewRef.current;
     ctl.current = c;
     state.view = {
       fit: () => c.fit(),
@@ -735,6 +848,11 @@ export function MapView() {
     if (e.button !== 0) return;
     const cam = c.renderer.camera;
     const tool = state.tool;
+    if (tool === 'backdrop') {
+      c.gesture = { kind: 'align', x0: x, y0: y, x1: x, y1: y, id: e.pointerId };
+      overlay.current?.setPointerCapture(e.pointerId);
+      return;
+    }
     if (tool === 'label') {
       const labels = state.store.doc.data.labels;
       const i = c.labelAt(x, y);
@@ -870,6 +988,11 @@ export function MapView() {
         g.y = y;
         c.drawOverlay();
         break;
+      case 'align':
+        g.x1 = x;
+        g.y1 = y;
+        c.placeBackdrop();
+        break;
       case 'none': {
         const hit = c.pick(x, y);
         state.setHover(hit?.handle ?? null);
@@ -911,6 +1034,27 @@ export function MapView() {
       c.pushFlags();
     } else if (g.kind === 'pan') {
       c.gesture = { kind: 'none' };
+    } else if (g.kind === 'align') {
+      c.gesture = { kind: 'none' };
+      const cam = c.renderer.camera;
+      const dx = (g.x1 - g.x0) / cam.scale;
+      const dy = -(g.y1 - g.y0) / cam.scale;
+      if (dx !== 0 || dy !== 0) {
+        const b = state.store.doc.data.backdrop;
+        const o = sectionGet(b, ['OFFSET'])?.map(Number) ?? [];
+        const ox = (Number.isFinite(o[0]) ? o[0]! : 0) + dx;
+        const oy = (Number.isFinite(o[1]) ? o[1]! : 0) + dy;
+        state.store.transact('Align backdrop', (tx) =>
+          tx.setDoc(
+            'backdrop',
+            withBackdropLine(b, 'OFFSET', [
+              String(Number(ox.toPrecision(10))),
+              String(Number(oy.toPrecision(10))),
+            ]),
+          ),
+        );
+      }
+      c.placeBackdrop();
     } else if (g.kind === 'vertex') {
       c.gesture = { kind: 'none' };
       const v = [...(state.store.doc.get(g.link, 'vertices') as number[])];
@@ -1015,6 +1159,17 @@ export function MapView() {
           }}
         />
       </div>
+      <canvas
+        ref={overviewRef}
+        className="map-overview"
+        hidden
+        role="img"
+        aria-label="Overview of the whole network; click to move the view there."
+        onPointerDown={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          ctl.current?.overviewGo(e.clientX - r.left, e.clientY - r.top);
+        }}
+      />
       <Legends />
       <Attribution />
     </div>

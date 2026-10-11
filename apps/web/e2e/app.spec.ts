@@ -290,6 +290,25 @@ test('shows a backdrop image where [BACKDROP] places it', async ({ page }) => {
     ).data.backdrop.lines.map((l) => l.tokens.join(' ')),
   );
   expect(backdrop).toContain('FILE aerial.png');
+  // Align it by dragging: the image follows, and the shift is saved as OFFSET.
+  await page.getByRole('button', { name: 'Align backdrop' }).click();
+  const map = (await page.locator('.map-overlay').boundingBox())!;
+  const from = { x: map.x + map.width / 2, y: map.y + map.height / 2 };
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 30, from.y, { steps: 3 });
+  await page.mouse.up();
+  await expect.poll(async () => (await img.boundingBox())!.x - box.x).toBeCloseTo(30, 0);
+  const offset = await ws(page, (w) =>
+    (
+      w.state.store.doc as unknown as { data: { backdrop: { lines: { tokens: string[] }[] } } }
+    ).data.backdrop.lines
+      .find((l) => l.tokens[0] === 'OFFSET')
+      ?.tokens.slice(1)
+      .map(Number),
+  );
+  expect(offset![0]).toBeGreaterThan(0);
+  expect(offset![1]).toBeCloseTo(0, 6);
   await page.getByRole('button', { name: 'Remove backdrop image' }).click();
   await expect(img).toBeHidden();
 });
@@ -809,6 +828,28 @@ test('sets legend intervals by hand, and copies properties between elements', as
       return [d.num(h, 'elevation'), (d.get(h, 'demands') as { base: number }[])[0]!.base];
     });
   await expect.poll(twelve).toEqual([710, 0]);
+});
+
+test('formats numbers and shows an overview map', async ({ page }) => {
+  await ready(page);
+  await page.keyboard.press('F5');
+  await expect(page.getByTestId('run-status')).toContainText('Solved');
+  const first = page.locator('.panel.results .grid-body .grid-row').first();
+  await expect(first).toContainText('127.54');
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Results' }).click();
+  await page.getByRole('button', { name: 'Show number formats' }).click();
+  await page.locator('.panel.formats').getByLabel('Pressure').fill('0');
+  await page.locator('.panel.formats').getByLabel('Pressure').press('Enter');
+  await expect(first).toContainText('128');
+  await expect(first).not.toContainText('127.54');
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'View' }).click();
+  await page.getByRole('button', { name: 'Show overview map' }).click();
+  const overview = page.getByRole('img', { name: /Overview of the whole network/ });
+  await expect(overview).toBeVisible();
+  const before = await nodeOnScreen(page, '10');
+  const ob = (await overview.boundingBox())!;
+  await page.mouse.click(ob.x + 10, ob.y + 10);
+  await expect.poll(async () => (await nodeOnScreen(page, '10')).x).not.toBeCloseTo(before.x, 0);
 });
 
 test('the editors have no WCAG 2.2 AA violations', async ({ page }) => {

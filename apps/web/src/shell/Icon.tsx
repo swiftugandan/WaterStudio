@@ -37,6 +37,7 @@ import {
   Palette,
   Copy,
   Clipboard,
+  Hash,
   ArrowRight,
   Filter,
   ListChecks,
@@ -102,6 +103,7 @@ const LUCIDE: Record<string, LucideIcon> = {
   palette: Palette,
   copy: Copy,
   clipboard: Clipboard,
+  hash: Hash,
   'arrow-right': ArrowRight,
   filter: Filter,
 };

@@ -35,6 +35,8 @@ export interface MapOptions {
   mapLabels: boolean;
   /** Node, link and symbol size, 1 (small) to 5 (large). */
   size: number;
+  /** A small map of the whole network with the view outlined. */
+  overview: boolean;
 }
 
 export const DEFAULT_MAP_OPTIONS: MapOptions = {
@@ -45,7 +47,21 @@ export const DEFAULT_MAP_OPTIONS: MapOptions = {
   flowArrows: false,
   mapLabels: true,
   size: 3,
+  overview: false,
 };
+
+function readDecimals(): Record<string, number> {
+  try {
+    const v = JSON.parse(localStorage.getItem('ws.decimals') ?? '{}') as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.entries(v).filter(
+        (e): e is [string, number] => typeof e[1] === 'number' && e[1] >= 0 && e[1] <= 6,
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
 
 function readMap(): MapOptions {
   try {
@@ -80,6 +96,8 @@ export class Prefs extends Emitter {
   map: MapOptions = readMap();
   /** EPANET's Auto-Length: pipe lengths follow the map as links are drawn and nodes moved. */
   autoLength = read<'on' | 'off'>('ws.autolength', ['on', 'off'], 'off');
+  /** Decimal places for each result variable (EPANET's Preferences › Formats). */
+  decimals: Record<string, number> = readDecimals();
 
   constructor() {
     super();
@@ -99,6 +117,19 @@ export class Prefs extends Emitter {
     write('ws.renderer', this.renderer);
     this.apply();
     this.emit();
+  }
+
+  setDecimals(variable: string, places: number | null): void {
+    const next = Object.fromEntries(Object.entries(this.decimals).filter(([k]) => k !== variable));
+    if (places !== null) next[variable] = Math.min(6, Math.max(0, Math.round(places)));
+    this.decimals = next;
+    write('ws.decimals', JSON.stringify(next));
+    this.emit();
+  }
+
+  /** Decimal places for a variable: the preference, or EPANET's defaults (2; status 0). */
+  places(variable: string): number {
+    return this.decimals[variable] ?? (variable === 'status' ? 0 : 2);
   }
 
   setAutoLength(on: boolean): void {
