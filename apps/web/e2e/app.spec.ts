@@ -751,6 +751,33 @@ test('exports the map as SVG and PNG and copies tables', async ({ page, context 
   expect(text.split('\n')).toHaveLength(12);
 });
 
+test('exports a scenario and applies an edited one', async ({ page }) => {
+  await ready(page);
+  const out = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export scenario' }).click();
+  const file = await out;
+  expect(file.suggestedFilename()).toBe('Net1.scn');
+  const text = await readFile(await file.path(), 'utf8');
+  expect(text).toContain('[DIAMETERS]');
+  // Net1's pipe 10 is 18 in; the edited scenario makes it 24 in.
+  expect(text).toMatch(/^10\t18$/m);
+  const edited = text.replace(/^10\t18$/m, '10\t24');
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Import scenario' }).click();
+  await (await chooser).setFiles({ name: 'bigger.scn', mimeType: 'text/plain', buffer: Buffer.from(edited) });
+  await expect
+    .poll(() =>
+      ws(page, (w) => {
+        const d = w.state.store.doc as unknown as {
+          findLink(id: string): number;
+          num(h: number, f: string): number;
+        };
+        return d.num(d.findLink('10'), 'diameter');
+      }),
+    )
+    .toBe(24);
+});
+
 test('the editors have no WCAG 2.2 AA violations', async ({ page }) => {
   await ready(page);
   await ws(page, (w) => {

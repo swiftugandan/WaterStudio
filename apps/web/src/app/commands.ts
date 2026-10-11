@@ -3,7 +3,15 @@
  * palette, context menus and (later) agents all execute these by id.
  */
 
-import { CommandBus, deleteElements, reverseLinks, toModel, type Command } from '@waterstudio/core';
+import {
+  applyScenario,
+  CommandBus,
+  deleteElements,
+  reverseLinks,
+  scenarioText,
+  toModel,
+  type Command,
+} from '@waterstudio/core';
 import { LINK_VARIABLES, NODE_VARIABLES, linkFrame, nodeFrame } from '@waterstudio/engine-client';
 import { modelToDxf, modelToGeoJSON, modelToShapefiles, writeZip } from '@waterstudio/gis';
 import { importGis, importShapefiles, shapefileFiles } from './gisio.ts';
@@ -183,6 +191,36 @@ export function createCommands(state: AppState): CommandBus<AppState> {
             : 'Exported shapefiles in the model’s own coordinates, without a .prj: set a coordinate system for standard ones.',
         );
       },
+    },
+    {
+      id: 'file.export.scenario',
+      title: 'Export scenario',
+      icon: 'file-output',
+      category: 'File',
+      enabled: (s) => s.store.doc.nodes.liveCount > 0,
+      run: (s) => {
+        const base = baseName(s.fileName);
+        saveTextFile(scenarioText(s.store.doc, base), `${base}.scn`);
+        s.log('info', 'Exported demands, initial quality, pipe diameters and roughness, controls and rules.');
+      },
+    },
+    {
+      id: 'file.import.scenario',
+      title: 'Import scenario…',
+      icon: 'file-input',
+      category: 'File',
+      enabled: (s) => s.store.doc.nodes.liveCount > 0,
+      run: (s) =>
+        guarded(s, 'Scenario import failed', async () => {
+          const file = await openFilePicker('.scn,.txt,.inp');
+          if (!file) return;
+          const r = applyScenario(s.store, await file.text());
+          const what = Object.entries(r.applied)
+            .map(([k, n]) => `${n} ${k.toLowerCase()}`)
+            .join(', ');
+          s.log('info', `Applied scenario ${file.name}: ${what}.`);
+          for (const i of r.issues) s.log('warning', i);
+        }),
     },
     {
       id: 'file.export.svg',
