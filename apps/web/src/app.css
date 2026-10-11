@@ -1240,3 +1240,65 @@ button.link {
 .calibration-chart > * {
   flex: 1;
 }
+
+/* Query panel */
+.query-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-2);
+}
+.query-row input {
+  flex: 1;
+  min-width: 0;
+  height: calc(var(--ws-size-control) - 4px);
+}
+.query-grid {
+  display: grid;
+  grid-template-columns: minmax(80px, 36%) 1fr;
+  align-items: center;
+  gap: var(--ws-space-1) var(--ws-space-2);
+  margin-top: var(--ws-space-1);
+}
+.query-grid select,
+.query-grid input[type='text'] {
+  height: calc(var(--ws-size-control) - 4px);
+  min-width: 0;
+}
+.query-grid label,
+.query-grid .label {
+  color: var(--ws-color-text-secondary);
+}
+.query-grid .btn {
+  justify-self: start;
+}
+
+/* Results table: sorting and filtering */
+.results-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-1);
+  margin-left: auto;
+}
+.results-filter label {
+  color: var(--ws-color-text-secondary);
+}
+.results-filter select,
+.results-filter input {
+  height: calc(var(--ws-size-control) - 4px);
+}
+.results-filter input {
+  width: 72px;
+}
+.grid-header button.sort {
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  min-height: var(--ws-space-6);
+  cursor: pointer;
+  text-align: inherit;
+}
+.grid-header button.sort.on {
+  color: var(--ws-color-accent);
+}

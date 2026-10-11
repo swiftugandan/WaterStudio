@@ -176,3 +176,47 @@ export function setField(
     coalesce === undefined ? {} : { coalesce },
   );
 }
+
+export type GroupAction = 'replace' | 'multiply' | 'add';
+
+/**
+ * EPANET's group edit: replace a numeric field on every element, or multiply it by or
+ * add to it a value, as one undoable step. Elements whose kind lacks the field are
+ * skipped; a result below the field's minimum is refused before anything changes.
+ */
+export function groupEdit(
+  store: Store,
+  handles: readonly number[],
+  field: string,
+  action: GroupAction,
+  value: number,
+): number {
+  const doc = store.doc;
+  if (!Number.isFinite(value)) throw new EditError('The value must be a number.');
+  const targets: [number, number][] = [];
+  let label = field;
+  for (const h of handles) {
+    if (!doc.has(h)) continue;
+    const spec = (doc.isNode(h) ? nodeField : linkField).get(field);
+    if (!spec || spec.editor.type !== 'number' || !fieldsOf(doc.kind(h)).includes(spec)) continue;
+    label = spec.label.toLowerCase();
+    const old = doc.num(h, field);
+    const next =
+      action === 'replace'
+        ? value
+        : Number.isNaN(old)
+          ? NaN
+          : action === 'multiply'
+            ? old * value
+            : old + value;
+    if (Number.isNaN(next)) continue;
+    if (spec.editor.min !== undefined && next < spec.editor.min)
+      throw new EditError(`${spec.label} of ${doc.id(h)} would be ${next}, below ${spec.editor.min}.`);
+    targets.push([h, next]);
+  }
+  if (targets.length === 0) return 0;
+  store.transact(`Group edit ${label} of ${targets.length} elements`, (tx) => {
+    for (const [h, v] of targets) tx.set(h, field, v);
+  });
+  return targets.length;
+}

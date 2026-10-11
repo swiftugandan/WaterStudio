@@ -56,6 +56,13 @@ const TABS: Tab[] = [
         ],
       },
       {
+        label: 'Select',
+        items: [
+          { cmd: 'edit.find', size: 'large', label: 'Find' },
+          { cmd: 'view.panel.query', size: 'large', label: 'Query' },
+        ],
+      },
+      {
         label: 'Tools',
         items: [
           { cmd: 'tool.select', size: 'large' },

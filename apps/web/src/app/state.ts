@@ -90,6 +90,8 @@ export class AppState extends Emitter {
   /** Panels the user has open, by id. */
   panels = new Set(['browser', 'properties', 'results', 'messages']);
   private panelFocus: string | null = null;
+  /** Bumped to ask the query panel to focus its Find box. */
+  findRequest = 0;
   readonly engine: EngineClient;
   readonly prefs: Prefs;
   /** The assistant conversation (kept when its panel closes). */

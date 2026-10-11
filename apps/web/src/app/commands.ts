@@ -19,6 +19,7 @@ const PANEL_ICONS: Record<string, string> = {
   patterns: 'chart-column',
   curves: 'spline',
   controls: 'list-checks',
+  query: 'filter',
 };
 
 export const SAMPLES = ['Net1', 'Net2', 'Net3'] as const;
@@ -232,6 +233,17 @@ export function createCommands(state: AppState): CommandBus<AppState> {
       run: (s) => s.select([...s.store.doc.nodeHandles(), ...s.store.doc.linkHandles()]),
     },
     {
+      id: 'edit.find',
+      title: 'Find node or link',
+      icon: 'search',
+      shortcut: 'Mod+F',
+      category: 'Edit',
+      run: (s) => {
+        s.findRequest++;
+        s.showPanel('query');
+      },
+    },
+    {
       id: 'edit.clearSelection',
       title: 'Clear selection',
       icon: 'x',
@@ -330,6 +342,7 @@ export function createCommands(state: AppState): CommandBus<AppState> {
         ['patterns', 'Patterns'],
         ['curves', 'Curves'],
         ['controls', 'Controls'],
+        ['query', 'Query and group edit'],
       ] as const
     ).map(([id, title]): Cmd => ({
       id: `view.panel.${id}`,

@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { addLink, addNode, deleteElements, EditError, moveNodes, nextId, setField } from './edits.ts';
+import {
+  addLink,
+  addNode,
+  deleteElements,
+  EditError,
+  groupEdit,
+  moveNodes,
+  nextId,
+  setField,
+} from './edits.ts';
 import { Store, type Change } from './store.ts';
 
 function net() {
@@ -140,5 +149,24 @@ describe('store', () => {
     expect(store.doc.findNode('N4999')).toBeDefined();
     store.undo();
     expect(store.doc.nodes.liveCount).toBe(0);
+  });
+});
+
+describe('group edit', () => {
+  it('replaces, multiplies and adds in one undo step, skipping kinds without the field', () => {
+    const store = new Store();
+    const a = addNode(store, 'junction', { x: 0, y: 0, values: { elevation: 10 } });
+    const b = addNode(store, 'junction', { x: 1, y: 0, values: { elevation: 20 } });
+    const r = addNode(store, 'reservoir', { x: 2, y: 0 });
+    const p = addLink(store, 'pipe', { from: a, to: b, values: { diameter: 100 } });
+    expect(groupEdit(store, [a, b, r, p], 'elevation', 'add', 5)).toBe(2);
+    expect([store.doc.num(a, 'elevation'), store.doc.num(b, 'elevation')]).toEqual([15, 25]);
+    groupEdit(store, [p], 'diameter', 'multiply', 1.5);
+    expect(store.doc.num(p, 'diameter')).toBe(150);
+    store.undo();
+    store.undo();
+    expect(store.doc.num(a, 'elevation')).toBe(10);
+    expect(() => groupEdit(store, [p], 'diameter', 'add', -500)).toThrow(EditError);
+    expect(store.doc.num(p, 'diameter')).toBe(100);
   });
 });

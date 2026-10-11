@@ -29,6 +29,8 @@ import {
   Sparkles,
   Spline,
   Layers,
+  Search,
+  Filter,
   ListChecks,
   SquareDashedMousePointer,
   StepBack,
@@ -84,6 +86,8 @@ const LUCIDE: Record<string, LucideIcon> = {
   spline: Spline,
   'list-checks': ListChecks,
   layers: Layers,
+  search: Search,
+  filter: Filter,
 };
 
 const HYDRAULIC = new Set<string>(hydraulicIconNames);

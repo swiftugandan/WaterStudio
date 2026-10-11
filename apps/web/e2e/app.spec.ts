@@ -361,7 +361,7 @@ test('imports GeoJSON into a projected network and exports GeoJSON and DXF', asy
   await page.getByRole('button', { name: 'Export shapefiles' }).click();
   const zip = await shp;
   expect(zip.suggestedFilename()).toBe('mains_shp.zip');
-  const bytes = await readFile((await zip.path()));
+  const bytes = await readFile(await zip.path());
   page.once('dialog', (d) => void d.accept());
   const again = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'Import GeoJSON, shapefile or DXF' }).click();
@@ -539,6 +539,52 @@ test('edits demand categories, sources and tank mixing in the inspector', async 
   ).toBe('{"model":"twoComp","fraction":0.4}');
 });
 
+test('finds, queries, group-edits, and filters the results table', async ({ page }) => {
+  await ready(page);
+  await page.keyboard.press('Control+f');
+  const panel = page.locator('.panel.query');
+  await expect(panel.getByLabel('Node or link ID')).toBeFocused();
+  await page.keyboard.type('23');
+  await page.keyboard.press('Enter');
+  await expect(panel.getByRole('status')).toHaveText('Found junction 23.');
+  expect(
+    await ws(page, (w) => [...w.state.selection].map((h) => w.state.store.doc.findNode('23') === h)),
+  ).toEqual([true]);
+  await panel.getByLabel('Attribute').selectOption('elevation');
+  await panel.getByLabel('Relation').selectOption('equal');
+  await panel.getByLabel('Value', { exact: true }).first().fill('710');
+  await panel.getByRole('button', { name: 'Select', exact: true }).click();
+  await expect(panel.locator('section', { hasText: 'Select where' }).getByRole('status')).toHaveText(
+    '3 nodes selected.',
+  );
+  const group = panel.locator('section', { hasText: 'Group edit' });
+  await group.getByLabel('Property').selectOption('elevation');
+  await group.getByLabel('Action').selectOption('add');
+  await group.getByLabel('Value').fill('5');
+  await group.getByRole('button', { name: 'Apply' }).click();
+  await expect(group.getByRole('status')).toHaveText('Changed elevation of 3 elements.');
+  expect(await ws(page, (w) => w.state.store.doc.num(w.state.store.doc.findNode('10')!, 'elevation'))).toBe(
+    715,
+  );
+  await ws(page, (w) => w.state.store.undo());
+  expect(await ws(page, (w) => w.state.store.doc.num(w.state.store.doc.findNode('10')!, 'elevation'))).toBe(
+    710,
+  );
+  await page.keyboard.press('F5');
+  await expect(page.getByTestId('run-status')).toContainText('Solved');
+  const results = page.locator('.panel.results');
+  await results.getByLabel('Show where').selectOption({ label: 'Pressure' });
+  await results.getByLabel('Relation').selectOption('above');
+  await results.getByLabel('Filter value').fill('125');
+  await results.getByRole('button', { name: 'Filter' }).click();
+  await expect(results.getByRole('status')).toHaveText('1 of 11 nodes');
+  await expect(results.locator('.grid-body .grid-row')).toHaveCount(1);
+  await results.getByRole('button', { name: 'Show all' }).click();
+  await results.getByRole('button', { name: /^Sort by Pressure/ }).click();
+  await results.getByRole('button', { name: /^Sort by Pressure/ }).click();
+  await expect(results.locator('.grid-body .grid-row').first()).toContainText('10');
+});
+
 test('the editors have no WCAG 2.2 AA violations', async ({ page }) => {
   await ready(page);
   await ws(page, (w) => {
@@ -568,6 +614,8 @@ test('the editors have no WCAG 2.2 AA violations', async ({ page }) => {
   await audit('curves');
   await page.getByRole('button', { name: 'Show controls' }).click();
   await audit('controls');
+  await page.keyboard.press('Control+f');
+  await audit('query');
 });
 
 for (const theme of ['light', 'dark'] as const) {
