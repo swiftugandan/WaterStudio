@@ -51,7 +51,8 @@ Gate: every EPANET 2.2 GUI function available; quality within tolerance; WCAG 2.
   four tank mixing models. Bit-identical with OWA-EPANET's `EN_solveQ` on 14 quality networks, native and wasm
 - [ ] All EPANET reports, graphs and tables; time player
 - [ ] MapLibre basemap, CRS, backdrop images
-- [ ] GIS and DXF import and export; `.out` and `.rpt` writers
+- [x] `.out` and `.rpt` writers (ADR 0009): identical to `runepanet`'s on all 64 networks; app results follow the `.out`
+- [ ] GIS and DXF import and export
 - [ ] Read-only agent tools and the Assistant panel
 
 ## Phase 3: Pro 1.0

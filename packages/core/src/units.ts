@@ -132,6 +132,8 @@ export function unitLabel(q: Quantity, u: UnitSystem): string {
       return `${FLOW_LABEL[u.flow]}/${PRESSURE_LABEL[u.pressure]}^½`;
     case 'concentration':
       return u.quality.kind === 'none' ? 'mg/L' : u.quality.units;
+    case 'reactionRate':
+      return u.quality.kind === 'chemical' ? `${u.quality.units}/d` : '';
     case 'bulkRate':
       return '1/d';
     case 'wallRate':

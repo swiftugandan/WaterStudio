@@ -9,6 +9,7 @@ release. The reference only checks our results; it is never part of what we ship
 | `fetch-corpus.sh` | Fetches the test networks into `.corpus/` at pinned commits |
 | `compare.py` | Runs both engines on each network and compares heads, demands, flows and water quality at every report step |
 | `parity.sh` | Runs `compare.py` for the native and WebAssembly engines and enforces the ratchet |
+| `outfile.py` | Runs `runepanet` and `ws run` on each network and requires identical report and binary output files |
 | `ratchet.py` | Fails on any network outside `known-failures.txt` that stops matching |
 | `known-failures.txt` | Networks that do not match yet, each with what is known |
 | `report.py` | Writes `docs/PARITY.md` |

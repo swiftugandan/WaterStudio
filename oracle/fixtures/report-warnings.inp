@@ -1,0 +1,69 @@
+[TITLE]
+Report fixture: warnings
+Negative pressures, a pump beyond its curve, a valve that cannot hold its setting
+and junctions cut off by a closed pipe, under demand-driven analysis.
+
+[JUNCTIONS]
+;ID   Elev  Demand  Pattern
+ A    100   50      Day
+ B    120   80      Day
+ C    140   60      Day
+ D    95    40
+ E    90    30
+ F    150   20
+ P1   110   0
+ P2   110   0
+ V1   100   0
+ V2   100   0
+
+[RESERVOIRS]
+ R    110
+
+[TANKS]
+ T    160   5   1   12   20   0
+
+[PIPES]
+ 1   R   P1  10   16  120  0  Open
+ 2   P2  A   800  12  120  0  Open
+ 3   A   B   900  8   120  0  Open
+ 4   B   C   900  6   120  0  Open
+ 5   C   T   500  8   120  0  Open
+ 6   A   V1  300  8   120  0  Open
+ 7   V2  D   400  6   120  0  Open
+ 8   D   E   400  6   120  0  Closed
+ 9   B   F   600  4   120  0  Open
+
+[PUMPS]
+ PU  P1  P2  HEAD Curve
+
+[VALVES]
+ PR  V1  V2  8  PRV  60  0
+
+[CURVES]
+ Curve  150  90
+
+[PATTERNS]
+ Day  0.5 1.0 2.5 3.0 1.5 0.8
+
+[CONTROLS]
+ LINK 8 OPEN AT TIME 6
+ LINK 8 CLOSED AT TIME 9
+
+[TIMES]
+ Duration           12:00
+ Hydraulic Timestep 1:00
+ Pattern Timestep   2:00
+ Report Timestep    3:00
+
+[REPORT]
+ Status   Yes
+ Summary  Yes
+ Messages Yes
+ Nodes    All
+ Links    All
+
+[OPTIONS]
+ Units    GPM
+ Trials   40
+
+[END]

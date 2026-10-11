@@ -35,6 +35,7 @@ export type Quantity =
   | 'volume'
   | 'emitter'
   | 'concentration'
+  | 'reactionRate'
   | 'bulkRate'
   | 'wallRate'
   | 'leakArea'

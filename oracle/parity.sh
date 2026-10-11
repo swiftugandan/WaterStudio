@@ -3,6 +3,8 @@
 # for the native build and for the WebAssembly build that ships, and enforces the ratchet:
 #   * a network not listed in known-failures.txt must match the reference to the bit;
 #   * a listed network that now matches is reported, so it can be removed from the list.
+# Then requires EPANET's report and binary output file from `ws run` to be identical
+# to runepanet's for every network (oracle/outfile.py).
 # Writes reports to oracle/.reports and a summary to docs/PARITY.md with --write-doc.
 #
 # Prerequisites: oracle/build.sh, oracle/fetch-corpus.sh, and the engine built:
@@ -23,6 +25,7 @@ if [[ ${#networks[@]} -eq 0 ]]; then
 fi
 
 for needed in "$root/engine/target/release/ws-parity" \
+              "$root/engine/target/release/ws" \
               "$root/engine/target/wasm32-unknown-unknown/release/ws_wasm.wasm" \
               "$here/.build/bin/runepanet"; do
   if [[ ! -e "$needed" ]]; then
@@ -44,8 +47,14 @@ for engine in native wasm; do
   python3 -I "$here/ratchet.py" "$reports/$engine.json" "$here/known-failures.txt" || status=1
 done
 
+echo "== report and output files vs runepanet"
+(cd "$here/.corpus" && python3 -I "$here/outfile.py" --epanet "$here/.build" --engine "$root/engine/target/release/ws" \
+    --json "$reports/files.json" "${networks[@]}" "${fixtures[@]}") > "$reports/files.txt" || status=1
+tail -n 1 "$reports/files.txt"
+grep -v '^ok' "$reports/files.txt" | grep -v '^$' | grep -v 'networks with identical' || true
+
 if [[ "${1:-}" == "--write-doc" ]]; then
-  python3 -I "$here/report.py" "$reports/native.json" "$reports/wasm.json" > "$root/docs/PARITY.md"
+  python3 -I "$here/report.py" "$reports/native.json" "$reports/wasm.json" "$reports/files.json" > "$root/docs/PARITY.md"
   echo "Wrote docs/PARITY.md"
 fi
 exit $status

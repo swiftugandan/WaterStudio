@@ -8,6 +8,8 @@
 //! - `ws_read_inp`: .inp text -> `{ model, issues }` (the canonical model as JSON)
 //! - `ws_write_inp`: model JSON -> .inp text
 //! - `ws_run`: model JSON -> binary results (see `ws_study::run::encode`)
+//! - `ws_run_files`: `{ model, inpName, date }` JSON -> EPANET's report and output file:
+//!   a u32 report length, the report text, then the binary output file
 //! - `ws_run_hydraulics_inp`: .inp text -> JSON report (the parity harness's format)
 //!
 //! This is the only crate in the workspace allowed `unsafe`, and only here.
@@ -110,12 +112,50 @@ pub unsafe extern "C" fn ws_run(ptr: *const u8, len: usize) -> *mut u8 {
     let bytes = unsafe { std::slice::from_raw_parts(ptr, len) };
     let outcome = serde_json::from_slice::<ws_model::Model>(bytes)
         .map_err(|e| format!("model: {e}"))
-        .and_then(|m| ws_study::run::run_model(&m))
+        .and_then(|m| ws_study::run::run_model(&m, None))
         .and_then(|r| {
             ws_study::run::encode(
                 &r,
                 concat!("waterstudio-engine ", env!("CARGO_PKG_VERSION")),
             )
+        });
+    reply(outcome)
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FilesRequest {
+    model: ws_model::Model,
+    inp_name: String,
+    /// The run's clock time as C's `ctime` prints it, without the newline.
+    date: String,
+}
+
+/// Run a model as EPANET's `runepanet` does and return its report and output file.
+///
+/// # Safety
+/// `ptr..ptr+len` must be readable memory the host wrote.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ws_run_files(ptr: *const u8, len: usize) -> *mut u8 {
+    // SAFETY: guaranteed by the caller.
+    let bytes = unsafe { std::slice::from_raw_parts(ptr, len) };
+    let outcome = serde_json::from_slice::<FilesRequest>(bytes)
+        .map_err(|e| format!("request: {e}"))
+        .and_then(|req| {
+            let opts = ws_solver::RunOptions {
+                inp_name: req.inp_name,
+                date: req.date,
+                report: true,
+            };
+            ws_study::run::run_model(&req.model, Some(&opts))
+        })
+        .and_then(|r| {
+            let report = r.report.unwrap_or_default().into_bytes();
+            let n = u32::try_from(report.len()).map_err(|_| "report too large".to_string())?;
+            let mut body = n.to_le_bytes().to_vec();
+            body.extend_from_slice(&report);
+            body.extend_from_slice(&r.out_file.unwrap_or_default());
+            Ok(body)
         });
     reply(outcome)
 }

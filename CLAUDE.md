@@ -14,6 +14,8 @@ WaterStudio is a browser-based, open-source successor to EPA EPANET. Read `docs/
 - `engine/ws-solver` is a port of OWA-EPANET 2.3.5 (ADR 0006) and must stay bit-identical to it: keep the C
   function names, order of operations and floating-point association. Use `types::pow`/`log` (never `powf`/`ln`).
   `cargo run --release -p ws-solver --example dump` prints every time step for side-by-side debugging.
+  `ws run net.inp out.rpt out.bin` writes EPANET's report and output file; `oracle/parity.sh` requires them
+  identical to `runepanet`'s (ADR 0009).
 - `engine/ws-hyd` is a fork of epanet-rs (ADR 0001), kept as a benchmark. Record every change in `engine/ws-hyd/FORK.md`.
 - Only `engine/ws-wasm` may use `unsafe`. Elsewhere: no `unwrap`, `expect` or `panic` outside tests.
 - Clean room: never read the epanet-js application's source (FSL licence). OWA-EPANET, EPA EPANET, epanet-rs and

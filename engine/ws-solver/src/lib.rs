@@ -25,6 +25,7 @@
     clippy::if_same_then_else
 )]
 
+mod cfmt;
 mod coeffs;
 mod error;
 mod genmmd;
@@ -32,7 +33,9 @@ mod hydraul;
 mod input;
 mod leakage;
 pub mod math;
+mod output;
 mod quality;
+mod report;
 mod rules;
 mod smatrix;
 mod solver;
@@ -56,6 +59,12 @@ pub struct Project {
     pub(crate) units: Units,
     pub(crate) rules: Vec<rules::Rule>,
     pub(crate) qual: quality::Quality,
+    pub(crate) rpt: report::Report,
+    /// The last hydraulic warning (EPANET's `Warnflag`): 1 unbalanced, 2 unstable,
+    /// 4 pump condition, 5 valve condition, 6 negative pressures.
+    pub(crate) warnflag: i32,
+    /// For each node, (opposite node, link) as EPANET's adjacency lists order them.
+    pub(crate) adjlist: Vec<Vec<(usize, usize)>>,
     /// For each solver node index (1-based; entry 0 unused), its index in `Model::nodes`.
     pub(crate) node_order: Vec<usize>,
 }
@@ -72,10 +81,29 @@ impl Hydraulics {
     /// Build the solver's network from a model and open the solver (`EN_open` +
     /// `EN_openH` + `EN_initH(0)`).
     pub fn new(model: &Model) -> Result<Self, SolverError> {
+        Self::open(model, None)
+    }
+
+    /// `EN_open` (writing a report when `report` is given), `EN_openH`, `EN_initH`.
+    fn open(model: &Model, report: Option<&RunOptions>) -> Result<Self, SolverError> {
         let mut pr = input::build(model)?;
+        if let Some(opts) = report {
+            pr.rpt.file = Some(report::ReportFile::default());
+            pr.rpt.date = opts.date.clone();
+            report::writelogo(&mut pr);
+            if pr.rpt.summaryflag {
+                report::writesummary(&mut pr, &model.title, &opts.inp_name);
+            }
+        }
         hydraul::openhyd(&mut pr)?;
+        if report.is_some() {
+            report::writetime(&mut pr, "begun");
+        }
         leakage::openleakage(&mut pr);
         hydraul::inithyd(&mut pr, false);
+        if pr.rpt.statflag != report::Statflag::No && report::writing(&pr) {
+            report::writeheader(&mut pr, report::Header::Status, false);
+        }
         Ok(Hydraulics { pr, records: None })
     }
 
@@ -115,6 +143,7 @@ impl Hydraulics {
             pr,
             records,
             next: 0,
+            saving: None,
         })
     }
 
@@ -335,6 +364,8 @@ pub struct WaterQuality {
     pr: Project,
     records: Vec<quality::HydRecord>,
     next: usize,
+    /// Output-file columns, filled at each report time as `runqual` saves them.
+    saving: Option<output::Columns>,
 }
 
 impl WaterQuality {
@@ -352,6 +383,9 @@ impl WaterQuality {
             quality::readhyd(&mut self.pr, &r);
             self.pr.times.htime = r.htime;
             if self.pr.times.htime >= self.pr.times.rtime {
+                if let Some(cols) = &mut self.saving {
+                    output::save_quality(&self.pr, cols);
+                }
                 self.pr.times.rtime += self.pr.times.rstep;
             }
             quality::runqual_update(&mut self.pr)
@@ -384,6 +418,206 @@ impl WaterQuality {
     /// The system mass balance ratio (mass out / mass in); 1 is perfect.
     pub fn mass_balance_ratio(&self) -> f64 {
         self.pr.qual.mass.ratio
+    }
+}
+
+/// Variables of EPANET's output file for nodes, in file order.
+pub const OUTPUT_NODE_VARIABLES: [&str; 4] = ["demand", "head", "pressure", "quality"];
+/// Variables of EPANET's output file for links, in file order. `status` holds EPANET's
+/// status codes; `reaction` is the average reaction rate (mass/L/day); `friction` the
+/// Darcy-Weisbach friction factor.
+pub const OUTPUT_LINK_VARIABLES: [&str; 8] = [
+    "flow", "velocity", "headloss", "quality", "status", "setting", "reaction", "friction",
+];
+
+/// What a run that writes EPANET's files needs to know.
+#[derive(Clone, Debug, Default)]
+pub struct RunOptions {
+    /// The input file name, as the report and output file record it.
+    pub inp_name: String,
+    /// Clock time of the run in C `ctime` form without its newline, e.g.
+    /// `Sun Oct 11 02:12:12 2026`, for the report's header.
+    pub date: String,
+    /// Write EPANET's text report.
+    pub report: bool,
+}
+
+/// A whole run the way EPANET's `EN_runproject` makes one (`EN_solveH`, then
+/// `EN_solveQ` saving results), with every report period as EPANET's output file
+/// holds it.
+#[derive(Clone, Debug)]
+pub struct EpanetRun {
+    pr: Project,
+    title: Vec<String>,
+    energy: Vec<u8>,
+    cols: output::Columns,
+    times: Vec<i64>,
+    inp_name: String,
+    report: Option<String>,
+}
+
+/// Run a model as `EN_runproject` does. `at_report` sees the hydraulic solution of
+/// each report period, for values the output file does not keep.
+pub fn run_epanet(
+    model: &Model,
+    opts: &RunOptions,
+    mut at_report: impl FnMut(&Hydraulics),
+) -> Result<EpanetRun, SolverError> {
+    let mut h = Hydraulics::open(model, opts.report.then_some(opts))?;
+    let quality = h.has_quality();
+    if quality {
+        h.record_for_quality();
+    }
+    let (rstart, rstep) = (h.pr.times.rstart, h.pr.times.rstep);
+    let mut cols = output::Columns::default();
+    let mut times = Vec::new();
+    let mut rtime = rstart;
+    loop {
+        let t = h.run()?;
+        if t >= rtime {
+            output::save_hydraulics(&h.pr, &mut cols);
+            times.push(t);
+            at_report(&h);
+            rtime += rstep;
+        }
+        if h.advance() <= 0 {
+            break;
+        }
+    }
+    // EN_initQ with EN_SAVE opens the output file, which writes pump energy.
+    let energy = output::saveenergy(&mut h.pr);
+    let pr = if quality {
+        let mut q = h.into_quality()?;
+        q.saving = Some(cols);
+        loop {
+            q.run()?;
+            if q.advance() <= 0 {
+                break;
+            }
+        }
+        cols = q.saving.take().unwrap_or_default();
+        q.pr
+    } else {
+        for _ in &times {
+            output::save_quality(&h.pr, &mut cols);
+        }
+        h.pr
+    };
+    let mut run = EpanetRun {
+        pr,
+        title: model.title.clone(),
+        energy,
+        cols,
+        times,
+        inp_name: opts.inp_name.clone(),
+        report: None,
+    };
+    if report::writing(&run.pr) {
+        run.writereport();
+    }
+    Ok(run)
+}
+
+impl EpanetRun {
+    pub fn report_start(&self) -> i64 {
+        self.pr.times.rstart
+    }
+
+    pub fn report_step(&self) -> i64 {
+        self.pr.times.rstep
+    }
+
+    /// Simulation time of each report period's solution, in seconds.
+    pub fn times(&self) -> &[i64] {
+        &self.times
+    }
+
+    pub fn node_count(&self) -> usize {
+        self.pr.net.nnodes
+    }
+
+    pub fn link_count(&self) -> usize {
+        self.pr.net.nlinks
+    }
+
+    /// Node IDs in solver order: junctions, then tanks and reservoirs.
+    pub fn node_ids(&self) -> impl Iterator<Item = &str> {
+        self.pr.net.node.iter().skip(1).map(|n| n.id.as_str())
+    }
+
+    /// For each solver node, its index in the model's `nodes`.
+    pub fn node_model_index(&self) -> &[usize] {
+        &self.pr.node_order[1..]
+    }
+
+    /// Node variable `v` of [`OUTPUT_NODE_VARIABLES`] for every period, solver order:
+    /// `[period * node_count + i]`.
+    pub fn node_series(&self, v: usize) -> &[f32] {
+        self.cols.nodes.get(v).map_or(&[], Vec::as_slice)
+    }
+
+    /// Link variable `v` of [`OUTPUT_LINK_VARIABLES`] for every period.
+    pub fn link_series(&self, v: usize) -> &[f32] {
+        self.cols.links.get(v).map_or(&[], Vec::as_slice)
+    }
+
+    /// The last hydraulic warning (EPANET's `Warnflag`; 0 if none).
+    pub fn warning(&self) -> i32 {
+        self.pr.warnflag
+    }
+
+    /// The periods as the output file holds them: every report period, or the one
+    /// time-series statistic the model asks for.
+    fn file_columns(&self) -> (std::borrow::Cow<'_, output::Columns>, usize) {
+        let pr = &self.pr;
+        if pr.rpt.tstatflag == report::Tstat::Series {
+            (std::borrow::Cow::Borrowed(&self.cols), self.times.len())
+        } else {
+            let (nn, nl) = (pr.net.nnodes, pr.net.nlinks);
+            let stat = output::timestat(&self.cols, pr.rpt.tstatflag, nn, nl, self.times.len());
+            (std::borrow::Cow::Owned(stat), 1)
+        }
+    }
+
+    /// EPANET's binary output file, byte for byte as `runepanet` writes it.
+    pub fn out_file(&self) -> Vec<u8> {
+        let pr = &self.pr;
+        let (nn, nl) = (pr.net.nnodes, pr.net.nlinks);
+        let prolog = output::savenetdata(pr, &self.title, &self.inp_name);
+        let q = &pr.qual;
+        let reacts = [q.wbulk, q.wwall, q.wtank, q.wsource];
+        let (cols, periods) = self.file_columns();
+        output::outfile(
+            &prolog,
+            &self.energy,
+            &cols,
+            nn,
+            nl,
+            periods,
+            reacts,
+            pr.times.dur,
+            pr.warnflag,
+        )
+    }
+
+    /// EPANET's text report, as `runepanet` writes it (when the run asked for one).
+    pub fn report(&self) -> Option<&str> {
+        self.report.as_deref()
+    }
+
+    /// `EN_closeQ` and `EN_report`: finish the report.
+    fn writereport(&mut self) {
+        report::writetime(&mut self.pr, "ended");
+        // A secondary report file named in [REPORT] gets the tables instead.
+        if self.pr.rpt.rpt2_fname.is_empty() || self.pr.rpt.rpt2_fname == self.inp_name {
+            if self.pr.rpt.energyflag {
+                report::writeenergy(&mut self.pr);
+            }
+            let (cols, periods) = self.file_columns();
+            let cols = cols.into_owned();
+            report::writeresults(&mut self.pr, &cols, periods);
+        }
+        self.report = self.pr.rpt.file.take().map(|f| f.text);
     }
 }
 

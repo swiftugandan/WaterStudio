@@ -60,6 +60,21 @@ pub fn log(x: f64) -> f64 {
     crate::math::log(x)
 }
 
+/// `ABS(x)` from types.h: keeps the sign of a negative zero, unlike `f64::abs`.
+pub fn abs(x: f64) -> f64 {
+    if x < 0.0 { -x } else { x }
+}
+
+/// `MIN(x, y)` from types.h.
+pub fn min_c<T: PartialOrd>(x: T, y: T) -> T {
+    if x <= y { x } else { y }
+}
+
+/// `MAX(x, y)` from types.h.
+pub fn max_c<T: PartialOrd>(x: T, y: T) -> T {
+    if x >= y { x } else { y }
+}
+
 /// Square root is exactly rounded by IEEE 754 everywhere.
 pub fn sqrt(x: f64) -> f64 {
     x.sqrt()
@@ -333,6 +348,19 @@ pub struct Curve {
     pub y: Vec<f64>,
 }
 
+/// The system flow balance (`SflowBalance`).
+#[derive(Clone, Debug, Default)]
+pub struct FlowBalance {
+    pub total_inflow: f64,
+    pub total_outflow: f64,
+    pub consumer_demand: f64,
+    pub emitter_demand: f64,
+    pub leakage_demand: f64,
+    pub deficit_demand: f64,
+    pub storage_demand: f64,
+    pub ratio: f64,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Leakage {
     pub qfa: f64,
@@ -472,6 +500,8 @@ pub struct Hydraul {
     pub leakage: Vec<Leakage>,
     pub link_status: Vec<Status>,
     pub old_status: Vec<Status>,
+    pub flow_balance: FlowBalance,
+    pub leakage_loss: f64,
 }
 
 impl Default for Hydraul {
@@ -530,6 +560,8 @@ impl Default for Hydraul {
             leakage: Vec::new(),
             link_status: Vec::new(),
             old_status: Vec::new(),
+            flow_balance: FlowBalance::default(),
+            leakage_loss: 0.0,
         }
     }
 }

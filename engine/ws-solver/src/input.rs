@@ -19,7 +19,7 @@ use crate::error::SolverError;
 use crate::quality::{AGETOL, CHEMTOL, DIFFUS, L_PER_FT3, MixModel, Source, SourceType};
 use crate::types::*;
 
-fn getfloat(s: &str) -> Option<f64> {
+pub(crate) fn getfloat(s: &str) -> Option<f64> {
     s.parse::<f64>().ok().filter(|v| v.is_finite())
 }
 
@@ -203,9 +203,9 @@ fn option_choice(
         } else if m(t1, "TRACE") {
             QualType::Trace
         } else {
-            q.chem_name = t1.to_string();
+            q.chem_name = t1.chars().take(31).collect();
             if n >= 2 {
-                q.chem_units = tok[2].clone();
+                q.chem_units = tok[2].chars().take(31).collect();
             }
             QualType::Chem
         };
@@ -214,8 +214,8 @@ fn option_choice(
                 return Err(err(201, "QUALITY TRACE needs a node"));
             }
             set.trace_id = Some(tok[2].clone());
-            q.chem_name = "%".into();
-            q.chem_units = tok[2].clone();
+            q.chem_name = "% from".into();
+            q.chem_units = tok[2].chars().take(31).collect();
         }
         if q.qualflag == QualType::Age {
             q.chem_name = "AGE".into();
@@ -408,7 +408,11 @@ fn option_value(
 }
 
 /// `timedata` (input3.c).
-fn times(t: &mut Times, section: &KeywordSection) -> Result<(), SolverError> {
+fn times(
+    t: &mut Times,
+    rpt: &mut crate::report::Report,
+    section: &KeywordSection,
+) -> Result<(), SolverError> {
     for line in &section.lines {
         let tok = &line.tokens;
         if tok.len() < 2 {
@@ -416,7 +420,8 @@ fn times(t: &mut Times, section: &KeywordSection) -> Result<(), SolverError> {
         }
         let n = tok.len() - 1;
         if m(&tok[0], "STAT") {
-            continue; // reporting statistic: not used by the solver
+            rpt.tstatflag = crate::report::statistic(&tok[tok.len() - 1])?;
+            continue;
         }
         let y = match getfloat(&tok[n]) {
             Some(v) => v,
@@ -530,7 +535,7 @@ pub fn build(model: &Model) -> Result<Project, SolverError> {
     };
 
     options(&mut pr, &mut set, &model.options)?;
-    times(&mut pr.times, &model.times)?;
+    times(&mut pr.times, &mut pr.rpt, &model.times)?;
 
     // Global energy settings (energydata).
     for line in &model.energy.lines {
@@ -896,12 +901,23 @@ pub fn build(model: &Model) -> Result<Project, SolverError> {
     }
     pr.net.ncontrols = pr.net.control.len() - 1;
     pr.rules = crate::rules::parse_rules(&pr.net, &model.rules, &node_index, &link_index)?;
+    crate::report::reportdata(
+        &mut pr.rpt,
+        &model.report,
+        &|id| node_index.get(id).copied(),
+        &|id| link_index.get(id).copied(),
+        pr.net.nnodes,
+        pr.net.nlinks,
+    )?;
 
     adjustdata(&mut pr, &set, &pattern_index);
     inittanks(&mut pr);
     initunits(&mut pr);
     convertunits(&mut pr);
     validateproject(&mut pr)?;
+    crate::report::setfieldunits(&mut pr);
+    pr.adjlist = crate::quality::buildadjlists(&pr.net);
+    pr.rpt.title0 = model.title.first().cloned().unwrap_or_default();
     Ok(pr)
 }
 
@@ -1130,6 +1146,9 @@ fn adjustdata(pr: &mut Project, set_: &Settings, patterns: &HashMap<&str, usize>
         && i > 0
     {
         pr.hyd.def_pat = i;
+    }
+    if pr.qual.qualflag == QualType::None {
+        pr.rpt.field[Field::Quality as usize].enabled = false;
     }
 }
 

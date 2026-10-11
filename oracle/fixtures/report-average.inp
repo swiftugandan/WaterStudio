@@ -1,0 +1,163 @@
+[TITLE]
+Report fixture: time-averaged results with an energy report
+WaterStudio control fixture
+Rule-based and simple controls, every valve type, pump curve types and
+Chezy-Manning head loss, in US units over three days.
+
+[OPTIONS]
+ Units              GPM
+ Headloss           C-M
+ Trials             80
+ Accuracy           0.001
+ Unbalanced         Continue 10
+ Demand Multiplier  1.1
+ Emitter Exponent   0.6
+ Pattern            Week
+
+[TIMES]
+ Statistic AVERAGE
+ Duration           72:00
+ Hydraulic Timestep 0:30
+ Pattern Timestep   3:00
+ Report Timestep    2:00
+ Report Start       4:00
+ Rule Timestep      0:05
+ Start ClockTime    11 PM
+
+[JUNCTIONS]
+ J1   700   150
+ J2   710   120
+ J3   690   200
+ J4   680   80
+ J5   705   60
+ J6   695   90
+ J7   685   140
+ J8   675   40
+ J9   670   75
+ J10  665   30
+ S1   650   0
+ S2   650   0
+ B1   690   0
+ B2   690   0
+
+[RESERVOIRS]
+ Lake  650
+
+[TANKS]
+ High  820  12  2  30  45  0  *  YES
+ Low   780  8   1  20  35  0
+
+[PIPES]
+ P1   J1   J2   2500  16  0.012  0  Open
+ P2   J2   J3   1800  12  0.012  0  Open
+ P3   J3   J4   2200  12  0.013  0  Open
+ P4   J4   J5   1500  10  0.013  0  Open
+ P5   J5   J6   1200  8   0.013  0  Open
+ P6   J6   J7   1400  8   0.013  0  Open
+ P7   J7   J1   1600  10  0.012  0  Open
+ P8   J2   High 900   14  0.011  0  Open
+ P9   J6   Low  1100  12  0.011  0  Open
+ P10  J7   J8   1300  8   0.013  0  CV
+ P11  J8   J9   900   6   0.013  0  Open
+ P12  J9   J10  800   6   0.014  0  Open
+ P13  J4   J9   2000  8   0.013  0  Open
+ P14  Lake S1   50    24  0.010  0  Open
+ P15  S2   J1   50    20  0.010  0  Open
+ P16  J3   B1   60    12  0.012  0  Open
+ P17  B2   J5   60    12  0.012  0  Open
+
+[PUMPS]
+ Main   S1  S2  HEAD Three
+ Boost  B1  B2  HEAD Single  SPEED 1.0
+ Fire   J10 J8  POWER 25
+
+[VALVES]
+ PRV1  J5  J6  8   PRV  50   0
+ PSV1  J8  J10 6   PSV  30   0
+ FCV1  J9  J10 6   FCV  400  0.5
+ PBV1  J3  J7  8   PBV  5    0
+ TCV1  J4  J8  6   TCV  20   0
+
+[STATUS]
+ Fire   Closed
+ TCV1   Closed
+
+[PATTERNS]
+ Week  0.7 0.6 0.9 1.3 1.4 1.0 1.2 1.5
+ Week  0.9 0.8 1.1 1.0
+
+[CURVES]
+ Three   0     400   PUMP
+ Three   2000  300
+ Three   4000  100
+ Single  1000  120   PUMP
+
+[CONTROLS]
+ LINK TCV1 OPEN AT TIME 6
+ LINK TCV1 CLOSED AT TIME 30
+ LINK Fire 1.0 AT CLOCKTIME 3 PM
+ LINK Fire CLOSED AT CLOCKTIME 5 PM
+ LINK P13 CLOSED IF NODE J9 ABOVE 90
+
+[RULES]
+RULE HighFull
+IF TANK High LEVEL ABOVE 40
+THEN PUMP Main STATUS IS CLOSED
+PRIORITY 5
+
+RULE HighLow
+IF TANK High LEVEL BELOW 15
+OR SYSTEM DEMAND > 1200
+THEN PUMP Main STATUS IS OPEN
+PRIORITY 4
+
+RULE NightBoost
+IF SYSTEM CLOCKTIME >= 10 PM
+AND SYSTEM CLOCKTIME < 6 AM
+THEN PUMP Boost SPEED IS 0.8
+ELSE PUMP Boost SPEED IS 1.0
+AND VALVE PRV1 SETTING IS 55
+
+RULE LowDrain
+IF TANK Low DRAINTIME < 3
+THEN VALVE FCV1 SETTING IS 250
+ELSE VALVE FCV1 SETTING IS 400
+
+RULE LowFill
+IF TANK Low FILLTIME BELOW 2
+AND LINK P9 FLOW > 50
+THEN PIPE P9 STATUS IS CLOSED
+PRIORITY 1
+
+RULE Reopen
+IF TANK Low LEVEL BELOW 10
+THEN PIPE P9 STATUS IS OPEN
+PRIORITY 3
+
+RULE Pressure
+IF JUNCTION J10 PRESSURE BELOW 35
+AND VALVE PSV1 STATUS IS ACTIVE
+THEN VALVE PSV1 SETTING IS 25
+
+RULE Morning
+IF SYSTEM TIME = 30:00
+THEN VALVE PBV1 STATUS IS OPEN
+
+RULE Ignored
+IF NODE J1 HEAD > 1000
+THEN PUMP Main STATUS IS CLOSED
+DISABLED
+
+[EMITTERS]
+ J8  0.5
+
+[REPORT]
+ Status   Yes
+ Summary  Yes
+ Energy   Yes
+ Nodes    All
+ Links    All
+ Headloss No
+ Setting  Yes
+
+[END]

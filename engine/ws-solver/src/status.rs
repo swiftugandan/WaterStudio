@@ -30,6 +30,9 @@ pub fn valvestatus(pr: &mut Project) -> bool {
             _ => continue,
         }
         if status != pr.hyd.link_status[k] {
+            if pr.rpt.statflag == crate::report::Statflag::Full && crate::report::writing(pr) {
+                crate::report::writestatchange(pr, k, status, pr.hyd.link_status[k]);
+            }
             change = true;
         }
     }
@@ -69,6 +72,9 @@ pub fn linkstatus(pr: &mut Project) -> bool {
         }
         if status != pr.hyd.link_status[k] {
             change = true;
+            if pr.rpt.statflag == crate::report::Statflag::Full && crate::report::writing(pr) {
+                crate::report::writestatchange(pr, k, status, pr.hyd.link_status[k]);
+            }
         }
     }
     change

@@ -1,5 +1,5 @@
 /**
- * Results of a hydraulic run as f32 columns, decoded from the engine's binary reply
+ * Results of a run as f32 columns, decoded from the engine's binary reply
  * (`ws_study::run::encode`). Column layout: `node[variable][period * nodeCount + i]`,
  * where `i` is the element's position among the model's nodes (links likewise).
  */
@@ -8,19 +8,22 @@ export const NODE_VARIABLES = [
   'demand',
   'head',
   'pressure',
+  'quality',
   'deficit',
   'emitter',
   'leakage',
-  'quality',
 ] as const;
+/** `status` holds EPANET's status codes; `reaction` is the reaction rate (quality units per day). */
 export const LINK_VARIABLES = [
   'flow',
   'velocity',
   'headloss',
+  'quality',
   'status',
   'setting',
+  'reaction',
+  'friction',
   'leakage',
-  'quality',
 ] as const;
 export type NodeVariable = (typeof NODE_VARIABLES)[number];
 export type LinkVariable = (typeof LINK_VARIABLES)[number];

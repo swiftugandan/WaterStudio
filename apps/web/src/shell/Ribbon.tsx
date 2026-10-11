@@ -198,6 +198,8 @@ const VAR_LABEL: Record<string, string> = {
   status: 'Status',
   setting: 'Setting',
   quality: 'Quality',
+  reaction: 'Reaction rate',
+  friction: 'Friction factor',
 };
 
 function MapTheme() {

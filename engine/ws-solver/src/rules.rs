@@ -650,7 +650,7 @@ fn checkvalue(pr: &Project, p: &Premise) -> bool {
 fn takeactions(pr: &mut Project, list: &[(Action, usize)]) -> usize {
     const TOL: f64 = 1.0e-3;
     let mut n = 0;
-    for (a, _) in list.iter().rev() {
+    for (a, ri) in list.iter().rev() {
         let k = a.link;
         let s = pr.hyd.link_status[k];
         let v = pr.hyd.link_setting[k];
@@ -677,6 +677,10 @@ fn takeactions(pr: &mut Project, list: &[(Action, usize)]) -> usize {
         }
         if flag {
             n += 1;
+            if pr.rpt.statflag != crate::report::Statflag::No && crate::report::writing(pr) {
+                let label = pr.rules[*ri].label.clone();
+                crate::report::writeruleaction(pr, k, &label);
+            }
         }
     }
     n

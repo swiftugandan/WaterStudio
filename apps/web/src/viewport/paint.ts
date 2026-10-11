@@ -32,6 +32,8 @@ export const VARIABLE_QUANTITY: Record<NodeVariable | LinkVariable, Quantity | '
   status: 'none',
   setting: 'none',
   quality: 'concentration',
+  reaction: 'reactionRate',
+  friction: 'none',
 };
 
 const legendCache = new WeakMap<RunResults, Map<string, Legend>>();

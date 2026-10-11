@@ -221,16 +221,7 @@ pub fn openqual(pr: &mut Project) -> Result<(), i32> {
     if net.ntanks == 0 {
         return Err(224);
     }
-    // buildadjlists: each link is prepended to both end nodes' lists.
-    let mut adj: Vec<Vec<(usize, usize)>> = vec![Vec::new(); net.nnodes + 1];
-    for k in 1..=net.nlinks {
-        let (i, j) = (net.link[k].n1, net.link[k].n2);
-        adj[i].push((j, k));
-        adj[j].push((i, k));
-    }
-    for list in &mut adj {
-        list.reverse();
-    }
+    let adj = pr.adjlist.clone();
     let q = &mut pr.qual;
     q.adj = adj;
     q.flow_dir = vec![0; net.nlinks + 1];
@@ -339,6 +330,13 @@ pub fn nextqual(pr: &mut Project) -> i64 {
     }
     evalmassbalance(pr);
     pr.times.qtime += hydstep;
+    if hydstep == 0
+        && pr.qual.qualflag != QualType::None
+        && pr.rpt.statflag != crate::report::Statflag::No
+        && crate::report::writing(pr)
+    {
+        crate::report::writemassbalance(pr);
+    }
     hydstep
 }
 
@@ -1224,4 +1222,19 @@ fn tankmix4(pr: &mut Project, i: usize, vin: f64, win: f64, mut vnet: f64) {
         reversesegs(pr, k);
         pr.net.tank[i].c = (wsum + win) / (vsum + vin);
     }
+}
+
+/// `buildadjlists` (project.c): for each node, (opposite node, link) with each link
+/// prepended to both end nodes' lists, as EPANET's linked lists hold them.
+pub fn buildadjlists(net: &Network) -> Vec<Vec<(usize, usize)>> {
+    let mut adj: Vec<Vec<(usize, usize)>> = vec![Vec::new(); net.nnodes + 1];
+    for k in 1..=net.nlinks {
+        let (i, j) = (net.link[k].n1, net.link[k].n2);
+        adj[i].push((j, k));
+        adj[j].push((i, k));
+    }
+    for list in &mut adj {
+        list.reverse();
+    }
+    adj
 }

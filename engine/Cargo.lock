@@ -977,6 +977,7 @@ version = "0.0.1"
 dependencies = [
  "ws-io",
  "ws-model",
+ "ws-solver",
 ]
 
 [[package]]
@@ -1048,6 +1049,7 @@ dependencies = [
  "serde_json",
  "ws-io",
  "ws-model",
+ "ws-solver",
  "ws-study",
 ]
 

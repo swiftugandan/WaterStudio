@@ -9,6 +9,7 @@ use crate::Project;
 use crate::coeffs::{pcvlosscoeff, resistcoeff};
 use crate::error::SolverError;
 use crate::input::interp;
+use crate::report::{self, Statflag};
 use crate::smatrix::createsparse;
 use crate::solver::hydsolve;
 use crate::types::*;
@@ -96,6 +97,7 @@ pub fn inithyd(pr: &mut Project, initflag: bool) {
     for i in 1..=pr.net.npumps {
         pr.net.pump[i].energy = Energy::default();
     }
+    pr.hyd.flow_balance = FlowBalance::default();
     pr.hyd.haltflag = false;
     pr.times.htime = 0;
     pr.times.hydstep = 0;
@@ -108,9 +110,13 @@ pub fn runhyd(pr: &mut Project) -> Result<(i32, f64), SolverError> {
     controls(pr);
     match hydsolve(pr) {
         Ok((iter, relerr)) => {
+            if pr.rpt.statflag != Statflag::No && report::writing(pr) {
+                report::writehydstat(pr, iter, relerr);
+            }
             if relerr > pr.hyd.hacc && pr.hyd.extra_iter == -1 {
                 pr.hyd.haltflag = true;
             }
+            report::writehydwarn(pr, iter, relerr);
             Ok((iter, relerr))
         }
         Err((code, _, node)) => Err(SolverError::new(
@@ -143,12 +149,17 @@ pub fn nexthyd(pr: &mut Project) -> i64 {
     } else if pr.times.htime < pr.times.dur {
         addenergy(pr, hydstep);
     }
+    updateflowbalance(pr, hydstep);
     if pr.times.htime < pr.times.dur {
         pr.times.htime += hydstep;
         if pr.times.htime >= pr.times.rtime {
             pr.times.rtime += pr.times.rstep;
         }
     } else {
+        endflowbalance(pr);
+        if pr.rpt.statflag != Statflag::No && report::writing(pr) {
+            report::writeflowbalance(pr);
+        }
         pr.times.htime += 1;
     }
     hydstep
@@ -322,6 +333,9 @@ fn controls(pr: &mut Project) -> i32 {
                 pr.hyd.link_setting[k] = k2;
                 if lt == LinkType::Pcv {
                     pr.net.link[k].r = pcvlosscoeff(pr, k, k2);
+                }
+                if pr.rpt.statflag != Statflag::No && report::writing(pr) {
+                    report::writecontrolaction(pr, k, i);
                 }
                 setsum += 1;
             }
@@ -586,4 +600,99 @@ fn resetpumpflow(pr: &mut Project, i: usize) {
     if pr.net.pump[p].ptype == PumpType::ConstHp {
         pr.hyd.link_flow[i] = pr.net.pump[p].q0;
     }
+}
+
+/// `updateflowbalance` (flowbalance.c)
+fn updateflowbalance(pr: &mut Project, hstep: i64) {
+    let dt = if pr.times.dur == 0 {
+        1.0
+    } else if pr.times.htime < pr.times.dur {
+        hstep as f64
+    } else {
+        return;
+    };
+    let (net, hyd) = (&pr.net, &mut pr.hyd);
+    let mut fb = FlowBalance::default();
+    hyd.leakage_loss = 0.0;
+    for i in 1..=net.njuncs {
+        let v = hyd.demand_flow[i];
+        if v < 0.0 {
+            fb.total_inflow += -v;
+        } else {
+            fb.consumer_demand += v;
+            fb.total_outflow += v;
+        }
+        let v = hyd.emitter_flow[i];
+        fb.emitter_demand += v;
+        fb.total_outflow += v;
+        let v = hyd.leakage_flow[i];
+        fb.leakage_demand += v;
+        fb.total_outflow += v;
+        if hyd.demand_model == DemandModel::Pda && hyd.full_demand[i] > 0.0 {
+            let deficit = hyd.full_demand[i] - hyd.demand_flow[i];
+            if deficit > 0.0 {
+                fb.deficit_demand += deficit;
+            }
+        }
+    }
+    for j in 1..=net.ntanks {
+        let i = net.tank[j].node;
+        let v = hyd.node_demand[i];
+        if net.tank[j].a == 0.0 {
+            if v >= 0.0 {
+                fb.total_outflow += v;
+            } else {
+                fb.total_inflow += -v;
+            }
+        } else {
+            fb.storage_demand += v;
+        }
+    }
+    let mut v = fb.total_inflow;
+    if fb.storage_demand < 0.0 {
+        v += -fb.storage_demand;
+    }
+    if v > 0.0 {
+        hyd.leakage_loss = fb.leakage_demand / v * 100.0;
+    }
+    let t = &mut hyd.flow_balance;
+    t.total_inflow += fb.total_inflow * dt;
+    t.total_outflow += fb.total_outflow * dt;
+    t.consumer_demand += fb.consumer_demand * dt;
+    t.emitter_demand += fb.emitter_demand * dt;
+    t.leakage_demand += fb.leakage_demand * dt;
+    t.deficit_demand += fb.deficit_demand * dt;
+    t.storage_demand += fb.storage_demand * dt;
+}
+
+/// `endflowbalance` (flowbalance.c)
+fn endflowbalance(pr: &mut Project) {
+    let seconds = if pr.times.htime > 0 {
+        pr.times.htime as f64
+    } else {
+        1.0
+    };
+    let t = &mut pr.hyd.flow_balance;
+    t.total_inflow /= seconds;
+    t.total_outflow /= seconds;
+    t.consumer_demand /= seconds;
+    t.emitter_demand /= seconds;
+    t.leakage_demand /= seconds;
+    t.deficit_demand /= seconds;
+    t.storage_demand /= seconds;
+    let mut qin = t.total_inflow;
+    let mut qout = t.total_outflow;
+    let qstor = t.storage_demand;
+    if qstor > 0.0 {
+        qout += qstor;
+    } else {
+        qin -= qstor;
+    }
+    t.ratio = if qin == qout {
+        1.0
+    } else if qin > 0.0 {
+        qout / qin
+    } else {
+        0.0
+    };
 }

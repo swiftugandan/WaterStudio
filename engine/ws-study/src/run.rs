@@ -1,21 +1,25 @@
-//! A hydraulic run for the app: every result variable EPANET reports, at every report
-//! period, as f32 columns in the model's element order, with a compact binary encoding
-//! for the WebAssembly boundary.
+//! A run for the app: every result variable EPANET reports, at every report period,
+//! as f32 columns in the model's element order, with a compact binary encoding for
+//! the WebAssembly boundary.
+//!
+//! The variables EPANET's output file holds are taken from it exactly, so the app
+//! shows what EPANET's own GUI shows; demand deficit, emitter flow and leakage, which
+//! the file does not keep, come from the toolkit's values at each report period.
 
 use serde::Serialize;
-use ws_solver::Hydraulics;
+use ws_solver::{OUTPUT_LINK_VARIABLES, OUTPUT_NODE_VARIABLES, RunOptions, run_epanet};
 
 /// Node result variables, in column order.
 pub const NODE_VARIABLES: [&str; 7] = [
-    "demand", "head", "pressure", "deficit", "emitter", "leakage", "quality",
+    "demand", "head", "pressure", "quality", "deficit", "emitter", "leakage",
 ];
 /// Link result variables, in column order. `status` holds EPANET's internal status
-/// codes (0 XHEAD .. 10 OVERFLOWING).
-pub const LINK_VARIABLES: [&str; 7] = [
-    "flow", "velocity", "headloss", "status", "setting", "leakage", "quality",
+/// codes (0 XHEAD .. 10 OVERFLOWING); `reaction` is the reaction rate in quality
+/// units per day; `friction` the Darcy-Weisbach friction factor.
+pub const LINK_VARIABLES: [&str; 9] = [
+    "flow", "velocity", "headloss", "quality", "status", "setting", "reaction", "friction",
+    "leakage",
 ];
-const NODE_QUALITY: usize = 6;
-const LINK_QUALITY: usize = 6;
 
 /// Results of a run. Column `v` of `nodes` holds variable `NODE_VARIABLES[v]` for every
 /// period: `nodes[v][period * node_count + i]` is node `i` of the model.
@@ -29,6 +33,11 @@ pub struct RunResults {
     pub link_count: usize,
     pub nodes: Vec<Vec<f32>>,
     pub links: Vec<Vec<f32>>,
+    /// The last hydraulic warning (EPANET's code; 0 if none).
+    pub warning: i32,
+    /// EPANET's text report and binary output file, when asked for.
+    pub report: Option<String>,
+    pub out_file: Option<Vec<u8>>,
 }
 
 impl RunResults {
@@ -38,91 +47,72 @@ impl RunResults {
 }
 
 /// Put solver-ordered node values into a column in model order.
-fn push_nodes(col: &mut Vec<f32>, values: Vec<f64>, order: &[usize]) {
+fn push_nodes(col: &mut Vec<f32>, values: impl IntoIterator<Item = f32>, order: &[usize]) {
     let start = col.len();
     col.resize(start + order.len(), 0.0);
     for (solver_i, v) in values.into_iter().enumerate() {
         if let Some(&mi) = order.get(solver_i) {
-            col[start + mi] = v as f32;
+            col[start + mi] = v;
         }
     }
 }
 
-/// Solve a model's hydraulics, then its water quality, over the whole duration,
-/// keeping each report period the way EPANET's output file does (`EN_solveH`, then
-/// `EN_solveQ` over the saved hydraulics).
-pub fn run_model(model: &ws_model::Model) -> Result<RunResults, String> {
-    let mut h = Hydraulics::new(model).map_err(|e| e.to_string())?;
-    let quality = h.has_quality();
-    if quality {
-        h.record_for_quality();
-    }
-    let (rstart, rstep, _) = h.report_times();
-    let order: Vec<usize> = h.node_model_index().to_vec();
-    let (nn, nl) = (h.node_count(), h.link_count());
+/// Run a model as EPANET does over its whole duration, keeping each report period.
+/// With `files`, also produce EPANET's report and output file.
+pub fn run_model(
+    model: &ws_model::Model,
+    files: Option<&RunOptions>,
+) -> Result<RunResults, String> {
+    let mut extra_nodes: [Vec<f32>; 3] = Default::default();
+    let mut extra_links: Vec<f32> = Vec::new();
+    let mut order: Vec<usize> = Vec::new();
+    let opts = files.cloned().unwrap_or_default();
+    let run = run_epanet(model, &opts, |h| {
+        if order.is_empty() {
+            order = h.node_model_index().to_vec();
+        }
+        for (col, values) in
+            extra_nodes
+                .iter_mut()
+                .zip([h.demand_deficits(), h.emitter_flows(), h.node_leakages()])
+        {
+            push_nodes(col, values.into_iter().map(|v| v as f32), &order);
+        }
+        extra_links.extend(h.leakages().into_iter().map(|v| v as f32));
+    })
+    .map_err(|e| e.to_string())?;
+    let order = run.node_model_index().to_vec();
+    let (nn, nl) = (run.node_count(), run.link_count());
+    let periods = run.times().len();
     let mut out = RunResults {
-        report_start: rstart,
-        report_step: rstep,
+        report_start: run.report_start(),
+        report_step: run.report_step(),
+        times: run.times().to_vec(),
         node_count: nn,
         link_count: nl,
-        nodes: vec![Vec::new(); NODE_VARIABLES.len()],
-        links: vec![Vec::new(); LINK_VARIABLES.len()],
+        warning: run.warning(),
         ..Default::default()
     };
-    let mut rtime = rstart;
-    loop {
-        let t = h.run().map_err(|e| e.to_string())?;
-        if t >= rtime {
-            out.times.push(t);
-            let node_cols = [
-                h.demands(),
-                h.heads(),
-                h.pressures(),
-                h.demand_deficits(),
-                h.emitter_flows(),
-                h.node_leakages(),
-            ];
-            for (col, values) in out.nodes.iter_mut().zip(node_cols) {
-                push_nodes(col, values, &order);
-            }
-            if !quality {
-                // Without a quality analysis EPANET reports initial quality at nodes
-                // and zero in links.
-                push_nodes(&mut out.nodes[NODE_QUALITY], h.initial_qualities(), &order);
-                out.links[LINK_QUALITY].extend(std::iter::repeat_n(0.0, nl));
-            }
-            let status: Vec<f64> = h.statuses().into_iter().map(|s| s as u8 as f64).collect();
-            let link_cols = [
-                h.flows(),
-                h.velocities(),
-                h.unit_headlosses(),
-                status,
-                h.settings(),
-                h.leakages(),
-            ];
-            for (col, values) in out.links.iter_mut().zip(link_cols) {
-                col.extend(values.into_iter().map(|v| v as f32));
-            }
-            rtime += rstep;
+    for v in 0..OUTPUT_NODE_VARIABLES.len() {
+        let series = run.node_series(v);
+        let mut col = Vec::with_capacity(periods * nn);
+        for p in 0..periods {
+            push_nodes(
+                &mut col,
+                series[p * nn..(p + 1) * nn].iter().copied(),
+                &order,
+            );
         }
-        if h.advance() <= 0 {
-            break;
-        }
+        out.nodes.push(col);
     }
-    if quality {
-        let mut q = h.into_quality().map_err(|e| e.to_string())?;
-        let mut rtime = rstart;
-        loop {
-            let t = q.run().map_err(|e| e.to_string())?;
-            if t >= rtime {
-                push_nodes(&mut out.nodes[NODE_QUALITY], q.node_qualities(), &order);
-                out.links[LINK_QUALITY].extend(q.link_qualities().into_iter().map(|v| v as f32));
-                rtime += rstep;
-            }
-            if q.advance() <= 0 {
-                break;
-            }
-        }
+    out.nodes.extend(extra_nodes);
+    for v in 0..OUTPUT_LINK_VARIABLES.len() {
+        out.links.push(run.link_series(v).to_vec());
+    }
+    out.links.push(extra_links);
+    if files.is_some() {
+        out.report = run.report().map(str::to_string);
+        out.out_file = Some(run.out_file());
     }
     Ok(out)
 }
@@ -187,7 +177,7 @@ mod tests {
 [TIMES]\n Duration 2:00\n[OPTIONS]\n Units GPM\n[END]\n";
 
     fn run() -> RunResults {
-        run_model(&ws_io::read_inp(NET).model).unwrap()
+        run_model(&ws_io::read_inp(NET).model, None).unwrap()
     }
 
     #[test]
@@ -202,7 +192,7 @@ mod tests {
         // (with a huge pressure drop) but reports the closed pipe's flow as zero.
         assert!((flow[0] - 30.0).abs() < 1e-4);
         assert_eq!(flow[1], 0.0);
-        assert_eq!(r.links[3][1], 2.0); // P2 closed
+        assert_eq!(r.links[4][1], 2.0); // P2 closed
     }
 
     #[test]
@@ -213,7 +203,7 @@ mod tests {
         let header: serde_json::Value = serde_json::from_slice(&bytes[4..4 + hlen]).unwrap();
         assert_eq!(header["nodeCount"], 3);
         let start = (4 + hlen).div_ceil(4) * 4;
-        let n_values = 7 * 3 * 3 + 7 * 2 * 3;
+        let n_values = 7 * 3 * 3 + 9 * 2 * 3;
         assert_eq!(bytes.len(), start + 4 * n_values);
         let head0 = f32::from_le_bytes(bytes[start + 4 * 9..start + 4 * 10].try_into().unwrap());
         assert_eq!(head0, 200.0);

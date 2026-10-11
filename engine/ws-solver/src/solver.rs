@@ -5,8 +5,10 @@
 //! Todini's Global Gradient Algorithm (`hydsolver.c`).
 
 use crate::Project;
+use crate::cfmt;
 use crate::coeffs::{demandheadloss, emitterheadloss, headlosscoeffs, matrixcoeffs};
 use crate::leakage::{leakageflowchange, leakagehasconverged};
+use crate::report::{self, Statflag};
 use crate::smatrix::linsolve;
 use crate::status::{linkstatus, valvestatus};
 use crate::types::*;
@@ -15,6 +17,14 @@ use crate::types::*;
 struct Hydbalance {
     maxheaderror: f64,
     maxflowchange: f64,
+    maxheadlink: usize,
+    maxflownode: isize,
+    maxflowlink: isize,
+}
+
+/// Whether a full status report (with every trial) is being written.
+fn full(pr: &Project) -> bool {
+    pr.rpt.statflag == Statflag::Full && report::writing(pr)
 }
 
 /// `hydsolve`: solve the network equations at the current time. Returns the
@@ -33,6 +43,9 @@ pub fn hydsolve(pr: &mut Project) -> Result<(i32, f64), (i32, f64, i32)> {
     let mut iter = 1;
     let mut relerr = 0.0;
     let mut errcode = 0usize;
+    if full(pr) {
+        report::writerelerr(pr, 0, 0.0);
+    }
     while iter <= maxtrials {
         headlosscoeffs(pr);
         matrixcoeffs(pr);
@@ -50,6 +63,9 @@ pub fn hydsolve(pr: &mut Project) -> Result<(i32, f64), (i32, f64, i32)> {
         }
         let newerr = newflows(pr, &mut hydbal);
         relerr = newerr;
+        if full(pr) {
+            report::writerelerr(pr, iter, relerr);
+        }
 
         pr.hyd.relax_factor = 1.0;
         let mut valve_change = false;
@@ -109,6 +125,14 @@ fn badvalve(pr: &mut Project, n: usize) -> bool {
             if (t == LinkType::Prv || t == LinkType::Psv || t == LinkType::Fcv)
                 && pr.hyd.link_status[k] == Status::Active
             {
+                if full(pr) {
+                    let s = format!(
+                        "{}: Valve {} caused ill-conditioning",
+                        cfmt::r(&report::clocktime(pr.times.htime), 10),
+                        pr.net.link[k].id
+                    );
+                    report::writeline(pr, &s);
+                }
                 pr.hyd.link_status[k] = if t == LinkType::Fcv {
                     Status::XFcv
                 } else {
@@ -167,6 +191,9 @@ fn pswitch(pr: &mut Project) -> bool {
                 if lt > LinkType::Pipe {
                     pr.hyd.link_setting[k] = c.setting;
                 }
+                if full(pr) {
+                    report::writestatchange(pr, k, s, pr.hyd.link_status[k]);
+                }
                 anychange = true;
             }
         }
@@ -178,6 +205,8 @@ fn newflows(pr: &mut Project, hbal: &mut Hydbalance) -> f64 {
     let mut qsum = 0.0;
     let mut dqsum = 0.0;
     hbal.maxflowchange = 0.0;
+    hbal.maxflowlink = 1;
+    hbal.maxflownode = -1;
     newlinkflows(pr, hbal, &mut qsum, &mut dqsum);
     newemitterflows(pr, hbal, &mut qsum, &mut dqsum);
     newdemandflows(pr, hbal, &mut qsum, &mut dqsum);
@@ -212,6 +241,8 @@ fn newlinkflows(pr: &mut Project, hbal: &mut Hydbalance, qsum: &mut f64, dqsum: 
         *dqsum += dq.abs();
         if dq.abs() > hbal.maxflowchange {
             hbal.maxflowchange = dq.abs();
+            hbal.maxflowlink = k as isize;
+            hbal.maxflownode = -1;
         }
         if pr.hyd.link_status[k] > Status::Closed {
             if n1 > njuncs {
@@ -238,6 +269,8 @@ fn newemitterflows(pr: &mut Project, hbal: &mut Hydbalance, qsum: &mut f64, dqsu
         *dqsum += dq.abs();
         if dq.abs() > hbal.maxflowchange {
             hbal.maxflowchange = dq.abs();
+            hbal.maxflownode = i as isize;
+            hbal.maxflowlink = -1;
         }
     }
 }
@@ -252,6 +285,8 @@ fn newleakageflows(pr: &mut Project, hbal: &mut Hydbalance, qsum: &mut f64, dqsu
         *dqsum += dq.abs();
         if dq.abs() > hbal.maxflowchange {
             hbal.maxflowchange = dq.abs();
+            hbal.maxflownode = i as isize;
+            hbal.maxflowlink = -1;
         }
     }
 }
@@ -278,12 +313,15 @@ fn newdemandflows(pr: &mut Project, hbal: &mut Hydbalance, qsum: &mut f64, dqsum
         *dqsum += dq.abs();
         if dq.abs() > hbal.maxflowchange {
             hbal.maxflowchange = dq.abs();
+            hbal.maxflownode = i as isize;
+            hbal.maxflowlink = -1;
         }
     }
 }
 
 fn checkhydbalance(pr: &mut Project, hbal: &mut Hydbalance) {
     hbal.maxheaderror = 0.0;
+    hbal.maxheadlink = 1;
     headlosscoeffs(pr);
     for k in 1..=pr.net.nlinks {
         if pr.hyd.link_status[k] <= Status::Closed || pr.hyd.p[k] == 0.0 {
@@ -295,6 +333,7 @@ fn checkhydbalance(pr: &mut Project, hbal: &mut Hydbalance) {
         let headerror = (dh - headloss).abs();
         if headerror > hbal.maxheaderror {
             hbal.maxheaderror = headerror;
+            hbal.maxheadlink = k;
         }
     }
 }
@@ -304,6 +343,9 @@ fn hasconverged(pr: &mut Project, relerr: f64, hbal: &mut Hydbalance) -> bool {
         return false;
     }
     checkhydbalance(pr, hbal);
+    if full(pr) {
+        reporthydbal(pr, hbal);
+    }
     if pr.hyd.head_error_limit > 0.0 && hbal.maxheaderror > pr.hyd.head_error_limit {
         return false;
     }
@@ -354,4 +396,33 @@ fn pdaconverged(pr: &mut Project) -> bool {
         pr.hyd.demand_reduction = total_reduction / total_demand * 100.0;
     }
     converged
+}
+
+/// `reporthydbal`: the links (or node) with the largest flow change and head error.
+fn reporthydbal(pr: &mut Project, hbal: &Hydbalance) {
+    let qchange = hbal.maxflowchange * pr.units.ucf[Field::Flow as usize];
+    let herror = hbal.maxheaderror * pr.units.ucf[Field::Head as usize];
+    if hbal.maxflowlink >= 1 {
+        let s = format!(
+            "                      maximum  flow change = {} for Link {}",
+            cfmt::f(qchange, 4),
+            pr.net.link[hbal.maxflowlink as usize].id
+        );
+        report::writeline(pr, &s);
+    } else if hbal.maxflownode >= 1 {
+        let s = format!(
+            "                      maximum  flow change = {} for Node {}",
+            cfmt::f(qchange, 4),
+            pr.net.node[hbal.maxflownode as usize].id
+        );
+        report::writeline(pr, &s);
+    }
+    if hbal.maxheadlink >= 1 {
+        let s = format!(
+            "                      maximum  head error  = {} for Link {}\n",
+            cfmt::f(herror, 4),
+            pr.net.link[hbal.maxheadlink].id
+        );
+        report::writeline(pr, &s);
+    }
 }

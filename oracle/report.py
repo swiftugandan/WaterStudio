@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Render docs/PARITY.md from the native and WebAssembly comparison reports.
 
-usage: report.py <native.json> <wasm.json> > docs/PARITY.md
+usage: report.py <native.json> <wasm.json> [<files.json>] > docs/PARITY.md
 """
 
 import json
@@ -15,6 +15,8 @@ def fmt(x):
 def main():
     native = {r["network"]: r for r in json.load(open(sys.argv[1]))}
     wasm = {r["network"]: r for r in json.load(open(sys.argv[2]))}
+    files = {r["network"]: r for r in json.load(open(sys.argv[3]))} if len(sys.argv) > 3 else {}
+    f_ok = sum(files.get(n, {}).get("status") == "ok" for n in native)
     names = sorted(native)
     n_ok = sum(native[n]["status"] == "ok" for n in names)
     w_ok = sum(wasm.get(n, {}).get("status") == "ok" for n in names)
@@ -32,7 +34,8 @@ def main():
         f"{n_q} of them run a water-quality analysis (chemical, age or trace).",
         "",
         f"**Bit-identical: native {n_ex}/{len(names)}, WebAssembly {w_ex}/{len(names)}.** "
-        f"Within tolerance: native {n_ok}/{len(names)}, WebAssembly {w_ok}/{len(names)}.",
+        f"Within tolerance: native {n_ok}/{len(names)}, WebAssembly {w_ok}/{len(names)}. "
+        f"**EPANET report and output file identical to runepanet's: {f_ok}/{len(names)}.**",
         "",
         "Every head, demand and flow, and every node and link quality, at every report period is",
         "compared in double precision with OWA-EPANET's toolkit (EN_solveH, then EN_runQ/EN_nextQ over",
@@ -41,8 +44,12 @@ def main():
         "0.001 ft or 0.0003 m, flow, demand and quality within 0.01 % or 0.001 units) are reported for",
         "information.",
         "",
-        "| Network | Native | WebAssembly | Values differing | Max head error | Max flow error | Max quality error | Nodes | Links | Native solve (ms) |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "`ws run` writes EPANET's text report and binary output file; *Files* compares them with",
+        "`runepanet`'s: the output file byte for byte, the report line for line with the run's clock",
+        "time masked.",
+        "",
+        "| Network | Native | WebAssembly | Values differing | Max head error | Max flow error | Max quality error | Files | Nodes | Links | Native solve (ms) |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     def label(r):
         if r.get("status") == "ok" and r.get("exact"):
@@ -55,6 +62,7 @@ def main():
         diff = f"{r.get('inexact_values', '')} / {r.get('values', '')}" if "values" in r else ""
         out.append(f"| {n} | {label(r)} | {label(w)} | {diff} | {fmt(r.get('max_head_err'))} | "
                    f"{fmt(r.get('max_flow_err'))} | {fmt(r.get('max_quality_err')) if r.get('quality') else ''} | "
+                   f"{'identical' if files.get(n, {}).get('status') == 'ok' else files.get(n, {}).get('status', '')} | "
                    f"{r.get('nodes', '')} | {r.get('links', '')} | "
                    f"{r.get('solve_ms', '')} |")
     print("\n".join(out))
