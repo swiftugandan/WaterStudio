@@ -103,9 +103,25 @@ const TABS: Tab[] = [
     ],
   },
   {
+    id: 'project',
+    label: 'Project',
+    groups: [
+      { label: 'Settings', items: [{ cmd: 'view.panel.options', size: 'large', label: 'Options' }] },
+      {
+        label: 'Data',
+        items: [
+          { cmd: 'view.panel.patterns', size: 'large', label: 'Patterns' },
+          { cmd: 'view.panel.curves', size: 'large', label: 'Curves' },
+          { cmd: 'view.panel.controls', size: 'large', label: 'Controls' },
+        ],
+      },
+    ],
+  },
+  {
     id: 'analysis',
     label: 'Analysis',
     groups: [
+      { label: 'Setup', items: [{ cmd: 'view.panel.options', size: 'large', label: 'Options' }] },
       { label: 'Run', items: [{ cmd: 'analysis.run', size: 'large', label: 'Run hydraulics' }] },
       { label: 'AI', items: [{ cmd: 'view.panel.assistant', size: 'large', label: 'Assistant' }] },
     ],
@@ -141,6 +157,10 @@ const TABS: Tab[] = [
           { cmd: 'view.panel.messages', label: 'Messages' },
           { cmd: 'view.panel.report', label: 'Reports' },
           { cmd: 'view.panel.assistant', label: 'Assistant' },
+          { cmd: 'view.panel.options', label: 'Options' },
+          { cmd: 'view.panel.patterns', label: 'Patterns' },
+          { cmd: 'view.panel.curves', label: 'Curves' },
+          { cmd: 'view.panel.controls', label: 'Controls' },
         ],
       },
       {

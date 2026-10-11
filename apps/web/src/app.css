@@ -795,6 +795,11 @@ input[type='search'] {
   stroke-width: 2;
   stroke-linejoin: round;
 }
+.chart-dots circle {
+  fill: currentColor;
+  stroke: var(--ws-color-bg-surface);
+  stroke-width: 1;
+}
 .chart-marker {
   stroke: var(--ws-color-text-secondary);
   stroke-dasharray: 3 3;
@@ -1065,4 +1070,135 @@ button.link {
   border: 1px solid var(--ws-color-border-control);
   border-radius: var(--ws-radius-sm);
   padding: var(--ws-space-1) var(--ws-space-2);
+}
+
+/* Network data list in the model browser */
+.browser-data button {
+  display: flex;
+  align-items: center;
+  min-height: var(--ws-space-6);
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  padding: 0 var(--ws-space-1);
+  border-radius: var(--ws-radius-sm);
+  cursor: pointer;
+}
+.browser-data button:hover {
+  background: var(--ws-color-bg-hover);
+}
+
+/* Options */
+.options-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-1);
+}
+.options-title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-1);
+}
+.options-title textarea,
+.code-editor,
+.value-text {
+  font-family: var(--ws-font-mono);
+  font-size: var(--ws-font-size-sm);
+  resize: vertical;
+  padding: var(--ws-space-1) var(--ws-space-2);
+}
+.panel-toolbar .segmented {
+  flex-wrap: wrap;
+}
+
+/* Pattern and curve editors */
+.data-editor-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-1);
+}
+/* Fields first, then the chart, then the table of values. */
+.data-editor-form {
+  display: contents;
+}
+.data-editor-chart {
+  order: 1;
+  height: 220px;
+  flex: none;
+  display: flex;
+  margin: var(--ws-space-1) 0;
+}
+.data-editor-chart > * {
+  flex: 1;
+}
+.data-editor .value-table {
+  order: 2;
+}
+.value-grid-wrap {
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--ws-color-border-subtle);
+  border-radius: var(--ws-radius-sm);
+}
+.value-grid {
+  border-collapse: collapse;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+.value-grid caption.label {
+  text-align: left;
+  color: var(--ws-color-text-secondary);
+  padding-bottom: var(--ws-space-1);
+}
+.value-grid th {
+  position: sticky;
+  top: 0;
+  background: var(--ws-color-bg-sunken);
+  font-weight: var(--ws-font-weight-medium);
+  text-align: left;
+  padding: var(--ws-space-0-5) var(--ws-space-1);
+  white-space: nowrap;
+}
+.value-grid tbody th {
+  position: static;
+  background: none;
+  color: var(--ws-color-text-secondary);
+  font-weight: var(--ws-font-weight-regular);
+}
+.value-grid td {
+  padding: 1px;
+}
+.value-grid input,
+.value-grid select {
+  width: 100%;
+  min-width: 56px;
+  height: calc(var(--ws-size-control) - 4px);
+}
+.demands-editor {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ws-space-1);
+  margin: var(--ws-space-1) 0;
+}
+.btn.icon-only {
+  min-width: var(--ws-space-6);
+  justify-content: center;
+}
+
+/* Controls */
+.controls-editor .code-editor {
+  flex: 1;
+  min-height: 160px;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow: auto;
+}
+.syntax-help pre {
+  margin: var(--ws-space-1) 0 0;
+  font-family: var(--ws-font-mono);
+  font-size: var(--ws-font-size-xs);
+  color: var(--ws-color-text-secondary);
+  white-space: pre-wrap;
 }

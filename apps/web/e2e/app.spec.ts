@@ -9,7 +9,15 @@ interface WS {
         nodes: { liveCount: number };
         links: { liveCount: number };
         num(h: number, f: string): number;
+        get(h: number, f: string): unknown;
+        data: {
+          options: { lines: { tokens: string[] }[] };
+          times: { lines: { tokens: string[] }[] };
+          patterns: { id: string; multipliers: number[] }[];
+          controls: { tokens: string[] }[];
+        };
       };
+      undo(): boolean;
     };
     view: { screenOf(h: number): [number, number] | null; fit(): void } | null;
     selection: Set<number>;
@@ -350,6 +358,164 @@ test('the assistant answers with tools, showing each call', async ({ page }) => 
   // The model got the engine's numbers back as tool results.
   const last = bodies[2]!.messages.at(-1)!.content[0]!;
   expect(JSON.parse(last.content!)).toMatchObject({ variable: 'pressure', lowest: [{ id: '32' }] });
+});
+
+/** The [OPTIONS] line starting with `key`, as text. */
+const option = (page: Page, key: string) =>
+  page.evaluate((k) => {
+    const w = (globalThis as unknown as { waterstudio: WS }).waterstudio;
+    return w.state.store.doc.data.options.lines
+      .find((l) => l.tokens[0]!.toUpperCase() === k)
+      ?.tokens.join(' ');
+  }, key);
+
+test('edits project options with undo', async ({ page }) => {
+  await ready(page);
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Project' }).click();
+  await page.getByRole('button', { name: 'Show options' }).click();
+  const panel = page.locator('.panel.options');
+  await panel.getByLabel('Maximum trials').fill('50');
+  await panel.getByLabel('Maximum trials').press('Enter');
+  expect(await option(page, 'TRIALS')).toBe('TRIALS 50');
+  await panel.getByLabel('Accuracy').fill('lots');
+  await panel.getByLabel('Accuracy').press('Enter');
+  await expect(panel.getByRole('alert')).toHaveText('Accuracy must be a number.');
+  await panel.getByLabel('Accuracy').press('Escape');
+  await panel.getByRole('tab', { name: 'Quality' }).click();
+  await expect(panel.getByLabel('Chemical name')).toHaveValue('Chlorine');
+  await panel.getByLabel('Analysis').selectOption('age');
+  expect(await option(page, 'QUALITY')).toBe('QUALITY AGE');
+  await expect(panel.getByLabel('Chemical name')).toHaveCount(0);
+  await page.keyboard.press('Control+z');
+  expect(await option(page, 'QUALITY')).toBe('Quality Chlorine mg/L'); // Net1's own line
+  await panel.getByRole('tab', { name: 'Times' }).click();
+  await expect(panel.getByLabel('Total duration')).toHaveValue('24:00');
+  await panel.getByLabel('Total duration').fill('48');
+  await panel.getByLabel('Total duration').press('Enter');
+  await expect(panel.getByLabel('Total duration')).toHaveValue('48:00');
+  await panel.getByRole('tab', { name: 'Title' }).click();
+  await expect(panel.getByLabel('Title and notes')).toHaveValue(/EPANET Example Network 1/);
+});
+
+test('edits patterns and curves, renaming every reference', async ({ page }) => {
+  await ready(page);
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Project' }).click();
+  await page.getByRole('button', { name: 'Show patterns' }).click();
+  const pats = page.locator('.panel.data-editor');
+  await expect(pats.getByRole('combobox', { name: 'Pattern' })).toHaveValue('1');
+  await expect(pats.locator('.value-grid tbody tr')).toHaveCount(12);
+  await pats.getByLabel('Multiplier 1', { exact: true }).fill('2');
+  await pats.getByLabel('Multiplier 1', { exact: true }).press('Enter');
+  expect(await ws(page, (w) => w.state.store.doc.data.patterns[0]!.multipliers[0])).toBe(2);
+  await pats.getByLabel('ID', { exact: true }).fill('BASE');
+  await pats.getByLabel('ID', { exact: true }).press('Enter');
+  expect(await ws(page, (w) => w.state.store.doc.data.patterns[0]!.id)).toBe('BASE');
+  // Net1's PATTERN option named pattern 1; it follows the rename.
+  expect(await option(page, 'PATTERN')).toBe('PATTERN BASE');
+  await pats.getByRole('button', { name: 'Delete' }).click();
+  await expect(pats.getByRole('alert')).toContainText('Pattern BASE is used by');
+  await pats.getByRole('button', { name: 'Edit as text' }).click();
+  await pats.getByRole('textbox', { name: /Multipliers of pattern BASE/ }).fill('1\n2\n3');
+  await pats.getByRole('button', { name: 'Edit as text' }).click();
+  await expect(pats.locator('.value-grid tbody tr')).toHaveCount(3);
+  await page.getByRole('button', { name: 'Show curves' }).click();
+  const curves = page.locator('.panel.data-editor').filter({ hasText: 'Curve' });
+  await expect(curves.getByLabel('Type')).toContainText('used as pump (head)');
+  // One point: EPANET fits h = 4/3·h0 − b·q².
+  await expect(curves).toContainText('Head = 333.3 − 3.704e-5 × Flow');
+});
+
+test('edits controls and rules, refusing what EPANET would refuse', async ({ page }) => {
+  await ready(page);
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Project' }).click();
+  await page.getByRole('button', { name: 'Show controls' }).click();
+  const panel = page.locator('.panel.controls-editor');
+  const editor = panel.getByRole('textbox', { name: 'Simple controls, one per line' });
+  await expect(editor).toHaveValue(/LINK 9 OPEN IF NODE 2 BELOW 110/);
+  await editor.press('Control+End');
+  await editor.pressSequentially('\nLINK 99 CLOSED AT TIME 2');
+  await panel.getByRole('button', { name: 'Apply' }).click();
+  await expect(panel.getByRole('alert')).toContainText('undefined link 99');
+  expect(await ws(page, (w) => w.state.store.doc.data.controls.length)).toBe(2);
+  await editor.fill((await editor.inputValue()).replace('LINK 99', 'LINK 10'));
+  await panel.getByRole('button', { name: 'Apply' }).click();
+  await expect(panel.getByRole('status')).toHaveText('3 controls applied.');
+  expect(await ws(page, (w) => w.state.store.doc.data.controls[2]!.tokens.join(' '))).toBe(
+    'LINK 10 CLOSED AT TIME 2',
+  );
+  await panel.getByRole('tab', { name: 'Rules' }).click();
+  const rules = panel.getByRole('textbox', { name: 'Rule-based controls' });
+  await rules.fill('RULE 1\nIF TANK 2 LEVEL ABOVE 140\nTHEN PUMP 9 STATUS IS CLOSED');
+  await panel.getByRole('button', { name: 'Apply' }).click();
+  await expect(panel.getByRole('status')).toHaveText('1 rule applied.');
+});
+
+test('edits demand categories, sources and tank mixing in the inspector', async ({ page }) => {
+  await ready(page);
+  await ws(page, (w) => {
+    w.state.selection.clear();
+    w.state.selection.add(w.state.store.doc.findNode('22')!);
+    (w.state as unknown as { emit(): void }).emit();
+  });
+  const props = page.locator('.panel.properties');
+  await expect(props.getByLabel('Base demand 1')).toHaveValue('200');
+  await props.getByRole('button', { name: 'Add demand category' }).click();
+  await props.getByLabel('Base demand 2').fill('15');
+  await props.getByLabel('Base demand 2').press('Enter');
+  await props.getByLabel('Pattern of demand 2').selectOption('1');
+  expect(await ws(page, (w) => w.state.store.doc.get(w.state.store.doc.findNode('22')!, 'demands'))).toEqual([
+    { base: 200, pattern: null, category: null },
+    { base: 15, pattern: '1', category: null },
+  ]);
+  await props.getByLabel('Source type').selectOption('setpoint');
+  await props.getByLabel('Source strength').fill('0.8');
+  await props.getByLabel('Source strength').press('Enter');
+  expect(
+    await ws(page, (w) => JSON.stringify(w.state.store.doc.get(w.state.store.doc.findNode('22')!, 'source'))),
+  ).toBe('{"kind":"setpoint","strength":0.8,"pattern":null}');
+  await ws(page, (w) => {
+    w.state.selection.clear();
+    w.state.selection.add(w.state.store.doc.findNode('2')!);
+    (w.state as unknown as { emit(): void }).emit();
+  });
+  await props.getByLabel('Mixing model').selectOption('twoComp');
+  await expect(props.getByLabel('Mixing fraction')).toHaveValue('1');
+  await props.getByLabel('Mixing fraction').fill('0.4');
+  await props.getByLabel('Mixing fraction').press('Enter');
+  expect(
+    await ws(page, (w) => JSON.stringify(w.state.store.doc.get(w.state.store.doc.findNode('2')!, 'mixing'))),
+  ).toBe('{"model":"twoComp","fraction":0.4}');
+});
+
+test('the editors have no WCAG 2.2 AA violations', async ({ page }) => {
+  await ready(page);
+  await ws(page, (w) => {
+    w.state.selection.add(w.state.store.doc.findNode('2')!);
+    (w.state as unknown as { emit(): void }).emit();
+  });
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Project' }).click();
+  const audit = async (what: string) => {
+    const r = await new AxeBuilder({ page })
+      .exclude('.dv-tabs-container')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    expect(
+      r.violations.map((v) => `${what} ${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`),
+    ).toEqual([]);
+  };
+  await audit('inspector');
+  await page.getByRole('button', { name: 'Show options' }).click();
+  for (const tab of ['Hydraulics', 'Demands', 'Quality', 'Times', 'Energy', 'Report', 'Title']) {
+    await page.locator('.panel.options').getByRole('tab', { name: tab }).click();
+    await audit(`options ${tab}`);
+  }
+  await page.getByRole('button', { name: 'Show patterns' }).click();
+  await expect(page.locator('.panel.data-editor figure')).toBeVisible();
+  await audit('patterns');
+  await page.getByRole('button', { name: 'Show curves' }).click();
+  await audit('curves');
+  await page.getByRole('button', { name: 'Show controls' }).click();
+  await audit('controls');
 });
 
 for (const theme of ['light', 'dark'] as const) {

@@ -122,6 +122,21 @@ pub unsafe extern "C" fn ws_run(ptr: *const u8, len: usize) -> *mut u8 {
     reply(outcome)
 }
 
+/// Check a model (JSON) as EPANET's input stage would: an empty reply, or the error.
+///
+/// # Safety
+/// `ptr..ptr+len` must be readable memory the host wrote.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ws_check(ptr: *const u8, len: usize) -> *mut u8 {
+    // SAFETY: guaranteed by the caller.
+    let bytes = unsafe { std::slice::from_raw_parts(ptr, len) };
+    let outcome = serde_json::from_slice::<ws_model::Model>(bytes)
+        .map_err(|e| format!("model: {e}"))
+        .and_then(|m| ws_solver::check(&m).map_err(|e| e.to_string()))
+        .map(|()| Vec::new());
+    reply(outcome)
+}
+
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct FilesRequest {

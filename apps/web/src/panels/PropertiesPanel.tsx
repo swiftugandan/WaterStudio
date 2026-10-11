@@ -18,6 +18,7 @@ import { useApp } from '../app/context.tsx';
 import type { AppState } from '../app/state.ts';
 import { variableLabel } from '../shell/Ribbon.tsx';
 import { variableUnit } from '../viewport/paint.ts';
+import { DemandsEditor, MixingEditor, SourceEditor } from './CompoundFields.tsx';
 
 const MIXED = Symbol('mixed');
 
@@ -161,30 +162,6 @@ function FieldEditor({ spec, handles, state }: { spec: FieldSpec; handles: numbe
   );
 }
 
-function DemandSummary({ state, handle }: { state: AppState; handle: number }) {
-  const demands = state.store.doc.get(handle, 'demands') as {
-    base: number;
-    pattern: string | null;
-    category: string | null;
-  }[];
-  const unit = unitLabel('flow', state.units);
-  return (
-    <div className="field-row">
-      <span className="label">Demands</span>
-      <ul className="demand-list">
-        {demands.length === 0 && <li>None</li>}
-        {demands.map((d, i) => (
-          <li key={i}>
-            {d.base} {unit}
-            {d.pattern ? ` × pattern ${d.pattern}` : ''}
-            {d.category ? ` (${d.category})` : ''}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 function ResultValues({ state, handle }: { state: AppState; handle: number }) {
   const r = state.run;
   if (r.status !== 'done' || !r.results || !r.nodes || !r.links) return null;
@@ -275,7 +252,11 @@ export function PropertiesPanel() {
               <FieldEditor key={f.name} spec={f} handles={handles} state={state} />
             ))}
           {g === 'Hydraulics' && kind === 'junction' && handles.length === 1 && (
-            <DemandSummary state={state} handle={handles[0]!} />
+            <DemandsEditor state={state} handle={handles[0]!} />
+          )}
+          {g === 'Quality' && kind === 'tank' && <MixingEditor state={state} handles={handles} />}
+          {g === 'Quality' && handles.length === 1 && doc.isNode(handles[0]!) && (
+            <SourceEditor state={state} handle={handles[0]!} />
           )}
         </section>
       ))}

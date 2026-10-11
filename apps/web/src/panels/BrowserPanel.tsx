@@ -81,19 +81,21 @@ export function BrowserPanel() {
           );
         }}
       />
-      <div className="browser-data">
-        <div>
-          Patterns <span className="count">{data.patterns.length}</span>
-        </div>
-        <div>
-          Curves <span className="count">{data.curves.length}</span>
-        </div>
-        <div>
-          Controls <span className="count">{data.controls.length}</span>
-        </div>
-        <div>
-          Rules <span className="count">{data.rules.length}</span>
-        </div>
+      <div className="browser-data" role="group" aria-label="Network data">
+        {(
+          [
+            ['options', 'Options', null],
+            ['patterns', 'Patterns', data.patterns.length],
+            ['curves', 'Curves', data.curves.length],
+            ['controls', 'Controls', data.controls.length],
+            ['controls', 'Rules', data.rules.length],
+          ] as const
+        ).map(([panel, label, n]) => (
+          <button key={label} type="button" onClick={() => state.showPanel(panel)}>
+            {label}
+            {n !== null && <span className="count">{n}</span>}
+          </button>
+        ))}
       </div>
     </div>
   );

@@ -91,6 +91,16 @@ describe.skipIf(!have)('WebAssembly engine', async () => {
     expect(() => e().run(model)).toThrow(EngineError);
   });
 
+  it('checks a model without solving it', () => {
+    const { model } = e().readInp(NET);
+    expect(e().check(model)).toBeNull();
+    const bad = {
+      ...model,
+      rules: [{ name: '1', lines: ['RULE 1', 'IF SYSTEM TIME > 2', 'THEN LINK P9 STATUS IS OPEN'] }],
+    };
+    expect(e().check(bad)).toMatch(/undefined link P9/);
+  });
+
   for (const url of networks) {
     const name = url.pathname.split('/').pop()!;
     it(`${name}: model -> document -> model is lossless, and the engine agrees`, () => {

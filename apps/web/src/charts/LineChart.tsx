@@ -11,6 +11,8 @@ export interface Series {
   name: string;
   x: ArrayLike<number>;
   y: ArrayLike<number>;
+  /** Mark each point (for measured or entered points, rather than a continuous series). */
+  dots?: boolean;
 }
 
 export interface LineChartProps {
@@ -210,6 +212,18 @@ export function LineChart({
             {series.map((s, i) => (
               <path key={s.name} className={`chart-line c${(i % COLOURS) + 1}`} d={pathOf(s, sx, sy, step)} />
             ))}
+            {series.map(
+              (s, i) =>
+                s.dots && (
+                  <g key={`${s.name}-dots`} className={`chart-dots c${(i % COLOURS) + 1}`}>
+                    {Array.from({ length: s.x.length }, (_, k) =>
+                      Number.isFinite(s.x[k]) && Number.isFinite(s.y[k]) ? (
+                        <circle key={k} cx={sx(s.x[k]!)} cy={sy(s.y[k]!)} r={3.5} />
+                      ) : null,
+                    )}
+                  </g>
+                ),
+            )}
             {hover !== null && xs && (
               <line
                 className="chart-cross"

@@ -25,7 +25,10 @@ import {
   Rows3,
   Save,
   Scan,
+  Settings,
   Sparkles,
+  Spline,
+  ListChecks,
   SquareDashedMousePointer,
   StepBack,
   StepForward,
@@ -76,6 +79,9 @@ const LUCIDE: Record<string, LucideIcon> = {
   image: Image,
   'image-off': ImageOff,
   map: MapIcon,
+  settings: Settings,
+  spline: Spline,
+  'list-checks': ListChecks,
 };
 
 const HYDRAULIC = new Set<string>(hydraulicIconNames);

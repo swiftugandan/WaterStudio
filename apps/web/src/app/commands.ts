@@ -11,6 +11,15 @@ import { backdropPlacement, crsText, modelCrs, withBackdropLine, withCrs } from 
 import { openFilePicker, saveTextFile } from './files.ts';
 import type { AppState, Tool } from './state.ts';
 
+const PANEL_ICONS: Record<string, string> = {
+  report: 'file-text',
+  assistant: 'sparkles',
+  options: 'settings',
+  patterns: 'chart-column',
+  curves: 'spline',
+  controls: 'list-checks',
+};
+
 export const SAMPLES = ['Net1', 'Net2', 'Net3'] as const;
 
 type Cmd = Command<AppState>;
@@ -281,11 +290,15 @@ export function createCommands(state: AppState): CommandBus<AppState> {
         ['messages', 'Messages'],
         ['report', 'Reports'],
         ['assistant', 'Assistant'],
+        ['options', 'Options'],
+        ['patterns', 'Patterns'],
+        ['curves', 'Curves'],
+        ['controls', 'Controls'],
       ] as const
     ).map(([id, title]): Cmd => ({
       id: `view.panel.${id}`,
       title: `Show ${title.toLowerCase()}`,
-      icon: id === 'report' ? 'file-text' : id === 'assistant' ? 'sparkles' : 'panel',
+      icon: PANEL_ICONS[id] ?? 'panel',
       category: 'View',
       checked: (s) => s.panels.has(id),
       run: (s) => {

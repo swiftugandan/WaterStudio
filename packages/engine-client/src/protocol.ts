@@ -51,14 +51,16 @@ export type EngineRequest =
   | { id: number; kind: 'write-inp'; model: model.Model }
   | { id: number; kind: 'run'; model: model.Model }
   | { id: number; kind: 'run-hydraulics'; inp: string }
-  | { id: number; kind: 'run-files'; request: FilesRequest };
+  | { id: number; kind: 'run-files'; request: FilesRequest }
+  | { id: number; kind: 'check'; model: model.Model };
 
 export type EngineReply =
   | { kind: 'read-inp'; value: ReadResult }
   | { kind: 'write-inp'; value: string }
   | { kind: 'run'; value: RunResults }
   | { kind: 'run-hydraulics'; value: HydraulicReport }
-  | { kind: 'run-files'; value: EpanetFiles };
+  | { kind: 'run-files'; value: EpanetFiles }
+  | { kind: 'check'; value: string | null };
 
 export type EngineResponse =
   { id: number; ok: true; reply: EngineReply; ms: number } | { id: number; ok: false; error: string };

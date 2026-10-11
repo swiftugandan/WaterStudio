@@ -28,6 +28,7 @@ interface Exports {
   ws_run: Entry;
   ws_run_hydraulics_inp: Entry;
   ws_run_files: Entry;
+  ws_check: Entry;
 }
 
 export interface Engine {
@@ -36,6 +37,8 @@ export interface Engine {
   run(m: model.Model): RunResults;
   runHydraulicsInp(inp: string | Uint8Array): HydraulicReport;
   runFiles(req: FilesRequest): EpanetFiles;
+  /** The error EPANET's input stage would refuse the model with, or null. */
+  check(m: model.Model): string | null;
 }
 
 export async function instantiateEngine(source: BufferSource | WebAssembly.Module): Promise<Engine> {
@@ -77,6 +80,15 @@ export async function instantiateEngine(source: BufferSource | WebAssembly.Modul
       const body = call(x.ws_run_files, json(req));
       const n = new DataView(body.buffer, body.byteOffset, 4).getUint32(0, true);
       return { report: decoder.decode(body.subarray(4, 4 + n)), out: body.slice(4 + n) };
+    },
+    check: (m) => {
+      try {
+        call(x.ws_check, json(m));
+        return null;
+      } catch (e) {
+        if (e instanceof EngineError) return e.message;
+        throw e;
+      }
     },
   };
 }

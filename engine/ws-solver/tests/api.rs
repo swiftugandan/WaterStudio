@@ -3,7 +3,7 @@
 
 #![allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]
 
-use ws_solver::{Hydraulics, SolverError, simulate};
+use ws_solver::{Hydraulics, SolverError, check, simulate};
 
 const NET: &str = "[JUNCTIONS]\n J1 100 10\n J2 90 20\n[RESERVOIRS]\n R 200\n\
 [TANKS]\n T 150 10 0 20 30 0\n\
@@ -110,4 +110,21 @@ fn quality_runs_need_recorded_hydraulics() {
     assert!(h.has_quality());
     h.run().unwrap();
     assert_eq!(h.into_quality().unwrap_err().code, 104);
+}
+
+#[test]
+fn checks_a_model_without_solving() {
+    assert_eq!(check(&model(NET)), Ok(()));
+    let bad_rule = NET.replace(
+        "[END]",
+        "[RULES]\nRULE 1\nIF TANK T LEVEL > 10\nTHEN PIPE P9 STATUS IS CLOSED\n[END]",
+    );
+    let e = check(&model(&bad_rule)).unwrap_err();
+    assert_eq!(e.code, 200);
+    assert!(e.message.contains("undefined link P9"), "{e}");
+    let bad_control = NET.replace(
+        "[END]",
+        "[CONTROLS]\nLINK P1 CLOSED IF NODE X9 ABOVE 3\n[END]",
+    );
+    assert!(check(&model(&bad_control)).is_err());
 }

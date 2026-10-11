@@ -43,6 +43,7 @@ interface Replies {
   run: RunResults;
   'run-hydraulics': HydraulicReport;
   'run-files': EpanetFiles;
+  check: string | null;
 }
 
 type Body = EngineRequest extends infer R ? (R extends { id: number } ? Omit<R, 'id'> : never) : never;
@@ -119,6 +120,11 @@ export class EngineClient {
   /** Run a model as EPANET's runepanet does, for its report and output file. */
   runFiles(request: FilesRequest): Promise<Timed<EpanetFiles>> {
     return this.typed({ kind: 'run-files', request });
+  }
+
+  /** The error EPANET would refuse the model with (bad controls or rules, say), or null. */
+  check(m: model.Model): Promise<Timed<string | null>> {
+    return this.typed({ kind: 'check', model: m });
   }
 
   dispose(): void {

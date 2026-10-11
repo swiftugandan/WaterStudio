@@ -86,6 +86,7 @@ export class AppState extends Emitter {
   private graphRequests: GraphSpec[] = [];
   /** Panels the user has open, by id. */
   panels = new Set(['browser', 'properties', 'results', 'messages']);
+  private panelFocus: string | null = null;
   readonly engine: EngineClient;
   readonly prefs: Prefs;
   /** The assistant conversation (kept when its panel closes). */
@@ -138,6 +139,20 @@ export class AppState extends Emitter {
     const r = this.graphRequests;
     this.graphRequests = [];
     return r;
+  }
+
+  /** Open a panel (if closed) and bring it to the front. */
+  showPanel(id: string): void {
+    if (!this.panels.has(id)) this.panels = new Set([...this.panels, id]);
+    this.panelFocus = id;
+    this.emit();
+  }
+
+  /** The panel to bring to the front, once (the dock does it). */
+  takePanelFocus(): string | null {
+    const f = this.panelFocus;
+    this.panelFocus = null;
+    return f;
   }
 
   setTool(tool: Tool): void {

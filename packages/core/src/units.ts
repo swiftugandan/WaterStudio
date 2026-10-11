@@ -74,7 +74,11 @@ export function unitSystem(options: KeywordSection): UnitSystem {
   const hl = sectionGet(options, ['HEADLOSS'])?.[0];
   const headloss: HeadlossFormula =
     hl && keywordMatches(hl, 'D-W') ? 'D-W' : hl && keywordMatches(hl, 'C-M') ? 'C-M' : 'H-W';
-  const p = sectionGet(options, ['PRESSURE'])?.[0];
+  // PRESSURE EXPONENT is a different option (`optionchoice` hands it on to `optionvalue`).
+  const p = options.lines.findLast(
+    (l) =>
+      l.tokens.length > 1 && keywordMatches(l.tokens[0]!, 'PRESSURE') && !keywordMatches(l.tokens[1]!, 'EXP'),
+  )?.tokens[1];
   let pressure: PressureUnits = si ? 'METERS' : 'PSI';
   if (p) {
     for (const k of ['PSI', 'KPA', 'METERS', 'BAR', 'FEET'] as const) if (keywordMatches(p, k)) pressure = k;

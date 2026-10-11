@@ -17,6 +17,9 @@ import { useEffect, useRef } from 'react';
 import { useApp, useAppContext } from '../app/context.tsx';
 import { AssistantPanel } from '../panels/AssistantPanel.tsx';
 import { BrowserPanel } from '../panels/BrowserPanel.tsx';
+import { ControlsPanel } from '../panels/ControlsPanel.tsx';
+import { CurvesPanel, PatternsPanel } from '../panels/DataPanel.tsx';
+import { OptionsPanel } from '../panels/OptionsPanel.tsx';
 import { GraphPanel, graphTitle, type GraphParams } from '../panels/GraphPanel.tsx';
 import { ReportPanel } from '../panels/ReportPanel.tsx';
 import { MessagesPanel } from '../panels/MessagesPanel.tsx';
@@ -25,6 +28,7 @@ import { ResultsPanel } from '../panels/ResultsPanel.tsx';
 import { MapView } from '../viewport/MapView.tsx';
 
 const LAYOUT_KEY = 'ws.layout.v1';
+const DATA_EDITORS = new Set(['patterns', 'curves', 'controls']);
 
 const PANELS: Record<
   string,
@@ -36,6 +40,10 @@ const PANELS: Record<
   messages: { title: 'Messages', position: () => ({ referencePanel: 'results', direction: 'within' }) },
   report: { title: 'Reports', position: () => ({ referencePanel: 'results', direction: 'within' }) },
   assistant: { title: 'Assistant', position: () => ({ referencePanel: 'properties', direction: 'within' }) },
+  options: { title: 'Options', position: () => ({ referencePanel: 'properties', direction: 'within' }) },
+  patterns: { title: 'Patterns', position: () => ({ referencePanel: 'map', direction: 'right' }) },
+  curves: { title: 'Curves', position: () => ({ referencePanel: 'map', direction: 'right' }) },
+  controls: { title: 'Controls', position: () => ({ referencePanel: 'map', direction: 'right' }) },
 };
 
 const components = {
@@ -46,6 +54,10 @@ const components = {
   messages: () => <MessagesPanel />,
   report: () => <ReportPanel />,
   assistant: () => <AssistantPanel />,
+  options: () => <OptionsPanel />,
+  patterns: () => <PatternsPanel />,
+  curves: () => <CurvesPanel />,
+  controls: () => <ControlsPanel />,
   graph: (props: IDockviewPanelProps<GraphParams>) => <GraphPanel {...props} />,
 };
 
@@ -58,6 +70,11 @@ function addPanel(api: DockviewApi, id: string): void {
   const spec = PANELS[id];
   if (!spec) return;
   let position = spec.position();
+  // The data editors share one group beside the map, with the graphs if any are open.
+  if (DATA_EDITORS.has(id)) {
+    const sibling = api.panels.find((p) => DATA_EDITORS.has(p.id) || p.id.startsWith('graph-'));
+    if (sibling) position = { referencePanel: sibling.id, direction: 'within' };
+  }
   if (position && 'referencePanel' in position && !api.getPanel(position.referencePanel as string)) {
     position = { referencePanel: 'map', direction: 'below' };
   }
@@ -68,6 +85,7 @@ function addPanel(api: DockviewApi, id: string): void {
     ...(position ? { position } : {}),
     ...(id === 'browser' ? { initialWidth: 260 } : id === 'properties' ? { initialWidth: 320 } : {}),
     ...(id === 'results' ? { initialHeight: 220 } : {}),
+    ...(DATA_EDITORS.has(id) ? { initialWidth: 520 } : {}),
     inactive: true,
   });
 }
@@ -146,6 +164,8 @@ export function Dock() {
       if (!state.panels.has(id) && has) has.api.close();
     }
     syncing.current = false;
+    const focus = state.takePanelFocus();
+    if (focus) a.getPanel(focus)?.api.setActive();
   }, [version, state]);
 
   return (

@@ -15,3 +15,5 @@ export * from './edits.ts';
 export { CommandBus, type Command, type CommandRecord } from './commands.ts';
 export type * as model from './generated/model.ts';
 export { Table, Column, type ColumnSpec, type ColumnType } from './table.ts';
+export * from './options.ts';
+export * from './data.ts';

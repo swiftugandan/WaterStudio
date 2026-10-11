@@ -51,6 +51,8 @@ Gate: every EPANET 2.2 GUI function available; quality within tolerance; WCAG 2.
   four tank mixing models. Bit-identical with OWA-EPANET's `EN_solveQ` on 14 quality networks, native and wasm
 - [x] Graphs: time series, profile, frequency, system flow, each with a data table; time player
 - [x] Reports: status log, energy, reaction rates, full report; .rpt and .out downloads
+- [x] Editors (ADR 0012): options and title; patterns and curves with charts; simple controls and rules checked by the
+  engine; demand categories, quality sources and tank mixing in the inspector. Each change is one undo step
 - [ ] Contour plot and calibration report
 - [x] MapLibre basemap, CRS, backdrop images (ADR 0010)
 - [x] `.out` and `.rpt` writers (ADR 0009): identical to `runepanet`'s on all 64 networks; app results follow the `.out`

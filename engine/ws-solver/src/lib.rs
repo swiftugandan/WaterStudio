@@ -643,6 +643,12 @@ pub struct SimulationResults {
     pub link_quality: Vec<Vec<f64>>,
 }
 
+/// Read and validate a model as EPANET's input stage does (`EN_open`), without solving:
+/// the error EPANET would refuse it with, if any.
+pub fn check(model: &Model) -> Result<(), SolverError> {
+    input::build(model).map(|_| ())
+}
+
 /// Run a model over its whole duration as EPANET's `EN_solveH` then `EN_solveQ` do,
 /// keeping the solution of each report period the way EPANET's output file does: a
 /// period takes the first solution at or after its time. Water quality runs only when
