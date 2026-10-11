@@ -28,6 +28,9 @@ describe('themes meet WCAG 2.2 AA', () => {
       ['focus ring', t.focus, t.bgSurface, 3],
       ['canvas links', t.canvasLink, t.canvasBg, 3],
       ['canvas selection', t.canvasSelection, t.canvasBg, 3],
+      ...[t.chart1, t.chart2, t.chart3, t.chart4, t.chart5, t.chart6].map(
+        (c, i): [string, string, string, number] => [`chart series ${i + 1}`, c, t.bgSurface, 3],
+      ),
     ];
     for (const [what, fg, bg, min] of text) {
       it(`${name}: ${what} ≥ ${min}:1`, () => {

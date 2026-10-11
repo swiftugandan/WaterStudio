@@ -92,6 +92,12 @@
   --ws-color-canvas-label: #4e5969;
   --ws-color-canvas-selection: #e8590c;
   --ws-color-canvas-hover: #2b7ff0;
+  --ws-color-chart1: #1a63d6;
+  --ws-color-chart2: #b6460a;
+  --ws-color-chart3: #1d7f46;
+  --ws-color-chart4: #7440b8;
+  --ws-color-chart5: #c02a2a;
+  --ws-color-chart6: #0a6e6b;
   --ws-shadow-sm: 0 1px 2px rgb(16 24 40 / 0.08);
   --ws-shadow-md: 0 4px 12px rgb(16 24 40 / 0.12), 0 1px 3px rgb(16 24 40 / 0.08);
   --ws-shadow-lg: 0 12px 32px rgb(16 24 40 / 0.18), 0 2px 6px rgb(16 24 40 / 0.10);
@@ -131,6 +137,12 @@
   --ws-color-canvas-label: #a3adba;
   --ws-color-canvas-selection: #ff9c3a;
   --ws-color-canvas-hover: #89c2ff;
+  --ws-color-chart1: #519ffc;
+  --ws-color-chart2: #ff9c3a;
+  --ws-color-chart3: #6fd497;
+  --ws-color-chart4: #c39bff;
+  --ws-color-chart5: #f28b8b;
+  --ws-color-chart6: #5fd4cc;
   --ws-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.5);
   --ws-shadow-md: 0 4px 12px rgb(0 0 0 / 0.55), 0 1px 3px rgb(0 0 0 / 0.5);
   --ws-shadow-lg: 0 12px 32px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.5);
@@ -171,6 +183,12 @@
     --ws-color-canvas-label: #a3adba;
     --ws-color-canvas-selection: #ff9c3a;
     --ws-color-canvas-hover: #89c2ff;
+    --ws-color-chart1: #519ffc;
+    --ws-color-chart2: #ff9c3a;
+    --ws-color-chart3: #6fd497;
+    --ws-color-chart4: #c39bff;
+    --ws-color-chart5: #f28b8b;
+    --ws-color-chart6: #5fd4cc;
     --ws-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.5);
     --ws-shadow-md: 0 4px 12px rgb(0 0 0 / 0.55), 0 1px 3px rgb(0 0 0 / 0.5);
     --ws-shadow-lg: 0 12px 32px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.5);

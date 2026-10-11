@@ -1,12 +1,11 @@
 /** Results table: every node or link at the current report time, virtualised. */
 
-import { unitLabel } from '@waterstudio/core';
 import { linkFrame, LINK_VARIABLES, nodeFrame, NODE_VARIABLES } from '@waterstudio/engine-client';
 import { useState } from 'react';
 import { useApp } from '../app/context.tsx';
 import { clock } from '../shell/TimeControl.tsx';
 import { variableLabel } from '../shell/Ribbon.tsx';
-import { VARIABLE_QUANTITY } from '../viewport/paint.ts';
+import { variableUnit, type VARIABLE_QUANTITY } from '../viewport/paint.ts';
 import { VirtualList } from './VirtualList.tsx';
 
 export function ResultsPanel() {
@@ -29,8 +28,7 @@ export function ResultsPanel() {
   );
   const u = state.units;
   const unit = (v: string) => {
-    const q = VARIABLE_QUANTITY[v as keyof typeof VARIABLE_QUANTITY];
-    return q === 'headloss' ? (u.si ? 'm/km' : 'ft/kft') : unitLabel(q, u);
+    return variableUnit(v as keyof typeof VARIABLE_QUANTITY, u);
   };
   const cols = `minmax(80px, 1.2fr) repeat(${vars.length}, minmax(70px, 1fr))`;
   return (

@@ -48,7 +48,8 @@ export const palette = {
   green: { 50: '#ecf8f0', 300: '#6fd497', 600: '#1d7f46', 950: '#0d2a19' },
   amber: { 50: '#fff6e5', 300: '#f5c45e', 700: '#8f5800', 950: '#2e1f05' },
   red: { 50: '#fdeeee', 300: '#f28b8b', 600: '#c02a2a', 950: '#33100f' },
-  orange: { 400: '#ff9c3a', 600: '#e8590c' },
+  orange: { 400: '#ff9c3a', 600: '#e8590c', 700: '#b6460a' },
+  purple: { 300: '#c39bff', 600: '#7440b8' },
 } as const;
 
 /** Semantic colour roles. Every theme defines every role. */
@@ -92,6 +93,13 @@ export interface ThemeColors {
   canvasLabel: string;
   canvasSelection: string;
   canvasHover: string;
+  /** Series colours for charts, in order; distinguishable with common colour-vision deficiencies. */
+  chart1: string;
+  chart2: string;
+  chart3: string;
+  chart4: string;
+  chart5: string;
+  chart6: string;
 }
 
 export type ThemeName = 'light' | 'dark';
@@ -133,6 +141,12 @@ export const themes: Record<ThemeName, ThemeColors> = {
     canvasLabel: n[600],
     canvasSelection: palette.orange[600],
     canvasHover: b[500],
+    chart1: b[600],
+    chart2: palette.orange[700],
+    chart3: palette.green[600],
+    chart4: palette.purple[600],
+    chart5: palette.red[600],
+    chart6: palette.teal[700],
   },
   dark: {
     bgApp: n[1000],
@@ -167,6 +181,12 @@ export const themes: Record<ThemeName, ThemeColors> = {
     canvasLabel: '#a3adba',
     canvasSelection: palette.orange[400],
     canvasHover: b[300],
+    chart1: b[400],
+    chart2: palette.orange[400],
+    chart3: palette.green[300],
+    chart4: palette.purple[300],
+    chart5: palette.red[300],
+    chart6: palette.teal[300],
   },
 };
 

@@ -2,7 +2,12 @@
 
 import { HydraulicIcon, hydraulicIconNames, type HydraulicIconName } from '@waterstudio/ui';
 import {
+  ArrowLeftRight,
+  ChartColumn,
+  ChartLine,
   Command,
+  FileText,
+  Mountain,
   FilePlus,
   FolderOpen,
   Hand,
@@ -52,6 +57,11 @@ const LUCIDE: Record<string, LucideIcon> = {
   panel: PanelsTopLeft,
   'step-back': StepBack,
   'step-forward': StepForward,
+  'chart-line': ChartLine,
+  'chart-column': ChartColumn,
+  mountain: Mountain,
+  'arrow-left-right': ArrowLeftRight,
+  'file-text': FileText,
 };
 
 const HYDRAULIC = new Set<string>(hydraulicIconNames);

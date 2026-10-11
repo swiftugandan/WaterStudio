@@ -222,11 +222,12 @@ export function createCommands(state: AppState): CommandBus<AppState> {
         ['properties', 'Properties'],
         ['results', 'Results table'],
         ['messages', 'Messages'],
+        ['report', 'Reports'],
       ] as const
     ).map(([id, title]): Cmd => ({
       id: `view.panel.${id}`,
       title: `Show ${title.toLowerCase()}`,
-      icon: 'panel',
+      icon: id === 'report' ? 'file-text' : 'panel',
       category: 'View',
       checked: (s) => s.panels.has(id),
       run: (s) => {
@@ -245,6 +246,54 @@ export function createCommands(state: AppState): CommandBus<AppState> {
       category: 'Analysis',
       enabled: (s) => s.run.status !== 'running' && s.store.doc.nodes.liveCount > 0,
       run: (s) => s.runHydraulics(),
+    },
+    {
+      id: 'graph.series',
+      title: 'Time series graph of selection',
+      icon: 'chart-line',
+      category: 'Results',
+      enabled: (s) => s.run.status === 'done' && s.selection.size > 0,
+      run: (s) => {
+        const doc = s.store.doc;
+        const sel = [...s.selection].filter((h) => doc.has(h));
+        const nodes = sel.filter((h) => doc.isNode(h));
+        if (nodes.length > 0) {
+          const variable = s.mapTheme.node ?? 'pressure';
+          s.openGraph({ kind: 'series', table: 'node', variable, ids: nodes.map((h) => doc.id(h)) });
+        } else {
+          const variable = s.mapTheme.link ?? 'flow';
+          s.openGraph({ kind: 'series', table: 'link', variable, ids: sel.map((h) => doc.id(h)) });
+        }
+      },
+    },
+    {
+      id: 'graph.profile',
+      title: 'Profile along selected nodes',
+      icon: 'mountain',
+      category: 'Results',
+      enabled: (s) =>
+        s.run.status === 'done' && [...s.selection].filter((h) => s.store.doc.isNode(h)).length >= 2,
+      run: (s) => {
+        const doc = s.store.doc;
+        const ids = [...s.selection].filter((h) => doc.has(h) && doc.isNode(h)).map((h) => doc.id(h));
+        s.openGraph({ kind: 'profile', variable: 'head', ids });
+      },
+    },
+    {
+      id: 'graph.frequency',
+      title: 'Frequency distribution',
+      icon: 'chart-column',
+      category: 'Results',
+      enabled: (s) => s.run.status === 'done',
+      run: (s) => s.openGraph({ kind: 'frequency', table: 'node', variable: s.mapTheme.node ?? 'pressure' }),
+    },
+    {
+      id: 'graph.flow',
+      title: 'System flow graph',
+      icon: 'arrow-left-right',
+      category: 'Results',
+      enabled: (s) => s.run.status === 'done',
+      run: (s) => s.openGraph({ kind: 'flow' }),
     },
     {
       id: 'results.prev',

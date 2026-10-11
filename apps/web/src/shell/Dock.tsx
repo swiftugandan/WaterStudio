@@ -10,11 +10,14 @@ import {
   type DockviewApi,
   type DockviewReadyEvent,
   type IDockviewPanelHeaderProps,
+  type IDockviewPanelProps,
 } from 'dockview-react';
 import 'dockview-react/dist/styles/dockview.css';
 import { useEffect, useRef } from 'react';
 import { useApp, useAppContext } from '../app/context.tsx';
 import { BrowserPanel } from '../panels/BrowserPanel.tsx';
+import { GraphPanel, graphTitle, type GraphParams } from '../panels/GraphPanel.tsx';
+import { ReportPanel } from '../panels/ReportPanel.tsx';
 import { MessagesPanel } from '../panels/MessagesPanel.tsx';
 import { PropertiesPanel } from '../panels/PropertiesPanel.tsx';
 import { ResultsPanel } from '../panels/ResultsPanel.tsx';
@@ -30,6 +33,7 @@ const PANELS: Record<
   properties: { title: 'Properties', position: () => ({ referencePanel: 'map', direction: 'right' }) },
   results: { title: 'Results', position: () => ({ referencePanel: 'map', direction: 'below' }) },
   messages: { title: 'Messages', position: () => ({ referencePanel: 'results', direction: 'within' }) },
+  report: { title: 'Reports', position: () => ({ referencePanel: 'results', direction: 'within' }) },
 };
 
 const components = {
@@ -38,6 +42,8 @@ const components = {
   properties: () => <PropertiesPanel />,
   results: () => <ResultsPanel />,
   messages: () => <MessagesPanel />,
+  report: () => <ReportPanel />,
+  graph: (props: IDockviewPanelProps<GraphParams>) => <GraphPanel {...props} />,
 };
 
 const tabComponents = {
@@ -107,14 +113,33 @@ export function Dock() {
     });
   };
 
-  // Reflect panel toggles from commands.
+  // Reflect panel toggles from commands, and open requested graphs.
   useEffect(() => {
     const a = api.current;
     if (!a) return;
+    for (const spec of state.takeGraphRequests()) {
+      let n = 1;
+      while (a.getPanel(`graph-${n}`)) n++;
+      // New graphs join an open graph's group as tabs, or split the map.
+      const sibling = a.panels.find((p) => p.id.startsWith('graph-'));
+      a.addPanel({
+        id: `graph-${n}`,
+        component: 'graph',
+        title: graphTitle(spec),
+        params: { spec },
+        position: sibling
+          ? { referencePanel: sibling.id, direction: 'within' }
+          : { referencePanel: 'map', direction: 'right' },
+        initialWidth: 460,
+      });
+    }
     syncing.current = true;
     for (const id of Object.keys(PANELS)) {
       const has = a.getPanel(id);
-      if (state.panels.has(id) && !has) addPanel(a, id);
+      if (state.panels.has(id) && !has) {
+        addPanel(a, id);
+        a.getPanel(id)?.api.setActive();
+      }
       if (!state.panels.has(id) && has) has.api.close();
     }
     syncing.current = false;

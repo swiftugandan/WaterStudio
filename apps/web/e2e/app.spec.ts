@@ -140,6 +140,51 @@ test('selects by window and runs commands from the palette', async ({ page }) =>
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 });
 
+test('graphs results over time, along a path and as a distribution', async ({ page }) => {
+  await ready(page);
+  await page.keyboard.press('F5');
+  await expect(page.getByTestId('run-status')).toContainText('Solved');
+  const ribbon = page.getByRole('tablist', { name: 'Ribbon' });
+  await ribbon.getByRole('tab', { name: 'Results' }).click();
+  const a = await nodeOnScreen(page, '10');
+  const b = await nodeOnScreen(page, '22');
+  await page.mouse.click(a.x, a.y);
+  await page.keyboard.down('Shift');
+  await page.mouse.click(b.x, b.y);
+  await page.keyboard.up('Shift');
+  await page.getByRole('button', { name: 'Time series' }).click();
+  const series = page.locator('.panel.graph figure').first();
+  await expect(series.locator('figcaption')).toContainText('Pressure: 10, 22');
+  await expect(series.getByRole('img')).toBeVisible();
+  await page.locator('.panel.graph').first().getByRole('button', { name: 'Table' }).click();
+  // Net1 reports 25 periods.
+  await expect(series.locator('tbody tr')).toHaveCount(25);
+  await page.getByRole('button', { name: 'Profile' }).click();
+  await expect(page.locator('.panel.graph figcaption', { hasText: 'Head profile at' })).toBeVisible();
+  await page.getByRole('button', { name: 'Frequency' }).click();
+  await expect(
+    page.locator('.panel.graph figcaption', { hasText: 'Distribution of pressure' }),
+  ).toBeVisible();
+});
+
+test('shows EPANET reports and offers the files', async ({ page }) => {
+  await ready(page);
+  const ribbon = page.getByRole('tablist', { name: 'Ribbon' });
+  await ribbon.getByRole('tab', { name: 'Results' }).click();
+  await page.getByRole('button', { name: 'Reports' }).click();
+  const report = page.locator('.panel.report');
+  await expect(report.locator('.report-text')).toContainText('Balanced after 4 trials');
+  await report.getByRole('tab', { name: 'Energy' }).click();
+  await expect(report.locator('table')).toContainText('Total cost');
+  await report.getByRole('tab', { name: 'Reaction' }).click();
+  await expect(report.locator('table')).toContainText('Bulk (pipes)');
+  await report.getByRole('tab', { name: 'Full report' }).click();
+  await expect(report.locator('.report-text')).toContainText('Analysis begun');
+  const download = page.waitForEvent('download');
+  await report.getByRole('button', { name: 'Download .out' }).click();
+  expect((await download).suggestedFilename()).toBe('Net1.out');
+});
+
 for (const theme of ['light', 'dark'] as const) {
   test(`no WCAG 2.2 AA violations in the ${theme} theme`, async ({ page }) => {
     await ready(page);
@@ -148,6 +193,12 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
     await page.keyboard.press('F5');
     await expect(page.getByTestId('run-status')).toContainText('Solved');
+    // With a graph and the reports open too.
+    await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Results' }).click();
+    await page.getByRole('button', { name: 'System flow' }).click();
+    await expect(page.locator('.panel.graph figure')).toBeVisible();
+    await page.getByRole('button', { name: 'Reports' }).click();
+    await expect(page.locator('.panel.report .report-text')).toBeVisible();
     const results = await new AxeBuilder({ page })
       // dockview renders each tab's close button inside the tab (nested-interactive);
       // tracked upstream, and every panel can also be closed from the View tab.

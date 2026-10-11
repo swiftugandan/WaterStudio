@@ -29,6 +29,8 @@ function handle(e: Engine, req: EngineRequest): EngineReply {
       return { kind: 'run', value: e.run(req.model) };
     case 'run-hydraulics':
       return { kind: 'run-hydraulics', value: e.runHydraulicsInp(req.inp) };
+    case 'run-files':
+      return { kind: 'run-files', value: e.runFiles(req.request) };
   }
 }
 
@@ -42,6 +44,7 @@ self.onmessage = async (event: MessageEvent<EngineRequest>) => {
     const value = handle(e, req);
     reply = { id: req.id, ok: true, reply: value, ms: performance.now() - t0 };
     if (value.kind === 'run') transfer = transferables(value.value);
+    if (value.kind === 'run-files') transfer = [value.value.out.buffer as ArrayBuffer];
   } catch (err) {
     reply = { id: req.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }

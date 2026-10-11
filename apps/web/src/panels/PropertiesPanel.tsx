@@ -17,7 +17,7 @@ import { useEffect, useState } from 'react';
 import { useApp } from '../app/context.tsx';
 import type { AppState } from '../app/state.ts';
 import { variableLabel } from '../shell/Ribbon.tsx';
-import { VARIABLE_QUANTITY } from '../viewport/paint.ts';
+import { variableUnit } from '../viewport/paint.ts';
 
 const MIXED = Symbol('mixed');
 
@@ -202,8 +202,7 @@ function ResultValues({ state, handle }: { state: AppState; handle: number }) {
           const frame = isNode
             ? nodeFrame(r.results!, v as (typeof NODE_VARIABLES)[number], state.period)
             : linkFrame(r.results!, v as (typeof LINK_VARIABLES)[number], state.period);
-          const q = VARIABLE_QUANTITY[v];
-          const unit = q === 'headloss' ? (u.si ? 'm/km' : 'ft/kft') : unitLabel(q, u);
+          const unit = variableUnit(v, u);
           const val = frame[idx]!;
           return (
             <div key={v}>

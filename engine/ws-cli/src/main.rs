@@ -82,6 +82,7 @@ fn run(input: &str, rpt: &str, out: Option<&str>) -> Result<bool, String> {
         inp_name: input.to_string(),
         date: ctime_now(),
         report: true,
+        status_log: false,
     };
     let run = ws_solver::run_epanet(&r.model, &opts, |_| {}).map_err(|e| e.to_string())?;
     std::fs::write(rpt, run.report().unwrap_or_default()).map_err(|e| format!("{rpt}: {e}"))?;

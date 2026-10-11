@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { loadModel, Store, toModel } from '@waterstudio/core';
 import { describe, expect, it } from 'vitest';
+import { readOutFile } from './outfile.ts';
 import { EngineError } from './protocol.ts';
 import { linkFrame, linkSeries, nodeFrame, nodeSeries } from './results.ts';
 import { instantiateEngine } from './wasm.ts';
@@ -62,6 +63,26 @@ describe.skipIf(!have)('WebAssembly engine', async () => {
     expect(nodeSeries(r, 'pressure', 2)).toHaveLength(3);
     expect(Array.from(linkSeries(r, 'status', 0))).toEqual([3, 3, 3]); // OPEN
     expect(linkFrame(r, 'velocity', 0)[1]!).toBeGreaterThan(0);
+  });
+
+  it("writes EPANET's report and output file", () => {
+    const text = readFileSync(new URL('apps/web/public/samples/Net1.inp', root), 'utf8');
+    const { model } = e().readInp(text);
+    const date = 'Sun Oct 11 02:12:12 2026';
+    const files = e().runFiles({ model, inpName: 'Net1.inp', date, statusLog: false });
+    expect(files.report).toContain(`Analysis begun ${date}`);
+    expect(files.report).toContain('Balanced after 4 trials'); // Net1 asks for a status report
+    const out = readOutFile(files.out);
+    expect([out.nodes, out.links, out.pumps, out.periods, out.warning]).toEqual([11, 13, 1, 25, 0]);
+    expect(out.energy[0]!.link).toBe(12); // pump 9 is Net1's last link
+    expect(out.energy[0]!.utilization).toBeGreaterThan(0);
+    expect(out.reactions.bulk).toBeGreaterThan(0); // chlorine decays in Net1
+    // The status log can be asked for even when [REPORT] turns it off.
+    const quiet = { ...model, report: { lines: [{ tokens: ['Status', 'No'], comment: null }] } };
+    expect(e().runFiles({ model: quiet, inpName: 'x', date, statusLog: false }).report).not.toContain(
+      'Balanced',
+    );
+    expect(e().runFiles({ model: quiet, inpName: 'x', date, statusLog: true }).report).toContain('Balanced');
   });
 
   it('reports EPANET errors', () => {

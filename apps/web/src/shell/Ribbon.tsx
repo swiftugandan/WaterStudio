@@ -110,6 +110,16 @@ const TABS: Tab[] = [
     groups: [
       { label: 'Map', items: [{ custom: 'mapTheme' }] },
       { label: 'Time', items: [{ custom: 'time' }] },
+      {
+        label: 'Graphs',
+        items: [
+          { cmd: 'graph.series', size: 'large', label: 'Time series' },
+          { cmd: 'graph.profile', size: 'large', label: 'Profile' },
+          { cmd: 'graph.frequency', size: 'large', label: 'Frequency' },
+          { cmd: 'graph.flow', size: 'large', label: 'System flow' },
+        ],
+      },
+      { label: 'Reports', items: [{ cmd: 'view.panel.report', size: 'large', label: 'Reports' }] },
     ],
   },
   {
@@ -123,6 +133,7 @@ const TABS: Tab[] = [
           { cmd: 'view.panel.properties', label: 'Properties' },
           { cmd: 'view.panel.results', label: 'Results' },
           { cmd: 'view.panel.messages', label: 'Messages' },
+          { cmd: 'view.panel.report', label: 'Reports' },
         ],
       },
       {

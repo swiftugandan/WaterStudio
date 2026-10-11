@@ -7,6 +7,7 @@
 import { loadModel, Store, toModel, unitSystem, type model, type UnitSystem } from '@waterstudio/core';
 import {
   EngineClient,
+  type EpanetFiles,
   type InpIssue,
   type LinkVariable,
   type NodeVariable,
@@ -14,6 +15,7 @@ import {
 } from '@waterstudio/engine-client';
 import type { RampName, RendererStatus } from '@waterstudio/render';
 import { Emitter } from './emitter.ts';
+import type { GraphSpec } from './graphs.ts';
 import type { Prefs } from './prefs.ts';
 import type { ViewApi } from './view.ts';
 
@@ -37,6 +39,27 @@ export interface RunState {
   error?: string;
 }
 
+/** EPANET's report and output file for one revision of the model. */
+export interface FilesState {
+  rev: number;
+  statusLog: boolean;
+  status: 'running' | 'done' | 'error';
+  files?: EpanetFiles;
+  /** Link handles in the order the files list links. */
+  links?: Uint32Array;
+  error?: string;
+}
+
+/** The current time as C's `ctime` prints it (local time), without the newline. */
+export function ctime(d = new Date()): string {
+  const day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
+  const mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][
+    d.getMonth()
+  ];
+  const p2 = (n: number) => String(n).padStart(2, '0');
+  return `${day} ${mon} ${String(d.getDate()).padStart(2, ' ')} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())} ${d.getFullYear()}`;
+}
+
 export interface MapTheme {
   node: NodeVariable | null;
   link: LinkVariable | null;
@@ -53,6 +76,8 @@ export class AppState extends Emitter {
   hover: number | null = null;
   tool: Tool = 'select';
   run: RunState = { status: 'idle' };
+  /** EPANET's files, by whether the status log was asked for. */
+  files: Partial<Record<'report' | 'status', FilesState>> = {};
   period = 0;
   mapTheme: MapTheme = { node: 'pressure', link: 'flow', ramp: 'viridis' };
   messages: Message[] = [];
@@ -60,6 +85,7 @@ export class AppState extends Emitter {
   cursor: [number, number] | null = null;
   paletteOpen = false;
   view: ViewApi | null = null;
+  private graphRequests: GraphSpec[] = [];
   /** Panels the user has open, by id. */
   panels = new Set(['browser', 'properties', 'results', 'messages']);
   readonly engine: EngineClient;
@@ -98,6 +124,19 @@ export class AppState extends Emitter {
   log(level: Message['level'], text: string): void {
     this.messages = [...this.messages.slice(-499), { time: Date.now(), level, text }];
     this.emit();
+  }
+
+  /** Open a graph in a new panel. */
+  openGraph(spec: GraphSpec): void {
+    this.graphRequests.push(spec);
+    this.emit();
+  }
+
+  /** Graphs asked for since the last call (the dock opens them). */
+  takeGraphRequests(): GraphSpec[] {
+    const r = this.graphRequests;
+    this.graphRequests = [];
+    return r;
   }
 
   setTool(tool: Tool): void {
@@ -147,6 +186,7 @@ export class AppState extends Emitter {
     this.selection = new Set();
     this.hover = null;
     this.run = { status: 'idle' };
+    this.files = {};
     this.period = 0;
     const errors = issues.filter((i) => i.severity === 'error').length;
     this.log(
@@ -174,6 +214,34 @@ export class AppState extends Emitter {
     this.savedRev = this.store.rev;
     this.emit();
     return value;
+  }
+
+  /** Produce EPANET's report and output file for the model as it is now (once per revision). */
+  async loadFiles(which: 'report' | 'status'): Promise<void> {
+    const rev = this.store.rev;
+    const cur = this.files[which];
+    if (cur && cur.rev === rev && cur.status !== 'error') return;
+    const statusLog = which === 'status';
+    const doc = this.store.doc;
+    const links = Uint32Array.from(doc.linkHandles());
+    this.files = { ...this.files, [which]: { rev, statusLog, status: 'running' } };
+    this.emit();
+    let next: FilesState;
+    try {
+      const { value } = await this.engine.runFiles({
+        model: toModel(doc),
+        inpName: this.fileName,
+        date: ctime(),
+        statusLog,
+      });
+      next = { rev, statusLog, status: 'done', files: value, links };
+    } catch (e) {
+      next = { rev, statusLog, status: 'error', error: e instanceof Error ? e.message : String(e) };
+    }
+    if (this.files[which]?.rev === rev) {
+      this.files = { ...this.files, [which]: next };
+      this.emit();
+    }
   }
 
   async runHydraulics(): Promise<void> {

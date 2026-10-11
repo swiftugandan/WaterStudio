@@ -88,6 +88,9 @@ impl Hydraulics {
     fn open(model: &Model, report: Option<&RunOptions>) -> Result<Self, SolverError> {
         let mut pr = input::build(model)?;
         if let Some(opts) = report {
+            if opts.status_log && pr.rpt.statflag == report::Statflag::No {
+                pr.rpt.statflag = report::Statflag::Yes;
+            }
             pr.rpt.file = Some(report::ReportFile::default());
             pr.rpt.date = opts.date.clone();
             report::writelogo(&mut pr);
@@ -440,6 +443,9 @@ pub struct RunOptions {
     pub date: String,
     /// Write EPANET's text report.
     pub report: bool,
+    /// Include the hydraulic status log even if [REPORT] says `STATUS NO` (as EPANET's
+    /// GUI does for its status report).
+    pub status_log: bool,
 }
 
 /// A whole run the way EPANET's `EN_runproject` makes one (`EN_solveH`, then

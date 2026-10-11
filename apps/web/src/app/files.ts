@@ -20,7 +20,15 @@ export function openFilePicker(accept: string): Promise<File | null> {
 }
 
 export function saveTextFile(text: string, name: string): void {
-  const url = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+  saveBlob(new Blob([text], { type: 'text/plain' }), name);
+}
+
+export function saveBinaryFile(bytes: Uint8Array, name: string): void {
+  saveBlob(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/octet-stream' }), name);
+}
+
+function saveBlob(blob: Blob, name: string): void {
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = name;

@@ -8,7 +8,7 @@
 //! - `ws_read_inp`: .inp text -> `{ model, issues }` (the canonical model as JSON)
 //! - `ws_write_inp`: model JSON -> .inp text
 //! - `ws_run`: model JSON -> binary results (see `ws_study::run::encode`)
-//! - `ws_run_files`: `{ model, inpName, date }` JSON -> EPANET's report and output file:
+//! - `ws_run_files`: `{ model, inpName, date, statusLog }` JSON -> EPANET's report and output file:
 //!   a u32 report length, the report text, then the binary output file
 //! - `ws_run_hydraulics_inp`: .inp text -> JSON report (the parity harness's format)
 //!
@@ -129,6 +129,9 @@ struct FilesRequest {
     inp_name: String,
     /// The run's clock time as C's `ctime` prints it, without the newline.
     date: String,
+    /// Include the hydraulic status log whatever [REPORT] says.
+    #[serde(default)]
+    status_log: bool,
 }
 
 /// Run a model as EPANET's `runepanet` does and return its report and output file.
@@ -146,6 +149,7 @@ pub unsafe extern "C" fn ws_run_files(ptr: *const u8, len: usize) -> *mut u8 {
                 inp_name: req.inp_name,
                 date: req.date,
                 report: true,
+                status_log: req.status_log,
             };
             ws_study::run::run_model(&req.model, Some(&opts))
         })

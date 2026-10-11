@@ -3,8 +3,11 @@ export {
   EngineError,
   type EngineRequest,
   type EngineResponse,
+  type EpanetFiles,
+  type FilesRequest,
   type HydraulicReport,
   type InpIssue,
   type ReadResult,
 } from './protocol.ts';
+export * from './outfile.ts';
 export * from './results.ts';

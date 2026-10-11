@@ -8,7 +8,13 @@
  */
 
 import type { model } from '@waterstudio/core';
-import { EngineError, type HydraulicReport, type ReadResult } from './protocol.ts';
+import {
+  EngineError,
+  type EpanetFiles,
+  type FilesRequest,
+  type HydraulicReport,
+  type ReadResult,
+} from './protocol.ts';
 import { decodeResults, type RunResults } from './results.ts';
 
 type Entry = (ptr: number, len: number) => number;
@@ -21,6 +27,7 @@ interface Exports {
   ws_write_inp: Entry;
   ws_run: Entry;
   ws_run_hydraulics_inp: Entry;
+  ws_run_files: Entry;
 }
 
 export interface Engine {
@@ -28,6 +35,7 @@ export interface Engine {
   writeInp(m: model.Model): string;
   run(m: model.Model): RunResults;
   runHydraulicsInp(inp: string | Uint8Array): HydraulicReport;
+  runFiles(req: FilesRequest): EpanetFiles;
 }
 
 export async function instantiateEngine(source: BufferSource | WebAssembly.Module): Promise<Engine> {
@@ -65,5 +73,10 @@ export async function instantiateEngine(source: BufferSource | WebAssembly.Modul
     run: (m) => decodeResults(call(x.ws_run, json(m))),
     runHydraulicsInp: (inp) =>
       JSON.parse(decoder.decode(call(x.ws_run_hydraulics_inp, bytes(inp)))) as HydraulicReport,
+    runFiles: (req) => {
+      const body = call(x.ws_run_files, json(req));
+      const n = new DataView(body.buffer, body.byteOffset, 4).getUint32(0, true);
+      return { report: decoder.decode(body.subarray(4, 4 + n)), out: body.slice(4 + n) };
+    },
   };
 }

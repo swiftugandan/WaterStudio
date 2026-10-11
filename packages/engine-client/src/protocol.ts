@@ -30,17 +30,35 @@ export interface ReadResult {
   issues: InpIssue[];
 }
 
+/** EPANET's text report and binary output file for a run. */
+export interface EpanetFiles {
+  report: string;
+  out: Uint8Array;
+}
+
+export interface FilesRequest {
+  model: model.Model;
+  /** The input file name the files record. */
+  inpName: string;
+  /** Clock time in C `ctime` form without the newline. */
+  date: string;
+  /** Include the hydraulic status log whatever [REPORT] says. */
+  statusLog: boolean;
+}
+
 export type EngineRequest =
   | { id: number; kind: 'read-inp'; inp: string }
   | { id: number; kind: 'write-inp'; model: model.Model }
   | { id: number; kind: 'run'; model: model.Model }
-  | { id: number; kind: 'run-hydraulics'; inp: string };
+  | { id: number; kind: 'run-hydraulics'; inp: string }
+  | { id: number; kind: 'run-files'; request: FilesRequest };
 
 export type EngineReply =
   | { kind: 'read-inp'; value: ReadResult }
   | { kind: 'write-inp'; value: string }
   | { kind: 'run'; value: RunResults }
-  | { kind: 'run-hydraulics'; value: HydraulicReport };
+  | { kind: 'run-hydraulics'; value: HydraulicReport }
+  | { kind: 'run-files'; value: EpanetFiles };
 
 export type EngineResponse =
   { id: number; ok: true; reply: EngineReply; ms: number } | { id: number; ok: false; error: string };

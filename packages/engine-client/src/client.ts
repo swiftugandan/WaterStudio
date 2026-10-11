@@ -9,6 +9,8 @@ import {
   type EngineReply,
   type EngineRequest,
   type EngineResponse,
+  type EpanetFiles,
+  type FilesRequest,
   type HydraulicReport,
   type ReadResult,
 } from './protocol.ts';
@@ -40,6 +42,7 @@ interface Replies {
   'write-inp': string;
   run: RunResults;
   'run-hydraulics': HydraulicReport;
+  'run-files': EpanetFiles;
 }
 
 type Body = EngineRequest extends infer R ? (R extends { id: number } ? Omit<R, 'id'> : never) : never;
@@ -111,6 +114,11 @@ export class EngineClient {
   /** Solve an .inp file, returning the parity harness's JSON report. */
   runHydraulicsInp(inp: string): Promise<Timed<HydraulicReport>> {
     return this.typed({ kind: 'run-hydraulics', inp });
+  }
+
+  /** Run a model as EPANET's runepanet does, for its report and output file. */
+  runFiles(request: FilesRequest): Promise<Timed<EpanetFiles>> {
+    return this.typed({ kind: 'run-files', request });
   }
 
   dispose(): void {

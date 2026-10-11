@@ -49,7 +49,9 @@ Gate: every EPANET 2.2 GUI function available; quality within tolerance; WCAG 2.
 
 - [x] Water quality (in `ws-solver`, ADR 0006): chemical, age, trace; bulk and wall reactions of any order; sources;
   four tank mixing models. Bit-identical with OWA-EPANET's `EN_solveQ` on 14 quality networks, native and wasm
-- [ ] All EPANET reports, graphs and tables; time player
+- [x] Graphs: time series, profile, frequency, system flow, each with a data table; time player
+- [x] Reports: status log, energy, reaction rates, full report; .rpt and .out downloads
+- [ ] Contour plot and calibration report
 - [ ] MapLibre basemap, CRS, backdrop images
 - [x] `.out` and `.rpt` writers (ADR 0009): identical to `runepanet`'s on all 64 networks; app results follow the `.out`
 - [ ] GIS and DXF import and export

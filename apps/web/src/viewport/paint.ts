@@ -16,7 +16,7 @@ import {
   type RampName,
   type Scene,
 } from '@waterstudio/render';
-import type { Quantity } from '@waterstudio/core';
+import { unitLabel, type Quantity, type UnitSystem } from '@waterstudio/core';
 import type { RunState } from '../app/state.ts';
 
 export const VARIABLE_QUANTITY: Record<NodeVariable | LinkVariable, Quantity | 'headloss'> = {
@@ -35,6 +35,12 @@ export const VARIABLE_QUANTITY: Record<NodeVariable | LinkVariable, Quantity | '
   reaction: 'reactionRate',
   friction: 'none',
 };
+
+/** The unit a result variable is shown in. */
+export function variableUnit(v: NodeVariable | LinkVariable, u: UnitSystem): string {
+  const q = VARIABLE_QUANTITY[v];
+  return q === 'headloss' ? (u.si ? 'm/km' : 'ft/kft') : unitLabel(q, u);
+}
 
 const legendCache = new WeakMap<RunResults, Map<string, Legend>>();
 
