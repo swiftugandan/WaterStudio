@@ -19,6 +19,11 @@ interface WS {
   };
 }
 
+// Tests never load OpenStreetMap's tile servers; a test may route them itself.
+test.beforeEach(async ({ page }) => {
+  await page.route('https://tile.openstreetmap.org/**', (route) => route.fulfill({ status: 204 }));
+});
+
 async function ready(page: Page) {
   await page.goto('/');
   await expect(page.getByTestId('renderer')).not.toHaveText('Starting renderer…');
@@ -240,6 +245,70 @@ test('shows a backdrop image where [BACKDROP] places it', async ({ page }) => {
   expect(backdrop).toContain('FILE aerial.png');
   await page.getByRole('button', { name: 'Remove backdrop image' }).click();
   await expect(img).toBeHidden();
+});
+
+test('imports GeoJSON into a projected network and exports GeoJSON and DXF', async ({ page }) => {
+  await ready(page);
+  page.on('dialog', (d) => void d.accept());
+  const geojson = {
+    type: 'FeatureCollection',
+    features: [
+      {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [-0.1276, 51.5072] },
+        properties: { id: 'SRC', type: 'reservoir', head: 60 },
+      },
+      {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [-0.1256, 51.5079, 12] },
+        properties: { id: 'J1', demand: 2 },
+      },
+      {
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [-0.1276, 51.5072],
+            [-0.1266, 51.508],
+            [-0.1256, 51.5079],
+          ],
+        },
+        properties: { id: 'P1', diameter: 150 },
+      },
+      {
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [-0.1256, 51.5079],
+            [-0.1246, 51.5085],
+          ],
+        },
+        properties: { id: 'P2' },
+      },
+    ],
+  };
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Import GeoJSON or DXF' }).click();
+  await (
+    await chooser
+  ).setFiles({
+    name: 'mains.geojson',
+    mimeType: 'application/geo+json',
+    buffer: Buffer.from(JSON.stringify(geojson)),
+  });
+  // London is in UTM zone 30N; the open end of P2 got a junction.
+  await expect(page.locator('.statusbar')).toContainText('3 nodes · 2 links');
+  await expect(page.locator('.statusbar')).toContainText('EPSG:32630');
+  await expect(page.locator('.statusbar')).toContainText('mains.inp');
+  await page.keyboard.press('F5');
+  await expect(page.getByTestId('run-status')).toContainText('Solved');
+  const geo = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export GeoJSON' }).click();
+  expect((await geo).suggestedFilename()).toBe('mains.geojson');
+  const dxf = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export DXF' }).click();
+  expect((await dxf).suggestedFilename()).toBe('mains.dxf');
 });
 
 for (const theme of ['light', 'dark'] as const) {

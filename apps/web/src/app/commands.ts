@@ -3,9 +3,11 @@
  * palette, context menus and (later) agents all execute these by id.
  */
 
-import { CommandBus, deleteElements, type Command } from '@waterstudio/core';
+import { CommandBus, deleteElements, toModel, type Command } from '@waterstudio/core';
+import { LINK_VARIABLES, NODE_VARIABLES, linkFrame, nodeFrame } from '@waterstudio/engine-client';
+import { dxfToModel, geoJSONToModel, modelToDxf, modelToGeoJSON } from '@waterstudio/gis';
 import { resolveCrs } from '../geo/crs.ts';
-import { backdropPlacement, crsText, withBackdropLine, withCrs } from '../geo/model.ts';
+import { backdropPlacement, crsText, modelCrs, withBackdropLine, withCrs } from '../geo/model.ts';
 import { openFilePicker, saveTextFile } from './files.ts';
 import type { AppState, Tool } from './state.ts';
 
@@ -91,6 +93,56 @@ export function createCommands(state: AppState): CommandBus<AppState> {
           saveTextFile(text, s.fileName.endsWith('.inp') ? s.fileName : `${s.fileName}.inp`);
           s.log('info', `Saved ${s.fileName}.`);
         }),
+    },
+    {
+      id: 'file.import.gis',
+      title: 'Import GeoJSON or DXF…',
+      icon: 'file-input',
+      category: 'File',
+      run: (s) =>
+        guarded(s, 'Import failed', async () => {
+          if (!confirmDiscard(s)) return;
+          const file = await openFilePicker('.geojson,.json,.dxf,application/geo+json');
+          if (!file) return;
+          const text = await file.text();
+          const { model, issues } = importGis(file.name, text);
+          s.openModel(
+            model,
+            file.name.replace(/\.(geo)?json$|\.dxf$/i, '.inp'),
+            issues.map((message) => ({ line: 0, section: 'IMPORT', severity: 'warning' as const, message })),
+          );
+          s.view?.fit();
+        }),
+    },
+    {
+      id: 'file.export.geojson',
+      title: 'Export GeoJSON',
+      icon: 'file-output',
+      category: 'File',
+      enabled: (s) => s.store.doc.nodes.liveCount > 0,
+      run: (s) => {
+        const crs = modelCrs(s.store.doc);
+        const extra = resultAttributes(s);
+        const fc = modelToGeoJSON(toModel(s.store.doc), { project: crs?.crs, extra });
+        saveTextFile(JSON.stringify(fc), `${baseName(s.fileName)}.geojson`);
+        s.log(
+          crs ? 'info' : 'warning',
+          crs
+            ? `Exported GeoJSON in longitude and latitude${extra ? ' with results at the current time' : ''}.`
+            : 'Exported GeoJSON in the model’s own coordinates: set a coordinate system for standard GeoJSON.',
+        );
+      },
+    },
+    {
+      id: 'file.export.dxf',
+      title: 'Export DXF',
+      icon: 'file-output',
+      category: 'File',
+      enabled: (s) => s.store.doc.nodes.liveCount > 0,
+      run: (s) => {
+        saveTextFile(modelToDxf(toModel(s.store.doc), { labels: true }), `${baseName(s.fileName)}.dxf`);
+        s.log('info', 'Exported DXF (R12) with pipes, pumps, valves and nodes on their own layers.');
+      },
     },
     {
       id: 'edit.undo',
@@ -413,4 +465,109 @@ function networkBounds(s: AppState): [number, number, number, number] | null {
     b = b ? [Math.min(b[0], x), Math.min(b[1], y), Math.max(b[2], x), Math.max(b[3], y)] : [x, y, x, y];
   }
   return b;
+}
+
+function baseName(name: string): string {
+  return name.replace(/\.inp$/i, '');
+}
+
+/** The UTM zone (as an EPSG code) containing a longitude and latitude. */
+export function utmZone(lng: number, lat: number): string {
+  const zone = Math.min(60, Math.max(1, Math.floor((lng + 180) / 6) + 1));
+  return `EPSG:${lat >= 0 ? 326 : 327}${String(zone).padStart(2, '0')}`;
+}
+
+/**
+ * Read a GeoJSON or DXF file into a model. GeoJSON in longitude and latitude is put
+ * into the UTM zone of its centre, so lengths come out in metres.
+ */
+export function importGis(name: string, text: string): ReturnType<typeof dxfToModel> {
+  if (/\.dxf$/i.test(name)) {
+    const r = dxfToModel(text, { snap: snapFor(extentOf(text)), units: 'LPS' });
+    return {
+      model: r.model,
+      issues: [...r.issues, 'DXF has no coordinate system; set one to see a street map.'],
+    };
+  }
+  const data: unknown = JSON.parse(text);
+  const pts: [number, number][] = [];
+  collectPositions(data, pts);
+  const geographic = pts.length > 0 && pts.every(([x, y]) => Math.abs(x) <= 180 && Math.abs(y) <= 90);
+  if (!geographic) {
+    const r = geoJSONToModel(data, { snap: snapFor(pts), units: 'LPS' });
+    return {
+      model: r.model,
+      issues: [...r.issues, 'The coordinates are not longitude and latitude; no coordinate system was set.'],
+    };
+  }
+  const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length;
+  const cy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+  const code = utmZone(cx, cy);
+  const crs = resolveCrs(code)!;
+  const r = geoJSONToModel(data, { project: crs, snap: 0.5, units: 'LPS' });
+  r.model.backdrop = withCrs(r.model.backdrop, code);
+  return { model: r.model, issues: [...r.issues, `Coordinates were projected to ${crs.label} (${code}).`] };
+}
+
+function collectPositions(v: unknown, out: [number, number][]): void {
+  if (Array.isArray(v)) {
+    if (v.length >= 2 && typeof v[0] === 'number' && typeof v[1] === 'number') out.push([v[0], v[1]]);
+    else for (const x of v) collectPositions(x, out);
+  } else if (v && typeof v === 'object') {
+    for (const [k, x] of Object.entries(v))
+      if (k === 'coordinates' || k === 'features' || k === 'geometry') collectPositions(x, out);
+  }
+}
+
+/** Rough coordinates of a DXF drawing, for a snap tolerance. */
+function extentOf(dxf: string): [number, number][] {
+  const lines = dxf.split(/\r?\n/);
+  const out: [number, number][] = [];
+  for (let i = 0; i + 3 < lines.length; i += 2) {
+    if (lines[i]!.trim() === '10' && lines[i + 2]!.trim() === '20')
+      out.push([Number(lines[i + 1]), Number(lines[i + 3])]);
+  }
+  return out;
+}
+
+/** A snap tolerance of a millionth of the data's extent, at least a millimetre. */
+function snapFor(pts: [number, number][]): number {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const [x, y] of pts) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+  }
+  const span = Number.isFinite(minX) ? Math.max(maxX - minX, maxY - minY) : 1;
+  return Math.max(span * 1e-6, 1e-3);
+}
+
+/** Results at the current report time, by element ID, when they are up to date. */
+function resultAttributes(
+  s: AppState,
+): ((table: 'node' | 'link', id: string) => Record<string, number>) | undefined {
+  const r = s.run;
+  if (r.status !== 'done' || !r.results || !r.nodes || !r.links || s.stale) return undefined;
+  const doc = s.store.doc;
+  const p = Math.min(s.period, r.results.times.length - 1);
+  const nodes = new Map<string, Record<string, number>>();
+  const links = new Map<string, Record<string, number>>();
+  r.nodes.forEach((h, i) => {
+    if (!doc.has(h)) return;
+    const rec: Record<string, number> = {};
+    for (const v of NODE_VARIABLES) rec[`result_${v}`] = nodeFrame(r.results!, v, p)[i]!;
+    nodes.set(doc.id(h), rec);
+  });
+  r.links.forEach((h, i) => {
+    if (!doc.has(h)) return;
+    const rec: Record<string, number> = {};
+    for (const v of LINK_VARIABLES) rec[`result_${v}`] = linkFrame(r.results!, v, p)[i]!;
+    links.set(doc.id(h), rec);
+  });
+  return (table, id) => (table === 'node' ? nodes.get(id) : links.get(id)) ?? {};
 }

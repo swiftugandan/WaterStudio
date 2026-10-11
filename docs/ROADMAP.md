@@ -54,7 +54,8 @@ Gate: every EPANET 2.2 GUI function available; quality within tolerance; WCAG 2.
 - [ ] Contour plot and calibration report
 - [x] MapLibre basemap, CRS, backdrop images (ADR 0010)
 - [x] `.out` and `.rpt` writers (ADR 0009): identical to `runepanet`'s on all 64 networks; app results follow the `.out`
-- [ ] GIS and DXF import and export
+- [x] GeoJSON and DXF import and export (`@waterstudio/gis`); GeoJSON in longitude and latitude is projected to its UTM zone
+- [ ] Shapefile import and export
 - [ ] Read-only agent tools and the Assistant panel
 
 ## Phase 3: Pro 1.0

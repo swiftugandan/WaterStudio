@@ -15,6 +15,7 @@
   "dependencies": {
     "@waterstudio/core": "workspace:*",
     "@waterstudio/engine-client": "workspace:*",
+    "@waterstudio/gis": "workspace:*",
     "@waterstudio/render": "workspace:*",
     "@waterstudio/symbols": "workspace:*",
     "@waterstudio/ui": "workspace:*",
