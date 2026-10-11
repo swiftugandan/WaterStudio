@@ -801,6 +801,21 @@ export function MapView() {
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     const c = ctl.current;
+    const pan: Record<string, [number, number]> = {
+      ArrowLeft: [1, 0],
+      ArrowRight: [-1, 0],
+      ArrowUp: [0, 1],
+      ArrowDown: [0, -1],
+    };
+    const dir = pan[e.key];
+    if (c && dir && !e.altKey && !e.ctrlKey && !e.metaKey) {
+      const step = e.shiftKey ? 320 : 80;
+      c.renderer.camera.panBy(dir[0] * step, dir[1] * step);
+      c.renderer.redraw();
+      c.drawOverlay();
+      e.preventDefault();
+      return;
+    }
     if (e.key === 'Escape' && c && c.gesture.kind !== 'none') {
       const wasMove = c.gesture.kind === 'move';
       c.gesture = { kind: 'none' };
@@ -825,7 +840,7 @@ export function MapView() {
           className={`map-overlay ${cursorClass}`}
           tabIndex={0}
           role="application"
-          aria-label="Network map. Drag to select, wheel to zoom, middle-drag or Alt-drag to pan."
+          aria-label="Network map. Drag to select, wheel or = and - to zoom, arrow keys or middle-drag to pan. Add and select elements without a pointer from the model browser and the Add element panel."
           onWheel={onWheel}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}

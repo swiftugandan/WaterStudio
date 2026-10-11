@@ -20,6 +20,7 @@ const PANEL_ICONS: Record<string, string> = {
   curves: 'spline',
   controls: 'list-checks',
   query: 'filter',
+  add: 'plus',
 };
 
 export const SAMPLES = ['Net1', 'Net2', 'Net3'] as const;
@@ -377,6 +378,7 @@ export function createCommands(state: AppState): CommandBus<AppState> {
         ['curves', 'Curves'],
         ['controls', 'Controls'],
         ['query', 'Query and group edit'],
+        ['add', 'Add element'],
       ] as const
     ).map(([id, title]): Cmd => ({
       id: `view.panel.${id}`,

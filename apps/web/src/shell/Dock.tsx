@@ -16,6 +16,7 @@ import 'dockview-react/dist/styles/dockview.css';
 import { useEffect, useRef } from 'react';
 import { useApp, useAppContext } from '../app/context.tsx';
 import { AssistantPanel } from '../panels/AssistantPanel.tsx';
+import { AddPanel } from '../panels/AddPanel.tsx';
 import { BrowserPanel } from '../panels/BrowserPanel.tsx';
 import { ControlsPanel } from '../panels/ControlsPanel.tsx';
 import { CurvesPanel, PatternsPanel } from '../panels/DataPanel.tsx';
@@ -46,6 +47,7 @@ const PANELS: Record<
   curves: { title: 'Curves', position: () => ({ referencePanel: 'map', direction: 'right' }) },
   controls: { title: 'Controls', position: () => ({ referencePanel: 'map', direction: 'right' }) },
   query: { title: 'Query', position: () => ({ referencePanel: 'properties', direction: 'within' }) },
+  add: { title: 'Add element', position: () => ({ referencePanel: 'properties', direction: 'within' }) },
 };
 
 const components = {
@@ -61,6 +63,7 @@ const components = {
   curves: () => <CurvesPanel />,
   controls: () => <ControlsPanel />,
   query: () => <QueryPanel />,
+  add: () => <AddPanel />,
   graph: (props: IDockviewPanelProps<GraphParams>) => <GraphPanel {...props} />,
 };
 

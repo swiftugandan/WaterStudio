@@ -150,13 +150,14 @@ export function ResultsPanel() {
         count={order.length}
         rowHeight={24}
         className="grid-body"
+        onActivate={(i, mode) => state.select([handles[order[i]!]!], mode)}
+        isSelected={(i) => state.selection.has(handles[order[i]!]!)}
         render={(i) => {
           const row = order[i]!;
           const h = handles[row]!;
           return (
             <div
               key={h}
-              role="listitem"
               className={`grid-row vrow${state.selection.has(h) ? ' selected' : ''}`}
               style={{ gridTemplateColumns: cols }}
               onClick={() => state.select([h])}

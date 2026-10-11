@@ -107,6 +107,7 @@ const TABS: Tab[] = [
           { cmd: 'tool.valve', size: 'large', label: 'Valve' },
         ],
       },
+      { label: 'Keyboard', items: [{ cmd: 'view.panel.add', size: 'large', label: 'Add element' }] },
       { label: 'Annotate', items: [{ cmd: 'tool.label', size: 'large', label: 'Label' }] },
       { label: 'Edit', items: [{ cmd: 'edit.delete', size: 'large', label: 'Delete' }] },
     ],

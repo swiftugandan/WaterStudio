@@ -633,6 +633,34 @@ test('labels the map: IDs, values, flow arrows and map labels', async ({ page })
     .not.toContain('Pressure zone A');
 });
 
+test('works without a pointer: lists, adding elements, panning the map', async ({ page }) => {
+  await ready(page);
+  const list = page.getByRole('listbox', { name: 'junction list' });
+  await list.focus();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.panel.properties .panel-title')).toHaveText('Junction 11');
+  await expect(list.getByRole('option', { selected: true })).toHaveText('11');
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Draw' }).click();
+  await page.getByRole('button', { name: 'Show add element' }).click();
+  const add = page.locator('.panel.add-element');
+  await add.getByLabel('ID (optional)').fill('K1');
+  await add.getByLabel('X', { exact: true }).fill('5');
+  await add.getByLabel('Y', { exact: true }).fill('75');
+  await add.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(add.getByRole('status')).toHaveText('Added junction K1.');
+  await add.getByLabel('Type').selectOption('pipe');
+  await add.getByLabel('Start node').fill('K1');
+  await add.getByLabel('End node').fill('10');
+  await add.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(add.getByRole('status')).toContainText('Added pipe');
+  await expect(page.locator('.statusbar')).toContainText('12 nodes · 14 links');
+  const before = await nodeOnScreen(page, '10');
+  await page.locator('.map-overlay').focus();
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(async () => (await nodeOnScreen(page, '10')).x - before.x).toBeCloseTo(80, 0);
+});
+
 test('the editors have no WCAG 2.2 AA violations', async ({ page }) => {
   await ready(page);
   await ws(page, (w) => {
@@ -664,6 +692,9 @@ test('the editors have no WCAG 2.2 AA violations', async ({ page }) => {
   await audit('controls');
   await page.keyboard.press('Control+f');
   await audit('query');
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Draw' }).click();
+  await page.getByRole('button', { name: 'Show add element' }).click();
+  await audit('add element');
 });
 
 for (const theme of ['light', 'dark'] as const) {

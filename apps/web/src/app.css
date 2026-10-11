@@ -1318,3 +1318,15 @@ button.link {
 .grid-header button.sort.on {
   color: var(--ws-color-accent);
 }
+
+/* The active row of a keyboard-navigable list */
+.vlist:focus-visible .vactive > * {
+  outline: 2px solid var(--ws-color-focus);
+  outline-offset: -2px;
+}
+.add-element {
+  gap: var(--ws-space-2);
+}
+.add-element > .btn {
+  align-self: flex-start;
+}

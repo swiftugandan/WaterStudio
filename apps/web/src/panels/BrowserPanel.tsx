@@ -66,12 +66,13 @@ export function BrowserPanel() {
         label={`${open} list`}
         count={items.length}
         rowHeight={24}
+        onActivate={(i, mode) => state.select([items[i]!], mode)}
+        isSelected={(i) => state.selection.has(items[i]!)}
         render={(i) => {
           const h = items[i]!;
           return (
             <div
               key={h}
-              role="listitem"
               className={`vrow${state.selection.has(h) ? ' selected' : ''}`}
               onClick={(e) => state.select([h], e.shiftKey || e.ctrlKey || e.metaKey ? 'toggle' : 'replace')}
               onDoubleClick={() => state.view?.zoomTo([h])}

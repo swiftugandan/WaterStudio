@@ -31,6 +31,7 @@ import {
   Layers,
   Search,
   Type,
+  Plus,
   ArrowRight,
   Filter,
   ListChecks,
@@ -90,6 +91,7 @@ const LUCIDE: Record<string, LucideIcon> = {
   layers: Layers,
   search: Search,
   type: Type,
+  plus: Plus,
   'arrow-right': ArrowRight,
   filter: Filter,
 };
