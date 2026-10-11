@@ -9,7 +9,8 @@ import { modelToDxf, modelToGeoJSON, modelToShapefiles, writeZip } from '@waters
 import { importGis, importShapefiles, shapefileFiles } from './gisio.ts';
 import { resolveCrs } from '../geo/crs.ts';
 import { backdropPlacement, crsText, modelCrs, withBackdropLine, withCrs } from '../geo/model.ts';
-import { openFilePicker, openFilesPicker, saveBinaryFile, saveTextFile } from './files.ts';
+import { openFilePicker, openFilesPicker, saveBinaryFile, saveBlob, saveTextFile } from './files.ts';
+import { svgToPng } from '../viewport/svg.ts';
 import type { AppState, Tool } from './state.ts';
 
 const PANEL_ICONS: Record<string, string> = {
@@ -181,6 +182,58 @@ export function createCommands(state: AppState): CommandBus<AppState> {
             ? 'Exported node and link shapefiles in longitude and latitude (WGS 84).'
             : 'Exported shapefiles in the model’s own coordinates, without a .prj: set a coordinate system for standard ones.',
         );
+      },
+    },
+    {
+      id: 'file.export.svg',
+      title: 'Export map as SVG',
+      icon: 'image',
+      category: 'File',
+      enabled: (s) => s.view !== null && s.store.doc.nodes.liveCount > 0,
+      run: (s) => {
+        const m = s.view?.exportSvg();
+        if (!m) return;
+        saveBlob(new Blob([m.svg], { type: 'image/svg+xml' }), `${baseName(s.fileName)}.svg`);
+      },
+    },
+    {
+      id: 'file.export.png',
+      title: 'Export map as PNG',
+      icon: 'image',
+      category: 'File',
+      enabled: (s) => s.view !== null && s.store.doc.nodes.liveCount > 0,
+      run: (s) =>
+        guarded(s, 'Map export failed', async () => {
+          const m = s.view?.exportSvg();
+          if (!m) return;
+          saveBlob(await svgToPng(m.svg, m.width, m.height), `${baseName(s.fileName)}.png`);
+        }),
+    },
+    {
+      id: 'file.print',
+      title: 'Print map',
+      icon: 'printer',
+      category: 'File',
+      enabled: (s) => s.view !== null,
+      run: (s) => {
+        const m = s.view?.exportSvg();
+        if (!m) return;
+        const w = window.open('', '_blank');
+        if (!w) {
+          s.log(
+            'warning',
+            'The print window was blocked; allow pop-ups for this site, or export the map as SVG.',
+          );
+          return;
+        }
+        w.document.title = s.fileName;
+        w.document.body.style.margin = '0';
+        const img = w.document.createElement('img');
+        img.src = URL.createObjectURL(new Blob([m.svg], { type: 'image/svg+xml' }));
+        img.style.width = '100%';
+        img.alt = `Map of ${s.fileName}`;
+        img.onload = () => w.print();
+        w.document.body.append(img);
       },
     },
     {

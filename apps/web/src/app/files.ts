@@ -48,7 +48,7 @@ export function saveBinaryFile(bytes: Uint8Array, name: string): void {
   saveBlob(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'application/octet-stream' }), name);
 }
 
-function saveBlob(blob: Blob, name: string): void {
+export function saveBlob(blob: Blob, name: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -57,4 +57,21 @@ function saveBlob(blob: Blob, name: string): void {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Put text on the clipboard; false if the browser refused. */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Rows as tab-separated text, which spreadsheets paste as cells. */
+export function tsv(rows: (string | number)[][]): string {
+  return rows
+    .map((r) => r.map((c) => (typeof c === 'number' ? String(c) : c.replace(/[\t\n]/g, ' '))).join('\t'))
+    .join('\n');
 }

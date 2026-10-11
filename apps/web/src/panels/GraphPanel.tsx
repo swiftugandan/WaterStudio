@@ -14,6 +14,7 @@ import {
 } from '@waterstudio/engine-client';
 import type { IDockviewPanelProps } from 'dockview-react';
 import { useMemo, useState } from 'react';
+import { copyText, tsv } from '../app/files.ts';
 import { useApp } from '../app/context.tsx';
 import {
   frequencySeries,
@@ -101,6 +102,7 @@ export function GraphPanel(props: IDockviewPanelProps<GraphParams>) {
       : null;
 
   let body;
+  let copyRows: (string | number)[][] | null = null;
   if (r.status !== 'done' || !r.results || !r.nodes || !r.links) {
     body = <p className="panel-empty">Run the analysis to see this graph.</p>;
   } else {
@@ -162,6 +164,7 @@ export function GraphPanel(props: IDockviewPanelProps<GraphParams>) {
         step = true;
         break;
     }
+    copyRows = series.length ? seriesRows(series, xLabel, yLabel) : null;
     body =
       series.length === 0 ? (
         <p className="panel-empty">
@@ -184,6 +187,17 @@ export function GraphPanel(props: IDockviewPanelProps<GraphParams>) {
       );
   }
 
+  const copy = () => {
+    if (!copyRows) return;
+    const rows = copyRows;
+    void copyText(tsv(rows)).then((ok) =>
+      state.log(
+        ok ? 'info' : 'warning',
+        ok ? `Copied ${rows.length - 1} rows.` : 'The browser did not allow copying.',
+      ),
+    );
+  };
+
   return (
     <div className="panel graph">
       <div className="panel-toolbar">
@@ -195,6 +209,9 @@ export function GraphPanel(props: IDockviewPanelProps<GraphParams>) {
         )}
         <button type="button" className="btn" aria-pressed={table} onClick={() => setTable((t) => !t)}>
           Table
+        </button>
+        <button type="button" className="btn" disabled={copyRows === null} onClick={copy}>
+          Copy
         </button>
       </div>
       {body}
@@ -265,4 +282,18 @@ function Contour({
 
 function withUnit(label: string, unit: string): string {
   return unit ? `${label} (${unit})` : label;
+}
+
+/** A graph's series as rows: one x column when the series share their x values, else an x and y pair each. */
+function seriesRows(series: Series[], xLabel: string, yLabel: string): (string | number)[][] {
+  const shared = series.every(
+    (s) => s.x.length === series[0]!.x.length && Array.from(s.x).every((x, i) => x === series[0]!.x[i]),
+  );
+  if (shared) {
+    const head = [xLabel, ...series.map((s) => s.name)];
+    return [head, ...Array.from(series[0]!.x, (x, i) => [x, ...series.map((s) => s.y[i] ?? '')])];
+  }
+  const head = series.flatMap((s) => [`${s.name}: ${xLabel}`, `${s.name}: ${yLabel}`]);
+  const n = Math.max(...series.map((s) => s.x.length));
+  return [head, ...Array.from({ length: n }, (_, i) => series.flatMap((s) => [s.x[i] ?? '', s.y[i] ?? '']))];
 }

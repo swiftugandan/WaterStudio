@@ -33,6 +33,7 @@ import {
   Type,
   Plus,
   Ruler,
+  Printer,
   ArrowRight,
   Filter,
   ListChecks,
@@ -94,6 +95,7 @@ const LUCIDE: Record<string, LucideIcon> = {
   type: Type,
   plus: Plus,
   ruler: Ruler,
+  printer: Printer,
   'arrow-right': ArrowRight,
   filter: Filter,
 };

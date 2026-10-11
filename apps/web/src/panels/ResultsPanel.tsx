@@ -7,6 +7,7 @@ import { linkFrame, LINK_VARIABLES, nodeFrame, NODE_VARIABLES } from '@waterstud
 import { getfloat } from '@waterstudio/core';
 import { useId, useState } from 'react';
 import { holds, type Relation } from '../app/query.ts';
+import { copyText, tsv } from '../app/files.ts';
 import { useApp } from '../app/context.tsx';
 import { clock } from '../shell/TimeControl.tsx';
 import { variableLabel } from '../shell/Ribbon.tsx';
@@ -132,6 +133,28 @@ export function ResultsPanel() {
             </button>
           )}
         </form>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => {
+            const head = [
+              'ID',
+              ...vars.map((v) => (unit(v) ? `${variableLabel(v)} (${unit(v)})` : variableLabel(v))),
+            ];
+            const rows = order.map((i) => [
+              doc.has(handles[i]!) ? doc.id(handles[i]!) : '',
+              ...frames.map((f) => f[i]!),
+            ]);
+            void copyText(tsv([head, ...rows])).then((ok) =>
+              state.log(
+                ok ? 'info' : 'warning',
+                ok ? `Copied ${rows.length} rows.` : 'The browser did not allow copying.',
+              ),
+            );
+          }}
+        >
+          Copy
+        </button>
         <span className="muted" role="status">
           {filter ? `${order.length} of ${handles.length}` : `${handles.length}`}{' '}
           {table === 'node' ? 'nodes' : 'links'}

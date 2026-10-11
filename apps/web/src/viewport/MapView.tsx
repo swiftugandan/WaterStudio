@@ -34,6 +34,7 @@ import type { AppState } from '../app/state.ts';
 import { variableLabel } from '../shell/Ribbon.tsx';
 import { computePaint, legendOf, VARIABLE_QUANTITY } from './paint.ts';
 import { drawAnnotations, LABEL_FONT, labelBoxes } from './annotations.ts';
+import { mapSvg } from './svg.ts';
 import { drawSizes } from '../app/prefs.ts';
 import { autoLength, linkPoints } from '../app/geometry.ts';
 import { newElement } from '../app/defaults.ts';
@@ -653,6 +654,20 @@ export function MapView() {
         c.renderer.redraw();
       },
       frameStats: () => ({ frames: c.frames, ms: c.frameMs }),
+      exportSvg: () => {
+        const css = getComputedStyle(el);
+        const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
+        const cam = c.renderer.camera;
+        const svg = mapSvg(state, cam, {
+          background: v('--ws-color-canvas-bg', '#ffffff'),
+          link: v('--ws-color-canvas-link', '#3d4653'),
+          node: v('--ws-color-canvas-node', '#171c23'),
+          text: v('--ws-color-text-primary', '#171c23'),
+          surface: v('--ws-color-bg-surface', '#ffffff'),
+          border: v('--ws-color-border-default', '#c9d0d9'),
+        });
+        return { svg, width: cam.width, height: cam.height };
+      },
       screenOf: (h) => {
         const doc = state.store.doc;
         if (!doc.has(h) || !doc.isNode(h)) return null;

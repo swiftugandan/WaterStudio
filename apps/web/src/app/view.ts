@@ -9,4 +9,6 @@ export interface ViewApi {
   panBy(dx: number, dy: number): void;
   /** Frames the renderer has drawn and the time spent drawing them (worker CPU ms). */
   frameStats(): { frames: number; ms: number };
+  /** The map as on screen, as a standalone SVG with its size in CSS pixels. */
+  exportSvg(): { svg: string; width: number; height: number };
 }

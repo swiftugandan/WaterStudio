@@ -726,6 +726,31 @@ test('edits link vertices, reverses links, and keeps lengths with auto-length', 
   expect(await link('to')).toBe(from);
 });
 
+test('exports the map as SVG and PNG and copies tables', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await ready(page);
+  await page.keyboard.press('F5');
+  await expect(page.getByTestId('run-status')).toContainText('Solved');
+  const svgDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export map as SVG' }).click();
+  const svgFile = await svgDownload;
+  expect(svgFile.suggestedFilename()).toBe('Net1.svg');
+  const svg = await readFile(await svgFile.path(), 'utf8');
+  expect(svg).toMatch(/^<svg xmlns/);
+  expect(svg.match(/<polyline/g)).toHaveLength(13);
+  expect(svg).toContain('Node pressure');
+  const pngDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export map as PNG' }).click();
+  const png = await readFile(await (await pngDownload).path());
+  expect([...png.subarray(1, 4)].map((c) => String.fromCharCode(c)).join('')).toBe('PNG');
+  await page.locator('.panel.results').getByRole('button', { name: 'Copy' }).click();
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toMatch(/^ID\tDemand \(gpm\)\tHead \(ft\)/);
+  const text = await page.evaluate(() => navigator.clipboard.readText());
+  expect(text.split('\n')).toHaveLength(12);
+});
+
 test('the editors have no WCAG 2.2 AA violations', async ({ page }) => {
   await ready(page);
   await ws(page, (w) => {
