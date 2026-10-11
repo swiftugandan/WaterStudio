@@ -1,0 +1,194 @@
+/* Generated from src/tokens/tokens.ts by scripts/build-tokens.ts. Do not edit. */
+
+:root {
+  --ws-space-0: 0px;
+  --ws-space-1: 4px;
+  --ws-space-2: 8px;
+  --ws-space-3: 12px;
+  --ws-space-4: 16px;
+  --ws-space-5: 20px;
+  --ws-space-6: 24px;
+  --ws-space-8: 32px;
+  --ws-space-10: 40px;
+  --ws-space-12: 48px;
+  --ws-space-16: 64px;
+  --ws-space-0_5: 2px;
+  --ws-space-1_5: 6px;
+  --ws-radius-none: 0px;
+  --ws-radius-sm: 3px;
+  --ws-radius-md: 5px;
+  --ws-radius-lg: 8px;
+  --ws-radius-xl: 12px;
+  --ws-radius-full: 9999px;
+  --ws-font-sans: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --ws-font-mono: "JetBrains Mono", "Cascadia Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --ws-font-size-xs: 11px;
+  --ws-font-size-sm: 12px;
+  --ws-font-size-md: 13px;
+  --ws-font-size-lg: 15px;
+  --ws-font-size-xl: 18px;
+  --ws-font-size-2xl: 22px;
+  --ws-font-size-3xl: 28px;
+  --ws-line-height-tight: 1.2;
+  --ws-line-height-normal: 1.45;
+  --ws-line-height-relaxed: 1.6;
+  --ws-font-weight-regular: 400;
+  --ws-font-weight-medium: 500;
+  --ws-font-weight-semibold: 600;
+  --ws-font-weight-bold: 700;
+  --ws-motion-fast: 100ms;
+  --ws-motion-normal: 160ms;
+  --ws-motion-slow: 240ms;
+  --ws-motion-easing: cubic-bezier(0.2, 0, 0, 1);
+  --ws-z-base: 0;
+  --ws-z-dock: 10;
+  --ws-z-ribbon: 20;
+  --ws-z-dropdown: 100;
+  --ws-z-overlay: 200;
+  --ws-z-modal: 300;
+  --ws-z-toast: 400;
+  --ws-z-tooltip: 500;
+  --ws-icon-sm: 16px;
+  --ws-icon-md: 20px;
+  --ws-icon-lg: 24px;
+  --ws-icon-ribbon: 32px;
+  --ws-ramp-viridis: linear-gradient(90deg, #440154, #472d7b, #3b528b, #2c728e, #21918c, #28ae80, #5ec962, #addc30, #fde725);
+  --ws-ramp-cividis: linear-gradient(90deg, #00204d, #00336f, #39486b, #575c6e, #707173, #8a8678, #a59c74, #c3b369, #ffea46);
+  --ws-ramp-epanet: linear-gradient(90deg, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000);
+  --ws-ramp-difference: linear-gradient(90deg, #2166ac, #67a9cf, #d1e5f0, #f7f7f7, #fddbc7, #ef8a62, #b2182b);
+  --ws-size-control: 30px;
+  --ws-size-row: 28px;
+  --ws-size-ribbon-large: 72px;
+  --ws-size-gap: 8px;
+  --ws-color-bg-app: #edf0f4;
+  --ws-color-bg-surface: #ffffff;
+  --ws-color-bg-surface-alt: #f5f7fa;
+  --ws-color-bg-sunken: #f5f7fa;
+  --ws-color-bg-hover: #edf0f4;
+  --ws-color-bg-active: #d9ebff;
+  --ws-color-border-subtle: #e3e7ed;
+  --ws-color-border-default: #d5dbe3;
+  --ws-color-border-control: #7f8a9a;
+  --ws-color-text-primary: #171c23;
+  --ws-color-text-secondary: #4e5969;
+  --ws-color-text-disabled: #8d98a8;
+  --ws-color-text-on-accent: #ffffff;
+  --ws-color-accent: #1a63d6;
+  --ws-color-accent-hover: #174fae;
+  --ws-color-accent-subtle: #eef6ff;
+  --ws-color-focus: #2b7ff0;
+  --ws-color-success-text: #1d7f46;
+  --ws-color-success-bg: #ecf8f0;
+  --ws-color-warning-text: #8f5800;
+  --ws-color-warning-bg: #fff6e5;
+  --ws-color-danger-text: #c02a2a;
+  --ws-color-danger-bg: #fdeeee;
+  --ws-color-info-text: #174fae;
+  --ws-color-info-bg: #eef6ff;
+  --ws-color-canvas-bg: #fbfcfd;
+  --ws-color-canvas-grid: #e3e7ed;
+  --ws-color-canvas-link: #3b4452;
+  --ws-color-canvas-node: #171c23;
+  --ws-color-canvas-label: #4e5969;
+  --ws-color-canvas-selection: #e8590c;
+  --ws-color-canvas-hover: #2b7ff0;
+  --ws-shadow-sm: 0 1px 2px rgb(16 24 40 / 0.08);
+  --ws-shadow-md: 0 4px 12px rgb(16 24 40 / 0.12), 0 1px 3px rgb(16 24 40 / 0.08);
+  --ws-shadow-lg: 0 12px 32px rgb(16 24 40 / 0.18), 0 2px 6px rgb(16 24 40 / 0.10);
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --ws-color-bg-app: #0a0d11;
+  --ws-color-bg-surface: #171c23;
+  --ws-color-bg-surface-alt: #1f252e;
+  --ws-color-bg-sunken: #0f1318;
+  --ws-color-bg-hover: #272e38;
+  --ws-color-bg-active: #13254a;
+  --ws-color-border-subtle: #232a33;
+  --ws-color-border-default: #2f3743;
+  --ws-color-border-control: #6d7889;
+  --ws-color-text-primary: #e8ecf1;
+  --ws-color-text-secondary: #a3adba;
+  --ws-color-text-disabled: #687384;
+  --ws-color-text-on-accent: #06121f;
+  --ws-color-accent: #519ffc;
+  --ws-color-accent-hover: #89c2ff;
+  --ws-color-accent-subtle: #13254a;
+  --ws-color-focus: #89c2ff;
+  --ws-color-success-text: #6fd497;
+  --ws-color-success-bg: #0d2a19;
+  --ws-color-warning-text: #f5c45e;
+  --ws-color-warning-bg: #2e1f05;
+  --ws-color-danger-text: #f28b8b;
+  --ws-color-danger-bg: #33100f;
+  --ws-color-info-text: #89c2ff;
+  --ws-color-info-bg: #13254a;
+  --ws-color-canvas-bg: #0d1116;
+  --ws-color-canvas-grid: #1c222a;
+  --ws-color-canvas-link: #9aa6b5;
+  --ws-color-canvas-node: #d7dde5;
+  --ws-color-canvas-label: #a3adba;
+  --ws-color-canvas-selection: #ff9c3a;
+  --ws-color-canvas-hover: #89c2ff;
+  --ws-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.5);
+  --ws-shadow-md: 0 4px 12px rgb(0 0 0 / 0.55), 0 1px 3px rgb(0 0 0 / 0.5);
+  --ws-shadow-lg: 0 12px 32px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.5);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ws-color-bg-app: #0a0d11;
+    --ws-color-bg-surface: #171c23;
+    --ws-color-bg-surface-alt: #1f252e;
+    --ws-color-bg-sunken: #0f1318;
+    --ws-color-bg-hover: #272e38;
+    --ws-color-bg-active: #13254a;
+    --ws-color-border-subtle: #232a33;
+    --ws-color-border-default: #2f3743;
+    --ws-color-border-control: #6d7889;
+    --ws-color-text-primary: #e8ecf1;
+    --ws-color-text-secondary: #a3adba;
+    --ws-color-text-disabled: #687384;
+    --ws-color-text-on-accent: #06121f;
+    --ws-color-accent: #519ffc;
+    --ws-color-accent-hover: #89c2ff;
+    --ws-color-accent-subtle: #13254a;
+    --ws-color-focus: #89c2ff;
+    --ws-color-success-text: #6fd497;
+    --ws-color-success-bg: #0d2a19;
+    --ws-color-warning-text: #f5c45e;
+    --ws-color-warning-bg: #2e1f05;
+    --ws-color-danger-text: #f28b8b;
+    --ws-color-danger-bg: #33100f;
+    --ws-color-info-text: #89c2ff;
+    --ws-color-info-bg: #13254a;
+    --ws-color-canvas-bg: #0d1116;
+    --ws-color-canvas-grid: #1c222a;
+    --ws-color-canvas-link: #9aa6b5;
+    --ws-color-canvas-node: #d7dde5;
+    --ws-color-canvas-label: #a3adba;
+    --ws-color-canvas-selection: #ff9c3a;
+    --ws-color-canvas-hover: #89c2ff;
+    --ws-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.5);
+    --ws-shadow-md: 0 4px 12px rgb(0 0 0 / 0.55), 0 1px 3px rgb(0 0 0 / 0.5);
+    --ws-shadow-lg: 0 12px 32px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.5);
+    color-scheme: dark;
+  }
+}
+
+[data-density="compact"] {
+  --ws-size-control: 24px;
+  --ws-size-row: 22px;
+  --ws-size-ribbon-large: 60px;
+  --ws-size-gap: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ws-motion-fast: 0ms;
+    --ws-motion-normal: 0ms;
+    --ws-motion-slow: 0ms;
+  }
+}

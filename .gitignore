@@ -24,3 +24,4 @@ oracle/.reports/
 # Python
 __pycache__/
 *.pyc
+packages/engine-client/wasm/*.wasm

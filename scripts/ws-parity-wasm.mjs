@@ -10,7 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const wasmPath = process.env.WS_ENGINE_WASM ??
+const wasmPath =
+  process.env.WS_ENGINE_WASM ??
   join(here, '..', 'engine', 'target', 'wasm32-unknown-unknown', 'release', 'ws_wasm.wasm');
 const [input, output] = process.argv.slice(2);
 if (!input || !output) {

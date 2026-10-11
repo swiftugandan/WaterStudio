@@ -1,0 +1,19 @@
+{
+  "name": "@waterstudio/engine-client",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Runs WaterStudio's Rust engine (WebAssembly) in workers behind a typed, promise-based API.",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./wasm": "./src/wasm.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "vite": "8.3.2"
+  }
+}

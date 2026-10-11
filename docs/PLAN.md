@@ -108,6 +108,7 @@ waterstudio/
   packages/engine-client/ worker pool, protocol types generated from Rust
   packages/agents/        tool registry, sandbox sessions, proposals, provider adapters
   packages/ui/            design tokens, icons, ribbon, dockview panels, inspector, grids, charts
+  packages/symbols/       engineering symbol masters (SVG) and their catalogue, shared by renderer and exports
   apps/web/               the app (Vite build, PWA, single-file offline build)
   apps/mcp-server/        headless MCP server over the same registry and engine
   oracle/                 OWA-EPANET 2.3.x and EPANET-MSX built natively for CI comparison

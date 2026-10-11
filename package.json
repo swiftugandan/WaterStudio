@@ -1,0 +1,32 @@
+{
+  "name": "waterstudio",
+  "private": true,
+  "description": "A browser-based, open-source studio for drinking-water distribution networks.",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build:engine": "node scripts/build-engine.mjs",
+    "build": "pnpm -r --filter ./packages/** run build && pnpm --filter @waterstudio/web run build",
+    "dev": "pnpm --filter @waterstudio/web run dev",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "e2e": "pnpm --filter @waterstudio/web run e2e"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.12.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.13.0",
+    "jsdom": "29.1.1",
+    "prettier": "3.9.9",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.0",
+    "vitest": "5.0.3"
+  }
+}

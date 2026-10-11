@@ -1,0 +1,9 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Supply chain: never install a version published less than a week ago, and do not
+# run dependency install scripts unless listed here.
+minimumReleaseAge: 10080
+onlyBuiltDependencies:
+  - esbuild

@@ -1,0 +1,19 @@
+{
+  "name": "@waterstudio/symbols",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Engineering symbol masters for water networks (SVG, 24-unit grid) and their catalogue.",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./masters/*": "./src/masters/*"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "vite": "8.3.2"
+  }
+}

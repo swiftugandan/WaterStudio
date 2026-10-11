@@ -5,18 +5,20 @@ starts. The full design is in [PLAN.md](PLAN.md). Items are ticked as they land 
 
 ## Phase 0: Foundations
 
-Gate: `.inp` round-trip lossless on every corpus file; oracle pipeline green. **Engine half met.**
+Gate: `.inp` round-trip lossless on every corpus file; oracle pipeline green. **Met.**
 
 - [x] Licences, contribution rules, governance, security policy
 - [x] Engine workspace; epanet-rs forked as `ws-hyd`, builds for wasm32 with SIMD128
 - [x] Oracle: OWA-EPANET v2.3.5 pinned build, pinned corpus, comparator, ratchet
 - [x] CI: fmt, clippy, tests, wasm build, parity on native and WebAssembly
-- [x] Architecture decision records 0001 to 0006
+- [x] Architecture decision records 0001 to 0007
 - [x] `ws-model` and `ws-io`: canonical model and lossless `.inp` reader/writer (ADR 0005)
 - [x] Round-trip test over the whole corpus and fixtures, gated in CI (61/61 bit-identical)
 - [x] `ws` command-line tool: `check`, `canon`
-- [ ] JavaScript workspace: pnpm, TypeScript strict, Vite, Vitest, Playwright, lint
-- [ ] Design tokens; app icon set; engineering symbol masters (SVG)
+- [x] JavaScript workspace: pnpm, TypeScript strict, Vite, Vitest, Playwright with axe-core, ESLint, Prettier (ADR 0007)
+- [x] Design tokens with light and dark themes and two densities, contrast-checked in tests
+- [x] App logo; hydraulic interface icon set on Lucide's grid; engineering symbol masters (SVG)
+- [x] Engine in a worker (`engine-client`) and a preview app exercising it, gated in CI
 
 ## Phase 1: Hydraulic alpha
 

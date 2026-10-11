@@ -26,11 +26,13 @@ your models never leave it unless you choose.
 | Path | What it is |
 | --- | --- |
 | `engine/` | Rust workspace: the canonical model (`ws-model`), the `.inp` reader and writer (`ws-io`), the hydraulic engine (`ws-solver`, a port of OWA-EPANET that is bit-identical to it), studies (`ws-study`), the WebAssembly boundary (`ws-wasm`), the parity harness (`ws-parity`), the `ws` command line (`ws-cli`), and `ws-hyd`, an [epanet-rs](https://github.com/vitens/epanet-rs) fork kept as a benchmark |
+| `packages/` | `ui` (design tokens, themes, icons), `symbols` (engineering symbol masters), `engine-client` (the engine in workers) |
+| `apps/web` | The web app; today a preview of the engine and the design system |
 | `oracle/` | Builds OWA-EPANET at a pinned release and compares our results with it |
 | `scripts/` | Build and verification scripts |
 | `docs/` | Plan, roadmap, architecture decisions (`docs/adr/`) and parity reports |
 
-The web app (`apps/web`) and its packages arrive in the following phases; see the roadmap.
+The editor, renderer and agent packages arrive in the following phases; see the roadmap.
 
 ## Building
 
@@ -46,6 +48,16 @@ cd ..
 oracle/build.sh                                              # builds OWA-EPANET v2.3.5 into oracle/.build
 oracle/fetch-corpus.sh                                       # fetches the test networks into oracle/.corpus
 oracle/parity.sh                                             # compares native and WebAssembly engines with OWA-EPANET
+```
+
+The web workspace uses [pnpm](https://pnpm.io/) through Corepack (`corepack enable`):
+
+```sh
+pnpm install
+pnpm build:engine        # builds the WebAssembly engine into packages/engine-client/wasm
+pnpm dev                 # the app at http://localhost:5173
+pnpm lint && pnpm typecheck && pnpm test
+pnpm e2e                 # browser tests and accessibility checks against the production build
 ```
 
 ## Contributing

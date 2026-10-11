@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Install the pinned toolchain
-        run: rustup toolchain install   # reads engine/rust-toolchain.toml
+        run: rustup toolchain install # reads engine/rust-toolchain.toml
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: engine
@@ -79,4 +79,37 @@ jobs:
         with:
           name: parity-reports
           path: oracle/.reports
+          include-hidden-files: true
           retention-days: 30
+
+  web:
+    name: Web (lint, types, unit, build, browser)
+    needs: engine
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Enable pnpm (version from package.json)
+        run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v8
+        with:
+          name: engine-builds
+          path: engine/target
+      - run: node scripts/build-engine.mjs --copy-only
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm --filter @waterstudio/web build
+      - run: pnpm --filter @waterstudio/web exec playwright install --with-deps chromium
+      - run: pnpm e2e
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          retention-days: 14
