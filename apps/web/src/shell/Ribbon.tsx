@@ -109,7 +109,14 @@ const TABS: Tab[] = [
       },
       { label: 'Keyboard', items: [{ cmd: 'view.panel.add', size: 'large', label: 'Add element' }] },
       { label: 'Annotate', items: [{ cmd: 'tool.label', size: 'large', label: 'Label' }] },
-      { label: 'Edit', items: [{ cmd: 'edit.delete', size: 'large', label: 'Delete' }] },
+      {
+        label: 'Edit',
+        items: [
+          { cmd: 'edit.delete', size: 'large', label: 'Delete' },
+          { cmd: 'edit.reverse', label: 'Reverse' },
+          { cmd: 'edit.autoLength', label: 'Auto-length' },
+        ],
+      },
     ],
   },
   {

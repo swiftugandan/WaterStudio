@@ -3,7 +3,7 @@
  * palette, context menus and (later) agents all execute these by id.
  */
 
-import { CommandBus, deleteElements, toModel, type Command } from '@waterstudio/core';
+import { CommandBus, deleteElements, reverseLinks, toModel, type Command } from '@waterstudio/core';
 import { LINK_VARIABLES, NODE_VARIABLES, linkFrame, nodeFrame } from '@waterstudio/engine-client';
 import { modelToDxf, modelToGeoJSON, modelToShapefiles, writeZip } from '@waterstudio/gis';
 import { importGis, importShapefiles, shapefileFiles } from './gisio.ts';
@@ -232,6 +232,25 @@ export function createCommands(state: AppState): CommandBus<AppState> {
       shortcut: 'Mod+A',
       category: 'Edit',
       run: (s) => s.select([...s.store.doc.nodeHandles(), ...s.store.doc.linkHandles()]),
+    },
+    {
+      id: 'edit.reverse',
+      title: 'Reverse link direction',
+      icon: 'arrow-left-right',
+      category: 'Edit',
+      enabled: (s) => [...s.selection].some((h) => s.store.doc.has(h) && s.store.doc.isLink(h)),
+      run: (s) => {
+        const n = reverseLinks(s.store, s.selection);
+        s.log('info', `Reversed ${n} link${n === 1 ? '' : 's'}.`);
+      },
+    },
+    {
+      id: 'edit.autoLength',
+      title: 'Auto-length',
+      icon: 'ruler',
+      category: 'Edit',
+      checked: (s) => s.prefs.autoLength === 'on',
+      run: (s) => s.prefs.setAutoLength(s.prefs.autoLength !== 'on'),
     },
     {
       id: 'edit.find',

@@ -6,7 +6,7 @@
 
 import type { Document } from './document.ts';
 import { fieldsOf, linkField, nodeField, type LinkKind, type NodeKind } from './schema.ts';
-import type { Store } from './store.ts';
+import type { Store, Tx } from './store.ts';
 
 export class EditError extends Error {
   override name = 'EditError';
@@ -81,6 +81,8 @@ export function moveNodes(
   dx: number,
   dy: number,
   coalesce?: string,
+  /** With auto-length on: the new plan length of a pipe, applied in the same step. */
+  lengthOf?: (link: number) => number | undefined,
 ): void {
   const doc = store.doc;
   const moved = new Set([...handles].filter((h) => doc.isNode(h)));
@@ -93,7 +95,9 @@ export function moveNodes(
         tx.set(h, 'y', doc.num(h, 'y') + dy);
       }
       for (const l of doc.linkHandles()) {
-        if (moved.has(doc.num(l, 'from')) && moved.has(doc.num(l, 'to'))) {
+        const a = moved.has(doc.num(l, 'from'));
+        const b = moved.has(doc.num(l, 'to'));
+        if (a && b) {
           const v = doc.get(l, 'vertices') as number[];
           if (v.length > 0)
             tx.set(
@@ -102,6 +106,7 @@ export function moveNodes(
               v.map((c, i) => c + (i % 2 === 0 ? dx : dy)),
             );
         }
+        if ((a || b) && lengthOf && doc.linkKind(l) === 'pipe') setLength(tx, l, lengthOf(l));
       }
     },
     coalesce === undefined ? {} : { coalesce },
@@ -219,4 +224,49 @@ export function groupEdit(
     for (const [h, v] of targets) tx.set(h, field, v);
   });
   return targets.length;
+}
+
+function setLength(tx: Tx, link: number, length: number | undefined): void {
+  if (length === undefined || !Number.isFinite(length) || length <= 0) return;
+  tx.set(link, 'length', Math.round(length * 100) / 100);
+}
+
+/** Replace a link's interior points (flat [x, y, ...]), and its length when auto-length gives one. */
+export function setVertices(
+  store: Store,
+  link: number,
+  vertices: number[],
+  lengthOf?: (link: number) => number | undefined,
+): void {
+  const doc = store.doc;
+  if (!doc.isLink(link) || !doc.has(link)) throw new EditError('That is not a link.');
+  if (vertices.length % 2 !== 0 || vertices.some((v) => !Number.isFinite(v)))
+    throw new EditError('Vertices must be pairs of numbers.');
+  store.transact(`Edit vertices of ${doc.id(link)}`, (tx) => {
+    tx.set(link, 'vertices', vertices);
+    if (lengthOf && doc.linkKind(link) === 'pipe') setLength(tx, link, lengthOf(link));
+  });
+}
+
+/** Reverse the direction of links: swap their end nodes and reverse their vertices. */
+export function reverseLinks(store: Store, handles: Iterable<number>): number {
+  const doc = store.doc;
+  const links = [...handles].filter((h) => doc.has(h) && doc.isLink(h));
+  if (links.length === 0) return 0;
+  store.transact(
+    links.length === 1 ? `Reverse ${doc.id(links[0]!)}` : `Reverse ${links.length} links`,
+    (tx) => {
+      for (const l of links) {
+        const from = doc.num(l, 'from');
+        const to = doc.num(l, 'to');
+        const v = doc.get(l, 'vertices') as number[];
+        const r: number[] = [];
+        for (let k = v.length - 2; k >= 0; k -= 2) r.push(v[k]!, v[k + 1]!);
+        tx.set(l, 'from', to);
+        tx.set(l, 'to', from);
+        if (v.length > 0) tx.set(l, 'vertices', r);
+      }
+    },
+  );
+  return links.length;
 }

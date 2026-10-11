@@ -32,6 +32,7 @@ import {
   Search,
   Type,
   Plus,
+  Ruler,
   ArrowRight,
   Filter,
   ListChecks,
@@ -92,6 +93,7 @@ const LUCIDE: Record<string, LucideIcon> = {
   search: Search,
   type: Type,
   plus: Plus,
+  ruler: Ruler,
   'arrow-right': ArrowRight,
   filter: Filter,
 };

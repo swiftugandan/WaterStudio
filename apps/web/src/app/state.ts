@@ -4,6 +4,7 @@
  * re-render when it changes; the viewport subscribes directly for speed.
  */
 
+import { planLengthOf } from './geometry.ts';
 import type { CalibrationData, CalibrationVariable } from './calibration.ts';
 import { loadModel, Store, toModel, unitSystem, type model, type UnitSystem } from '@waterstudio/core';
 import {
@@ -153,6 +154,11 @@ export class AppState extends Emitter {
     if (data) next[variable] = data;
     this.calibration = next;
     this.emit();
+  }
+
+  /** With auto-length on, the plan length of a link for edits; otherwise undefined. */
+  get lengthOf(): ((link: number) => number | undefined) | undefined {
+    return this.prefs.autoLength === 'on' ? planLengthOf(this.store.doc, this.units.si) : undefined;
   }
 
   /** Open a panel (if closed) and bring it to the front. */

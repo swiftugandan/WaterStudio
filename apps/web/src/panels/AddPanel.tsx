@@ -7,6 +7,7 @@
 import { addLink, addNode, EditError, getfloat, type LinkKind, type NodeKind } from '@waterstudio/core';
 import { useId, useState } from 'react';
 import { useApp } from '../app/context.tsx';
+import { autoLength } from '../app/geometry.ts';
 
 const KINDS: [NodeKind | LinkKind, string][] = [
   ['junction', 'Junction'],
@@ -42,7 +43,13 @@ export function AddPanel() {
         const to = doc.findNode(f.to.trim());
         if (from === undefined) throw new EditError(`There is no node ${f.from.trim() || '(empty)'}.`);
         if (to === undefined) throw new EditError(`There is no node ${f.to.trim() || '(empty)'}.`);
-        h = addLink(state.store, kind, { from, to, ...(id ? { id } : {}) });
+        const values = autoLength(state, kind, [
+          doc.num(from, 'x'),
+          doc.num(from, 'y'),
+          doc.num(to, 'x'),
+          doc.num(to, 'y'),
+        ]);
+        h = addLink(state.store, kind, { from, to, ...(id ? { id } : {}), ...(values ? { values } : {}) });
       }
       state.select([h]);
       setMessage({ ok: true, text: `Added ${kind} ${doc.id(h)}.` });

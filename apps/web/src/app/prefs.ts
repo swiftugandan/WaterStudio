@@ -78,6 +78,8 @@ export class Prefs extends Emitter {
   /** Show the street map under networks with a known coordinate system. */
   basemap = read<BasemapPref>('ws.basemap', ['on', 'off'], 'on');
   map: MapOptions = readMap();
+  /** EPANET's Auto-Length: pipe lengths follow the map as links are drawn and nodes moved. */
+  autoLength = read<'on' | 'off'>('ws.autolength', ['on', 'off'], 'off');
 
   constructor() {
     super();
@@ -96,6 +98,12 @@ export class Prefs extends Emitter {
     write('ws.density', this.density);
     write('ws.renderer', this.renderer);
     this.apply();
+    this.emit();
+  }
+
+  setAutoLength(on: boolean): void {
+    this.autoLength = on ? 'on' : 'off';
+    write('ws.autolength', this.autoLength);
     this.emit();
   }
 

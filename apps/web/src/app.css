@@ -1330,3 +1330,20 @@ button.link {
 .add-element > .btn {
   align-self: flex-start;
 }
+
+.status-toggle {
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  padding: 0 var(--ws-space-1);
+  min-height: var(--ws-space-6);
+  border-radius: var(--ws-radius-sm);
+  cursor: pointer;
+}
+.status-toggle:hover {
+  background: var(--ws-color-bg-hover);
+}
+.status-toggle[aria-pressed='true'] {
+  color: var(--ws-color-accent);
+}

@@ -661,6 +661,47 @@ test('works without a pointer: lists, adding elements, panning the map', async (
   await expect.poll(async () => (await nodeOnScreen(page, '10')).x - before.x).toBeCloseTo(80, 0);
 });
 
+test('edits link vertices, reverses links, and keeps lengths with auto-length', async ({ page }) => {
+  await ready(page);
+  const link = (field: string) =>
+    page.evaluate((f) => {
+      const w = (globalThis as unknown as { waterstudio: WS }).waterstudio;
+      const d = w.state.store.doc as unknown as {
+        findLink(id: string): number;
+        get(h: number, f: string): unknown;
+      };
+      return d.get(d.findLink('11'), f);
+    }, field);
+  await ws(page, (w) => {
+    const d = w.state.store.doc as unknown as { findLink(id: string): number };
+    w.state.selection.clear();
+    w.state.selection.add(d.findLink('11'));
+    (w.state as unknown as { emit(): void }).emit();
+  });
+  await page.getByRole('button', { name: 'Auto-length off' }).click();
+  const a = await nodeOnScreen(page, '11');
+  const b = await nodeOnScreen(page, '12');
+  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  await page.mouse.dblclick(mid.x, mid.y);
+  await expect.poll(() => link('vertices').then((v) => (v as number[]).length)).toBe(2);
+  // Pipe 11 runs from (30, 70) to (50, 70): straight, its plan length is 20.
+  expect(await link('length')).toBe(20);
+  await page.mouse.move(mid.x, mid.y);
+  await page.mouse.down();
+  await page.mouse.move(mid.x, mid.y + 40, { steps: 4 });
+  await page.mouse.up();
+  await expect.poll(() => link('length').then((l) => l as number)).toBeGreaterThan(20);
+  const bent = (await link('vertices')) as number[];
+  expect(bent[1]).toBeLessThan(70);
+  await page.mouse.dblclick(mid.x, mid.y + 40);
+  await expect.poll(() => link('vertices').then((v) => (v as number[]).length)).toBe(0);
+  expect(await link('length')).toBe(20);
+  const from = await link('from');
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Draw' }).click();
+  await page.getByRole('button', { name: 'Reverse link direction' }).click();
+  expect(await link('to')).toBe(from);
+});
+
 test('the editors have no WCAG 2.2 AA violations', async ({ page }) => {
   await ready(page);
   await ws(page, (w) => {

@@ -7,7 +7,9 @@ import {
   groupEdit,
   moveNodes,
   nextId,
+  reverseLinks,
   setField,
+  setVertices,
 } from './edits.ts';
 import { Store, type Change } from './store.ts';
 
@@ -168,5 +170,27 @@ describe('group edit', () => {
     expect(store.doc.num(a, 'elevation')).toBe(10);
     expect(() => groupEdit(store, [p], 'diameter', 'add', -500)).toThrow(EditError);
     expect(store.doc.num(p, 'diameter')).toBe(100);
+  });
+});
+
+describe('link geometry', () => {
+  it('reverses links and keeps auto-lengths in the same step as the edit', () => {
+    const store = new Store();
+    const a = addNode(store, 'junction', { x: 0, y: 0 });
+    const b = addNode(store, 'junction', { x: 30, y: 40 });
+    const p = addLink(store, 'pipe', { from: a, to: b, vertices: [10, 0, 20, 10] });
+    expect(reverseLinks(store, [p, a])).toBe(1);
+    expect([store.doc.num(p, 'from'), store.doc.num(p, 'to')]).toEqual([b, a]);
+    expect(store.doc.get(p, 'vertices')).toEqual([20, 10, 10, 0]);
+    store.undo();
+    expect(store.doc.num(p, 'from')).toBe(a);
+    const straight = () => 50;
+    setVertices(store, p, [], straight);
+    expect(store.doc.num(p, 'length')).toBe(50);
+    moveNodes(store, [b], 10, 0, undefined, () => 123.456);
+    expect(store.doc.num(p, 'length')).toBe(123.46);
+    store.undo();
+    expect([store.doc.num(b, 'x'), store.doc.num(p, 'length')]).toEqual([30, 50]);
+    expect(() => setVertices(store, p, [1])).toThrow(EditError);
   });
 });

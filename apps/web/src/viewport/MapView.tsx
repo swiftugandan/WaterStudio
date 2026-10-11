@@ -9,6 +9,7 @@ import {
   addNode,
   EditError,
   moveNodes,
+  setVertices,
   unitLabel,
   type Change,
   type LinkKind,
@@ -34,6 +35,7 @@ import { variableLabel } from '../shell/Ribbon.tsx';
 import { computePaint, legendOf, VARIABLE_QUANTITY } from './paint.ts';
 import { drawAnnotations, LABEL_FONT, labelBoxes } from './annotations.ts';
 import { drawSizes } from '../app/prefs.ts';
+import { autoLength, linkPoints } from '../app/geometry.ts';
 
 const GEOMETRY_FIELDS = new Set(['x', 'y', 'vertices', 'from', 'to', 'kind', 'pipeStatus', 'valveType']);
 const DRAG_THRESHOLD = 4;
@@ -51,7 +53,8 @@ type Gesture =
       id: number;
     }
   | { kind: 'move'; x0: number; y0: number; x1: number; y1: number; nodes: number[]; id: number }
-  | { kind: 'link'; tool: LinkKind; from: number; points: number[] };
+  | { kind: 'link'; tool: LinkKind; from: number; points: number[] }
+  | { kind: 'vertex'; link: number; index: number; x: number; y: number; id: number };
 
 interface SceneIndex {
   scene: Scene;
@@ -116,6 +119,7 @@ class MapController {
         this.basemap.follow(cam);
         this.placeBackdrop();
         this.scheduleAnnotations();
+        if (this.editableLink() !== null) this.drawOverlay();
       },
       prefer: state.prefs.renderer,
       onStatus: (s) => {
@@ -197,6 +201,7 @@ class MapController {
       this.fitted = false;
     }
     if (s.selection !== this.lastSelection || s.hover !== this.lastHover) {
+      if (s.selection !== this.lastSelection) requestAnimationFrame(() => this.drawOverlay());
       this.lastSelection = s.selection;
       this.lastHover = s.hover;
       this.flagsDirty = true;
@@ -429,6 +434,22 @@ class MapController {
         ctx.arc(x, y, 4, 0, 2 * Math.PI);
         ctx.fill();
       }
+    } else if (g.kind === 'vertex') {
+      const v = [...(doc.get(g.link, 'vertices') as number[])];
+      const [wx, wy] = cam.toWorld(g.x, g.y);
+      v[2 * g.index] = wx;
+      v[2 * g.index + 1] = wy;
+      const a = doc.num(g.link, 'from');
+      const b = doc.num(g.link, 'to');
+      ctx.strokeStyle = sel;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 3]);
+      ctx.beginPath();
+      ctx.moveTo(...cam.toScreen(doc.num(a, 'x'), doc.num(a, 'y')));
+      for (let k = 0; k + 1 < v.length; k += 2) ctx.lineTo(...cam.toScreen(v[k]!, v[k + 1]!));
+      ctx.lineTo(...cam.toScreen(doc.num(b, 'x'), doc.num(b, 'y')));
+      ctx.stroke();
+      ctx.setLineDash([]);
     } else if (g.kind === 'link') {
       ctx.strokeStyle = accent;
       ctx.lineWidth = 2;
@@ -448,6 +469,40 @@ class MapController {
       ctx.arc(fx, fy, 5, 0, 2 * Math.PI);
       ctx.fill();
     }
+    const editable = this.editableLink();
+    if (editable !== null && g.kind !== 'vertex') {
+      ctx.fillStyle = css.getPropertyValue('--ws-color-bg-surface').trim() || '#fff';
+      ctx.strokeStyle = sel;
+      ctx.lineWidth = 1.5;
+      for (const [vx, vy] of this.vertexHandles(editable)) {
+        ctx.fillRect(vx - 4, vy - 4, 8, 8);
+        ctx.strokeRect(vx - 4, vy - 4, 8, 8);
+      }
+    }
+  }
+
+  /** The link whose vertices can be edited: the only selected element, with the select tool. */
+  editableLink(): number | null {
+    const s = this.state;
+    if (s.tool !== 'select' || s.selection.size !== 1) return null;
+    const h = s.selection.values().next().value as number;
+    return s.store.doc.has(h) && s.store.doc.isLink(h) ? h : null;
+  }
+
+  /** Screen positions of the editable link's vertices. */
+  vertexHandles(link: number): [number, number][] {
+    const v = this.state.store.doc.get(link, 'vertices') as number[];
+    const cam = this.renderer.camera;
+    const out: [number, number][] = [];
+    for (let k = 0; k + 1 < v.length; k += 2) out.push(cam.toScreen(v[k]!, v[k + 1]!));
+    return out;
+  }
+
+  /** The vertex of the editable link under a screen point, or -1. */
+  vertexAt(x: number, y: number): number {
+    const l = this.editableLink();
+    if (l === null) return -1;
+    return this.vertexHandles(l).findIndex(([vx, vy]) => Math.abs(vx - x) <= 6 && Math.abs(vy - y) <= 6);
   }
 
   movingLinks(nodes: number[]): Set<number> {
@@ -537,6 +592,24 @@ function Legends() {
       })}
     </div>
   );
+}
+
+/** The index of the polyline segment nearest a screen point. */
+function nearestSegment(pts: [number, number][], x: number, y: number): number {
+  let best = 0;
+  let bestD = Infinity;
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay] = pts[i - 1]!;
+    const [bx, by] = pts[i]!;
+    const l2 = (bx - ax) ** 2 + (by - ay) ** 2;
+    const t = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / l2));
+    const d = Math.hypot(ax + t * (bx - ax) - x, ay + t * (by - ay) - y);
+    if (d < bestD) {
+      bestD = d;
+      best = i - 1;
+    }
+  }
+  return best;
 }
 
 const NODE_TOOLS = new Set(['junction', 'reservoir', 'tank']);
@@ -678,6 +751,7 @@ export function MapView() {
       return;
     }
     if (LINK_TOOLS.has(tool)) {
+      const doc0 = state.store.doc;
       const hit = c.pick(x, y);
       const g = c.gesture;
       if (g.kind !== 'link') {
@@ -686,7 +760,19 @@ export function MapView() {
         else state.log('info', 'Start a link by clicking a node.');
       } else if (hit?.table === 'node' && hit.handle !== g.from) {
         tryEdit(() => {
-          const h = addLink(state.store, g.tool, { from: g.from, to: hit.handle, vertices: g.points });
+          const values = autoLength(state, g.tool, [
+            doc0.num(g.from, 'x'),
+            doc0.num(g.from, 'y'),
+            ...g.points,
+            doc0.num(hit.handle, 'x'),
+            doc0.num(hit.handle, 'y'),
+          ]);
+          const h = addLink(state.store, g.tool, {
+            from: g.from,
+            to: hit.handle,
+            vertices: g.points,
+            ...(values ? { values } : {}),
+          });
           state.select([h]);
         });
         c.gesture = { kind: 'none' };
@@ -697,7 +783,13 @@ export function MapView() {
       c.drawOverlay();
       return;
     }
-    // Select tool.
+    // Select tool: a vertex handle of the selected link first.
+    const vi = c.vertexAt(x, y);
+    if (vi >= 0) {
+      c.gesture = { kind: 'vertex', link: c.editableLink()!, index: vi, x, y, id: e.pointerId };
+      overlay.current?.setPointerCapture(e.pointerId);
+      return;
+    }
     const hit = c.pick(x, y);
     if (hit) {
       c.gesture = { kind: 'press', x, y, hit, add, id: e.pointerId };
@@ -754,6 +846,11 @@ export function MapView() {
       case 'link':
         c.drawOverlay();
         break;
+      case 'vertex':
+        g.x = x;
+        g.y = y;
+        c.drawOverlay();
+        break;
       case 'none': {
         const hit = c.pick(x, y);
         state.setHover(hit?.handle ?? null);
@@ -791,10 +888,17 @@ export function MapView() {
       const cam = c.renderer.camera;
       const dx = (g.x1 - g.x0) / cam.scale;
       const dy = -(g.y1 - g.y0) / cam.scale;
-      moveNodes(state.store, g.nodes, dx, dy);
+      tryEdit(() => moveNodes(state.store, g.nodes, dx, dy, undefined, state.lengthOf));
       c.pushFlags();
     } else if (g.kind === 'pan') {
       c.gesture = { kind: 'none' };
+    } else if (g.kind === 'vertex') {
+      c.gesture = { kind: 'none' };
+      const v = [...(state.store.doc.get(g.link, 'vertices') as number[])];
+      const [wx, wy] = c.renderer.camera.toWorld(g.x, g.y);
+      v[2 * g.index] = wx;
+      v[2 * g.index + 1] = wy;
+      tryEdit(() => setVertices(state.store, g.link, v, state.lengthOf));
     }
     c.drawOverlay();
   };
@@ -850,8 +954,44 @@ export function MapView() {
           onKeyDown={onKeyDown}
           onDoubleClick={(e) => {
             const c = ctl.current;
-            if (c?.gesture.kind === 'link') return;
-            const hit = c?.pick(...local(e));
+            if (!c || c.gesture.kind === 'link') return;
+            const [x, y] = local(e);
+            const link = c.editableLink();
+            if (link !== null) {
+              // On the selected link: a vertex is removed, anywhere else on it one is added.
+              const v = state.store.doc.get(link, 'vertices') as number[];
+              const vi = c.vertexAt(x, y);
+              if (vi >= 0) {
+                tryEdit(() =>
+                  setVertices(
+                    state.store,
+                    link,
+                    [...v.slice(0, 2 * vi), ...v.slice(2 * vi + 2)],
+                    state.lengthOf,
+                  ),
+                );
+                return;
+              }
+              if (c.pick(x, y)?.handle === link) {
+                const cam = c.renderer.camera;
+                const pts = linkPoints(state.store.doc, link).reduce<[number, number][]>((a, n, i, arr) => {
+                  if (i % 2 === 0) a.push(cam.toScreen(n, arr[i + 1]!));
+                  return a;
+                }, []);
+                const seg = nearestSegment(pts, x, y);
+                const [wx, wy] = cam.toWorld(x, y);
+                tryEdit(() =>
+                  setVertices(
+                    state.store,
+                    link,
+                    [...v.slice(0, 2 * seg), wx, wy, ...v.slice(2 * seg)],
+                    state.lengthOf,
+                  ),
+                );
+                return;
+              }
+            }
+            const hit = c.pick(x, y);
             if (hit) state.view?.zoomTo([hit.handle]);
           }}
         />
