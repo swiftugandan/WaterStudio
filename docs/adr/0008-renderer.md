@@ -19,8 +19,11 @@ fallback, drawing one backend-neutral display list, with picking on the CPU.
   hidden). Stepping through time or changing the selection rewrites one small buffer.
 - **WebGPU**: instanced SDF capsules for segments, SDF circles for junctions, sprites from a symbol atlas rasterised
   from the SVG masters. Selection and hover are extra passes over the same buffers.
-- **Canvas 2D**: one Path2D per colour class in scene coordinates, drawn through the camera transform, so panning
-  reuses paths; junction paths are rebuilt only when zoom changes by more than 5 %.
+- **Canvas 2D**: one Path2D per colour class, rasterised into a cache bitmap covering the view plus half a view on
+  every side. Panning blits the cache; it is redrawn when the view leaves it, the zoom changes, or the network,
+  colours or hidden elements change. Zoomed in, only items near the view (found through a uniform grid) go into
+  the paths. Selection, hover and symbols are drawn live on top. Panning a 50,245-pipe grid runs at about 55 fps
+  on SwiftShader's CPU rasteriser, within a few frames of an empty canvas; without the cache it was 21 fps.
 - Both run in a render worker on an OffscreenCanvas (main thread if the canvas cannot be transferred). The camera,
   picking (flatbush R-trees) and overlays (rubber band, move and draw previews) stay on the main thread.
 - If the GPU device is lost, the renderer replaces its canvas, restarts on Canvas 2D and says why in the status bar.

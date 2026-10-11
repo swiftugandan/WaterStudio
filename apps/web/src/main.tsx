@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@waterstudio/ui/tokens.css';
 import './app.css';
+import { gridModel } from './app/bench.ts';
 import { createCommands } from './app/commands.ts';
 import { AppContext } from './app/context.tsx';
 import { Prefs } from './app/prefs.ts';
@@ -13,7 +14,7 @@ const state = new AppState(prefs);
 prefs.subscribe(() => state.emit());
 const bus = createCommands(state);
 // Exposed for tests and the browser console.
-(globalThis as { waterstudio?: unknown }).waterstudio = { state, bus };
+(globalThis as { waterstudio?: unknown }).waterstudio = { state, bus, gridModel };
 
 const root = document.getElementById('root');
 if (!root) throw new Error('missing #root');

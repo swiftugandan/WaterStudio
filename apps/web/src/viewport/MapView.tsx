@@ -83,6 +83,8 @@ class MapController {
   cursor: [number, number] | null = null;
   private fitted = false;
   private readonly state: AppState;
+  frames = 0;
+  frameMs = 0;
 
   constructor(container: HTMLElement, state: AppState) {
     this.state = state;
@@ -93,6 +95,10 @@ class MapController {
         if (s.note) state.log('info', s.note);
         if (s.error) state.log('error', `Renderer: ${s.error}`);
         state.emit();
+      },
+      onFrame: (ms) => {
+        this.frames++;
+        this.frameMs += ms;
       },
     });
     void this.renderer.setTheme(themeFor(state.prefs.resolvedTheme));
@@ -426,6 +432,11 @@ export function MapView() {
       fit: () => c.fit(),
       zoom: (f) => c.zoom(f),
       zoomTo: (h) => c.zoomTo(h),
+      panBy: (dx, dy) => {
+        c.renderer.camera.panBy(dx, dy);
+        c.renderer.redraw();
+      },
+      frameStats: () => ({ frames: c.frames, ms: c.frameMs }),
       screenOf: (h) => {
         const doc = state.store.doc;
         if (!doc.has(h) || !doc.isNode(h)) return null;
