@@ -24,6 +24,7 @@ import { FormatsPanel } from '../panels/FormatsPanel.tsx';
 import { LegendPanel } from '../panels/LegendPanel.tsx';
 import { OptionsPanel } from '../panels/OptionsPanel.tsx';
 import { QueryPanel } from '../panels/QueryPanel.tsx';
+import { ScenariosPanel } from '../panels/ScenariosPanel.tsx';
 import { GraphPanel, graphTitle, type GraphParams } from '../panels/GraphPanel.tsx';
 import { ReportPanel } from '../panels/ReportPanel.tsx';
 import { MessagesPanel } from '../panels/MessagesPanel.tsx';
@@ -55,6 +56,7 @@ const PANELS: Record<
     title: 'Number formats',
     position: () => ({ referencePanel: 'properties', direction: 'within' }),
   },
+  scenarios: { title: 'Scenarios', position: () => ({ referencePanel: 'browser', direction: 'within' }) },
 };
 
 const components = {
@@ -73,6 +75,7 @@ const components = {
   add: () => <AddPanel />,
   legend: () => <LegendPanel />,
   formats: () => <FormatsPanel />,
+  scenarios: () => <ScenariosPanel />,
   graph: (props: IDockviewPanelProps<GraphParams>) => <GraphPanel {...props} />,
 };
 

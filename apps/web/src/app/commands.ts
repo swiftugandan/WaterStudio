@@ -34,6 +34,7 @@ const PANEL_ICONS: Record<string, string> = {
   add: 'plus',
   legend: 'palette',
   formats: 'hash',
+  scenarios: 'layers',
 };
 
 export const SAMPLES = ['Net1', 'Net2', 'Net3'] as const;
@@ -534,6 +535,7 @@ export function createCommands(state: AppState): CommandBus<AppState> {
         ['add', 'Add element'],
         ['legend', 'Legend editor'],
         ['formats', 'Number formats'],
+        ['scenarios', 'Scenarios'],
       ] as const
     ).map(([id, title]): Cmd => ({
       id: `view.panel.${id}`,

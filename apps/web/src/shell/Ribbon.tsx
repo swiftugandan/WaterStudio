@@ -136,6 +136,7 @@ const TABS: Tab[] = [
     label: 'Project',
     groups: [
       { label: 'Settings', items: [{ cmd: 'view.panel.options', size: 'large', label: 'Options' }] },
+      { label: 'Scenarios', items: [{ cmd: 'view.panel.scenarios', size: 'large', label: 'Scenarios' }] },
       {
         label: 'Data',
         items: [

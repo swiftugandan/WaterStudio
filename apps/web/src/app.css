@@ -1429,3 +1429,40 @@ button.link {
 .graph-options label.wide input {
   width: 220px;
 }
+
+/* Scenario manager */
+.scenario-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--ws-color-border-subtle);
+  border-radius: var(--ws-radius-sm);
+}
+.scenario-tree:focus-visible .picked {
+  outline: 2px solid var(--ws-color-focus);
+  outline-offset: -2px;
+}
+.scenario-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-2);
+  min-height: var(--ws-space-6);
+  padding-right: var(--ws-space-2);
+  cursor: default;
+}
+.scenario-row:hover {
+  background: var(--ws-color-bg-hover);
+}
+.scenario-row.picked {
+  background: var(--ws-color-bg-active);
+}
+.badge-active {
+  padding: 0 var(--ws-space-1);
+  border-radius: var(--ws-radius-full);
+  background: var(--ws-color-accent);
+  color: var(--ws-color-text-on-accent);
+  font-size: var(--ws-font-size-xs);
+}
+.compare-top tbody tr {
+  cursor: pointer;
+}

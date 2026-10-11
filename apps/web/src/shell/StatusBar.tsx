@@ -24,6 +24,16 @@ export function StatusBar() {
         {doc.nodes.liveCount} nodes · {doc.links.liveCount} links
       </span>
       {state.selection.size > 0 && <span>{state.selection.size} selected</span>}
+      <button
+        type="button"
+        className="status-toggle"
+        title="The scenario shown and edited (Project › Scenarios)"
+        onClick={() => state.showPanel('scenarios')}
+      >
+        {state.scenarios.active === null
+          ? 'Base network'
+          : `Scenario: ${state.scenarios.get(state.scenarios.active)?.name ?? ''}`}
+      </button>
       <span className="spacer" />
       <span className="mono">{cursor ? `${cursor[0].toFixed(2)}, ${cursor[1].toFixed(2)}` : '—'}</span>
       <button

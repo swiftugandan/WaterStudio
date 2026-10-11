@@ -881,6 +881,48 @@ test('formats numbers and shows an overview map', async ({ page }) => {
   await expect.poll(async () => (await nodeOnScreen(page, '10')).x).not.toBeCloseTo(before.x, 0);
 });
 
+test('manages scenarios and compares two of them', async ({ page }) => {
+  await ready(page);
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Project' }).click();
+  await page.getByRole('button', { name: 'Show scenarios' }).click();
+  const panel = page.locator('.panel.scenarios');
+  page.once('dialog', (d) => void d.accept('Bigger mains'));
+  await panel.getByRole('button', { name: 'New' }).click();
+  await panel.getByRole('button', { name: 'Show and edit' }).click();
+  await expect(page.locator('.statusbar')).toContainText('Scenario: Bigger mains');
+  const diameter = () =>
+    ws(page, (w) => {
+      const d = w.state.store.doc as unknown as {
+        findLink(id: string): number;
+        num(h: number, f: string): number;
+      };
+      return d.num(d.findLink('10'), 'diameter');
+    });
+  await ws(page, (w) => {
+    const d = w.state.store.doc as unknown as { findLink(id: string): number };
+    w.state.selection.clear();
+    w.state.selection.add(d.findLink('10'));
+    (w.state as unknown as { emit(): void }).emit();
+  });
+  await page.locator('.panel.properties').getByLabel('Diameter').fill('24');
+  await page.locator('.panel.properties').getByLabel('Diameter').press('Enter');
+  expect(await diameter()).toBe(24);
+  await expect(
+    panel.getByRole('listbox', { name: 'Scenarios' }).getByRole('option', { name: /Bigger mains/ }),
+  ).toContainText('1 changes');
+  await panel.getByLabel('Result').selectOption('link:velocity');
+  await panel.getByRole('button', { name: 'Run both and compare' }).click();
+  await expect(panel.getByRole('status')).toContainText('links differ');
+  await expect(panel.locator('.compare-top tbody tr').first()).toContainText('10');
+  await panel
+    .getByRole('listbox', { name: 'Scenarios' })
+    .getByRole('option', { name: /Base network/ })
+    .click();
+  await panel.getByRole('button', { name: 'Show and edit' }).click();
+  expect(await diameter()).toBe(18);
+  await expect(page.locator('.statusbar')).toContainText('Base network');
+});
+
 test('the editors have no WCAG 2.2 AA violations', async ({ page }) => {
   await ready(page);
   await ws(page, (w) => {
@@ -926,6 +968,9 @@ test('the editors have no WCAG 2.2 AA violations', async ({ page }) => {
   await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Results' }).click();
   await page.getByRole('button', { name: 'Show legend editor' }).click();
   await audit('legend');
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Project' }).click();
+  await page.getByRole('button', { name: 'Show scenarios' }).click();
+  await audit('scenarios');
   await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Draw' }).click();
   await page.getByRole('button', { name: 'Show add element' }).click();
   await audit('add element');

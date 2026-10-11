@@ -30,6 +30,8 @@ export interface Change {
   fields: Set<string>;
   /** Document-level keys that changed. */
   doc: Set<DocKey>;
+  /** The operations as applied: each `v` is the value now, `p` the one it replaced. */
+  ops: readonly Op[];
 }
 
 export type Listener = (change: Change) => void;
@@ -191,8 +193,8 @@ export class Store {
   private applyInverse(ops: Op[]): Op[] {
     const out: Op[] = [];
     for (let i = ops.length - 1; i >= 0; i--) {
-      // Re-derive the inverse against the current state.
-      out.push(this.doc.apply(invert(ops[i]!)));
+      // Apply the inverse and report it as applied, re-derived against the current state.
+      out.push(invert(this.doc.apply(invert(ops[i]!))));
     }
     return out;
   }
@@ -211,6 +213,7 @@ export class Store {
       elements: new Set(),
       fields: new Set(),
       doc: new Set(),
+      ops,
     };
     for (const op of ops) {
       if (op.t === 'doc') {

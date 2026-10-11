@@ -79,7 +79,8 @@ Gate: MSX examples within tolerance; all performance budgets met; agent evaluati
 - [x] Graph options: title, axis limits, grid lines (the last EPANET GUI function)
 
 - [ ] EPANET-MSX (`ws-msx`)
-- [ ] Scenario manager; fire flow, criticality, isolation segments
+- [x] Scenario manager (ADR 0013): property overrides that inherit as a tree over a shared network; compare any two
+- [ ] Fire flow, criticality, isolation segments
 - [ ] DEM elevations, demand allocation; SQLite project file
 - [ ] C toolkit API (`ws-ffi`) and CLI
 - [ ] Proposal and review UI; MCP server

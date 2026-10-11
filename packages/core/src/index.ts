@@ -18,3 +18,4 @@ export { Table, Column, type ColumnSpec, type ColumnType } from './table.ts';
 export * from './options.ts';
 export * from './data.ts';
 export * from './scenario.ts';
+export * from './scenarios.ts';

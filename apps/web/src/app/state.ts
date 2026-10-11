@@ -4,11 +4,19 @@
  * re-render when it changes; the viewport subscribes directly for speed.
  */
 
-import type { PropertyClip } from '@waterstudio/core';
 import { readDefaults, saveDefaults, type Defaults } from './defaults.ts';
 import { planLengthOf } from './geometry.ts';
 import type { CalibrationData, CalibrationVariable } from './calibration.ts';
-import { loadModel, Store, toModel, unitSystem, type model, type UnitSystem } from '@waterstudio/core';
+import {
+  loadModel,
+  Scenarios,
+  Store,
+  toModel,
+  unitSystem,
+  type model,
+  type PropertyClip,
+  type UnitSystem,
+} from '@waterstudio/core';
 import {
   EngineClient,
   type EpanetFiles,
@@ -96,6 +104,8 @@ export class AppState extends Emitter {
   /** Panels the user has open, by id. */
   panels = new Set(['browser', 'properties', 'results', 'messages']);
   private panelFocus: string | null = null;
+  /** Alternatives of this network (the scenario manager). */
+  scenarios!: Scenarios;
   /** Properties copied with Edit › Copy, for pasting onto elements of the same kind. */
   clipboard: PropertyClip | null = null;
   /** Defaults for new elements (Project › Defaults). */
@@ -118,6 +128,8 @@ export class AppState extends Emitter {
 
   private bindStore(): void {
     this.unsubscribeStore();
+    (this.scenarios as Scenarios | undefined)?.dispose();
+    this.scenarios = new Scenarios(this.store);
     this.unsubscribeStore = this.store.subscribe((c) => {
       // Drop selections of elements that no longer exist.
       if (c.structural) for (const h of this.selection) if (!this.store.doc.has(h)) this.selection.delete(h);
@@ -173,6 +185,14 @@ export class AppState extends Emitter {
   setDefaults(d: Defaults): void {
     this.defaults = d;
     saveDefaults(d);
+    this.emit();
+  }
+
+  /** Switch scenario (null for the base network). */
+  activateScenario(id: string | null): void {
+    this.scenarios.activate(id);
+    const name = id === null ? 'the base network' : (this.scenarios.get(id)?.name ?? id);
+    this.log('info', `Showing ${name}. Edits to properties now belong to it.`);
     this.emit();
   }
 
