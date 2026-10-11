@@ -10,6 +10,7 @@ epanet-rs = { workspace = true }
 ws-io = { workspace = true }
 ws-model = { workspace = true }
 ws-solver = { workspace = true }
+ws-msx = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 

@@ -1,0 +1,28 @@
+[TITLE]
+WaterStudio MSX fixture: first-order decay with Euler steps, for any network
+
+[OPTIONS]
+SOLVER    EUL
+TIMESTEP  300
+RATE_UNITS HR
+
+[SPECIES]
+BULK  CL2  MG  0.01  0.001
+BULK  AGE  HR
+
+[COEFFICIENTS]
+CONSTANT  kb  0.25
+
+[PIPES]
+RATE  CL2  -kb*CL2
+RATE  AGE  1
+
+[QUALITY]
+GLOBAL  CL2  1.0
+
+[REPORT]
+NODES   ALL
+LINKS   ALL
+SPECIES CL2  YES  3
+SPECIES AGE  YES  2
+PAGESIZE 60

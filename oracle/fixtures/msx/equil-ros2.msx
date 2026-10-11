@@ -1,0 +1,64 @@
+[TITLE]
+WaterStudio MSX fixture: equilibrium species fully coupled to a stiff ROS2 integration
+
+[OPTIONS]
+AREA_UNITS  M2
+RATE_UNITS  SEC
+SOLVER      ROS2
+COUPLING    FULL
+TIMESTEP    120
+RTOL        0.0001
+ATOL        1.0e-6
+
+[SPECIES]
+BULK  A     MMOL
+BULK  B     MMOL
+BULK  C     MMOL
+BULK  H     MMOL
+BULK  OH    MMOL
+WALL  S     MMOL
+BULK  PH    UNITS
+
+[COEFFICIENTS]
+PARAMETER  k1   0.01
+PARAMETER  k2   0.002
+CONSTANT   Kw   1.0e-8
+CONSTANT   Ks   2.0
+
+[TERMS]
+r1   k1*A*B
+r2   k2*C
+
+[PIPES]
+RATE     A    -r1 + r2
+RATE     B    -r1 + r2 - 0.0001*Av*(Ks*B - S)
+RATE     C    r1 - r2
+RATE     H    0
+EQUIL    OH   H*OH - Kw
+EQUIL    S    Ks*B/(1+B) - S
+FORMULA  PH   -LOG10(H)
+
+[TANKS]
+RATE     A    -r1 + r2
+RATE     B    -r1 + r2
+RATE     C    r1 - r2
+RATE     H    0
+EQUIL    OH   H*OH - Kw
+FORMULA  PH   -LOG10(H)
+
+[QUALITY]
+GLOBAL  A   0.5
+GLOBAL  B   0.3
+GLOBAL  H   1.0e-4
+GLOBAL  OH  1.0e-4
+NODE    W   A  1.0
+NODE    W   B  0.8
+
+[REPORT]
+NODES   J1 J4 J7 TA TB TC
+LINKS   2 6 9 PU
+SPECIES A   YES 4
+SPECIES C   YES 4
+SPECIES S   YES 4
+SPECIES OH  YES 6
+SPECIES PH  YES 3

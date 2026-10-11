@@ -143,14 +143,38 @@ impl Default for Quality {
 }
 
 /// One hydraulic solution as EPANET's hydraulics file stores it, with the file's
-/// f32 precision. Heads and settings are left out: quality routing never reads them.
+/// f32 precision. Settings are left out: neither quality routing nor EPANET-MSX reads
+/// them.
 #[derive(Clone, Debug)]
 pub struct HydRecord {
     pub htime: i64,
     pub hydstep: i64,
     demand: Vec<f32>,
+    head: Vec<f32>,
     flow: Vec<f32>,
     status: Vec<u8>,
+}
+
+impl HydRecord {
+    /// Node demands (consumer demand, emitter and leakage flow) in cfs, solver node order.
+    pub fn demand(&self) -> &[f32] {
+        &self.demand
+    }
+
+    /// Node heads in feet, solver node order.
+    pub fn head(&self) -> &[f32] {
+        &self.head
+    }
+
+    /// Link flows in cfs, zero for closed links.
+    pub fn flow(&self) -> &[f32] {
+        &self.flow
+    }
+
+    /// Link status codes (EPANET's `StatusType`), as the file stores them.
+    pub fn status(&self) -> impl Iterator<Item = f32> + '_ {
+        self.status.iter().map(|&s| f32::from(s))
+    }
 }
 
 /// `savehyd`: the current hydraulic solution as the hydraulics file keeps it.
@@ -162,6 +186,7 @@ pub fn savehyd(pr: &Project, htime: i64) -> HydRecord {
         htime,
         hydstep: 0,
         demand: (1..=nn).map(|i| hyd.node_demand[i] as f32).collect(),
+        head: (1..=nn).map(|i| hyd.node_head[i] as f32).collect(),
         flow: (1..=nl)
             .map(|k| {
                 if hyd.link_status[k] <= Status::Closed {

@@ -4,6 +4,9 @@
 //!   ws canon <net.inp> <out.inp>    read and write back in canonical form
 //!   ws run <net.inp> <report.rpt> [<out.bin>]
 //!                                   run as EPANET's runepanet does: its report and binary output
+//!   ws msx <net.inp> <net.msx> <report.rpt> [<out.bin>]
+//!                                   multi-species quality, as runepanetmsx does: the MSX report
+//!                                   and binary output file
 
 use std::process::ExitCode;
 
@@ -92,6 +95,45 @@ fn run(input: &str, rpt: &str, out: Option<&str>) -> Result<bool, String> {
     Ok(true)
 }
 
+fn msx(input: &str, msx_path: &str, rpt: &str, out: Option<&str>) -> Result<bool, String> {
+    let r = read_inp(&read_text(input)?);
+    if let Some(issue) = r.errors().next() {
+        return Err(format!("{input}:{}: {}", issue.line, issue.message));
+    }
+    let text = read_text(msx_path)?;
+    let mut lines = String::new();
+    let write = |lines: &String| std::fs::write(rpt, lines).map_err(|e| format!("{rpt}: {e}"));
+    let mut run = match ws_msx::Msx::from_model(&r.model, &text, msx_path) {
+        Ok(run) => run,
+        Err(e) => {
+            for m in &e.messages {
+                lines.push_str(&format!("  {m}\n"));
+            }
+            write(&lines)?;
+            return Err(format!("{msx_path}: {e}"));
+        }
+    };
+    for m in run.messages() {
+        lines.push_str(&format!("  {m}\n"));
+    }
+    let solved = run.solve();
+    let report = run.report().map_err(|e| e.to_string());
+    if let Err(e) = solved {
+        write(&lines)?;
+        return Err(format!("{msx_path}: {e}"));
+    }
+    let report = report?;
+    match run.report_file() {
+        Some(file) => std::fs::write(file, &report).map_err(|e| format!("{file}: {e}"))?,
+        None => lines.push_str(&report),
+    }
+    write(&lines)?;
+    if let (Some(out), Some(bytes)) = (out, run.output_file()) {
+        std::fs::write(out, bytes).map_err(|e| format!("{out}: {e}"))?;
+    }
+    Ok(true)
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -100,9 +142,11 @@ fn main() -> ExitCode {
         ["canon", input, output] => canon(input, output),
         ["run", input, rpt] => run(input, rpt, None),
         ["run", input, rpt, out] => run(input, rpt, Some(out)),
+        ["msx", input, msx_file, rpt] => msx(input, msx_file, rpt, None),
+        ["msx", input, msx_file, rpt, out] => msx(input, msx_file, rpt, Some(out)),
         _ => {
             eprintln!(
-                "usage: ws check <net.inp> | ws canon <net.inp> <out.inp> | ws run <net.inp> <report.rpt> [<out.bin>]"
+                "usage: ws check <net.inp> | ws canon <net.inp> <out.inp> | ws run <net.inp> <report.rpt> [<out.bin>]\n       ws msx <net.inp> <net.msx> <report.rpt> [<out.bin>]"
             );
             return ExitCode::from(2);
         }

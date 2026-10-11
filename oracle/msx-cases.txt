@@ -1,0 +1,20 @@
+# EPANET-MSX cases for msx.py: "<net.inp> <net.msx>", relative to this file.
+# The examples shipped with EPANET-MSX (fetched by fetch-corpus.sh); their -gc and -vc
+# variants only add the COMPILER option, which WaterStudio ignores.
+.corpus/owa-examples/msx-examples/As5Adsorb/example.inp       .corpus/owa-examples/msx-examples/As5Adsorb/example.msx
+.corpus/owa-examples/msx-examples/Net2-CL2/net2-cl2.inp       .corpus/owa-examples/msx-examples/Net2-CL2/net2-cl2.msx
+.corpus/owa-examples/msx-examples/Net3-Bio/net3-bio.inp       .corpus/owa-examples/msx-examples/Net3-Bio/net3-bio.msx
+.corpus/owa-examples/msx-examples/Net3-NH2Cl/Net3-NH2CL.inp   .corpus/owa-examples/msx-examples/Net3-NH2Cl/Net3-NH2CL.msx
+.corpus/owa-examples/msx-examples/Batch-NH2Cl/batch-nh2cl.inp .corpus/owa-examples/msx-examples/Batch-NH2Cl/batch-nh2cl.msx
+# Our fixtures: every source type, tank model and hydraulic variable; equilibrium with
+# full coupling; dispersion; each reporting statistic.
+fixtures/quality-chem.inp     fixtures/msx/tanks-sources.msx
+fixtures/quality-chem.inp     fixtures/msx/equil-ros2.msx
+fixtures/quality-chem.inp     fixtures/msx/dispersion.msx
+fixtures/quality-chem.inp     fixtures/msx/decay-euler.msx
+fixtures/report-average.inp   fixtures/msx/decay-euler.msx
+fixtures/msx/stat-range.inp   fixtures/msx/decay-euler.msx
+fixtures/msx/stat-max.inp     fixtures/msx/decay-euler.msx
+fixtures/msx/stat-min.inp     fixtures/msx/decay-euler.msx
+.corpus/owa-epanet/Net1.inp   fixtures/msx/decay-euler.msx
+.corpus/owa-epanet/Net3.inp   fixtures/msx/decay-euler.msx

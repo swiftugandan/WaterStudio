@@ -1,0 +1,85 @@
+[TITLE]
+WaterStudio MSX fixture: every source type, tank mixing model and hydraulic variable
+
+[OPTIONS]
+AREA_UNITS  CM2
+RATE_UNITS  MIN
+SOLVER      RK5
+TIMESTEP    180
+RTOL        0.001
+ATOL        0.0001
+
+[SPECIES]
+BULK  CL2    MG    0.001  0.001   ;free chlorine
+BULK  TOC    MG                   ;organic carbon
+BULK  TR     MG                   ;tracer fed by a mass booster
+WALL  BIO    UG    0.001  0.01    ;biofilm (ug/cm2)
+BULK  AGE    HR                   ;water age
+BULK  HYD    UNITS                ;exercises every hydraulic variable
+BULK  SUM    MG                   ;a formula
+
+[COEFFICIENTS]
+PARAMETER  kb    0.002
+PARAMETER  kw    0.0005
+CONSTANT   ktoc  0.0008
+CONSTANT   kbio  0.01
+CONSTANT   half  0.5
+
+[TERMS]
+Kf     1.5826e-4 * Re^0.88 / D
+Wall   (4/D)*kw*Kf/(kw+Kf)
+Grow   kbio*TOC/(half+TOC)*EXP(-2*CL2)
+
+[PIPES]
+RATE     CL2   -kb*CL2 - Wall*CL2 - ktoc*TOC*CL2
+RATE     TOC   -ktoc*TOC*CL2*0.1 - Grow*BIO*Av/1000
+RATE     TR    -0.0001*TR
+RATE     BIO   Grow*BIO - 0.001*U*BIO + 0.0001
+RATE     AGE   1/60
+RATE     HYD   -0.01*HYD + 0.000001*(D + Q + U + Re/1000 + Us + Ff + Av + Kc + Len/100)
+FORMULA  SUM   CL2 + TOC + ABS(SGN(TR))*TR
+
+[TANKS]
+RATE     CL2   -kb*CL2 - ktoc*TOC*CL2
+RATE     TOC   -ktoc*TOC*CL2*0.1
+RATE     TR    -0.0001*TR
+RATE     AGE   1/60
+RATE     HYD   -0.01*HYD
+FORMULA  SUM   CL2 + TOC + TR
+
+[PARAMETERS]
+PIPE   4    kb   0.004
+PIPE   9    kw   0.002
+TANK   TA   kb   0.001
+TANK   TC   kb   0.003
+
+[SOURCES]
+CONC      W    CL2   1.2   Pulse
+CONC      W    TOC   2.5
+MASS      J3   TR    500   Pulse
+SETPOINT  J6   CL2   0.9
+FLOW      J7   TOC   0.4   Day
+
+[QUALITY]
+GLOBAL  CL2   0.4
+GLOBAL  TOC   1.5
+GLOBAL  BIO   0.2
+NODE    TA    CL2   0.8
+NODE    TB    TOC   2.0
+LINK    4     BIO   1.0
+
+[PATTERNS]
+Pulse  0 1 3 0
+Pulse  2 0 1 0.5
+Day    0.5 0.8 1.4 1.2 1.0 1.3 0.9 0.4
+
+[REPORT]
+NODES   ALL
+LINKS   ALL
+SPECIES CL2  YES  4
+SPECIES TOC  YES
+SPECIES TR   YES  3
+SPECIES BIO  YES  4
+SPECIES AGE  YES
+SPECIES HYD  YES  6
+SPECIES SUM  YES

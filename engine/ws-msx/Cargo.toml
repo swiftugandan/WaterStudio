@@ -1,0 +1,16 @@
+[package]
+name = "ws-msx"
+description = "Multi-species water quality: a port of EPA EPANET-MSX 2.0 over WaterStudio's hydraulics."
+version.workspace = true
+edition.workspace = true
+license = "MIT"
+
+[dependencies]
+ws-model = { workspace = true }
+ws-solver = { workspace = true }
+
+[dev-dependencies]
+ws-io = { workspace = true }
+
+[lints]
+workspace = true

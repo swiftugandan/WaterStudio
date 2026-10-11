@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check that the engine's pow, log and exp return glibc's bits (ADR 0003).
+"""Check that the engine's pow, log, exp and log10 return glibc's bits (ADR 0003).
 
 usage: math-bits.py <mathbits-binary> [samples]
 
@@ -37,6 +37,7 @@ def main():
     m.pow.restype, m.pow.argtypes = ctypes.c_double, [ctypes.c_double, ctypes.c_double]
     m.log.restype, m.log.argtypes = ctypes.c_double, [ctypes.c_double]
     m.exp.restype, m.exp.argtypes = ctypes.c_double, [ctypes.c_double]
+    m.log10.restype, m.log10.argtypes = ctypes.c_double, [ctypes.c_double]
     rng = random.Random(20261011)
     cases = []
     for _ in range(n):
@@ -53,10 +54,11 @@ def main():
         cases.append((x, y))
     text = "".join(f"{bits(x):016x} {bits(y):016x}\n" for x, y in cases)
     out = subprocess.run([binary], input=text, capture_output=True, text=True, check=True).stdout.split("\n")
-    bad = {"pow": 0, "log": 0, "exp": 0}
+    bad = {"pow": 0, "log": 0, "exp": 0, "log10": 0}
     for (x, y), line in zip(cases, out):
         got = [int(t, 16) for t in line.split()]
-        for name, g, ref in (("pow", got[0], m.pow(x, y)), ("log", got[1], m.log(x)), ("exp", got[2], m.exp(y))):
+        for name, g, ref in (("pow", got[0], m.pow(x, y)), ("log", got[1], m.log(x)), ("exp", got[2], m.exp(y)),
+                             ("log10", got[3], m.log10(x))):
             if g != bits(ref) and not (ref != ref and from_bits(g) != from_bits(g)):
                 bad[name] += 1
                 if bad[name] <= 3:

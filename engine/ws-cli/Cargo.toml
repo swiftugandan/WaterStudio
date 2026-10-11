@@ -13,6 +13,7 @@ path = "src/main.rs"
 ws-io = { workspace = true }
 ws-model = { workspace = true }
 ws-solver = { workspace = true }
+ws-msx = { workspace = true }
 
 [lints]
 workspace = true

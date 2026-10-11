@@ -62,17 +62,19 @@ jobs:
       - uses: actions/cache@v6
         with:
           path: oracle/.build
-          key: owa-epanet-${{ hashFiles('oracle/build.sh') }}
+          key: owa-epanet-${{ hashFiles('oracle/build.sh', 'oracle/build-msx.sh') }}
       - uses: actions/cache@v6
         with:
           path: oracle/.corpus
           key: corpus-${{ hashFiles('oracle/fetch-corpus.sh') }}
       - run: oracle/build.sh
+      - run: oracle/build-msx.sh
       - run: oracle/fetch-corpus.sh
       - run: oracle/roundtrip.sh
       - name: Math library bits match glibc
         run: python3 -I oracle/math-bits.py engine/target/release/examples/mathbits
       - run: oracle/parity.sh --write-doc
+      - run: oracle/msx.sh
       - name: Parity report
         if: always()
         run: cat docs/PARITY.md >> "$GITHUB_STEP_SUMMARY" || true

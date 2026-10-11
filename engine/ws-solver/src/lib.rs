@@ -25,7 +25,7 @@
     clippy::if_same_then_else
 )]
 
-mod cfmt;
+pub mod cfmt;
 mod coeffs;
 mod error;
 mod genmmd;
@@ -40,10 +40,13 @@ mod rules;
 mod smatrix;
 mod solver;
 mod status;
+mod toolkit;
 mod types;
 
 pub use error::SolverError;
 pub use input::hour;
+pub use quality::HydRecord;
+pub use toolkit::{ToolkitData, ToolkitLink, ToolkitTank};
 pub use types::{Field, LinkType, NodeType, Status};
 
 use types::*;

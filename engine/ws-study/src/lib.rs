@@ -6,6 +6,7 @@
 //! OWA-EPANET). [`run_hydraulics_reference`] uses the epanet-rs fork (`ws-hyd`), kept
 //! as an independent implementation to benchmark against (ADR 0006).
 
+pub mod msx;
 pub mod run;
 pub mod studies;
 

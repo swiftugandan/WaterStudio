@@ -977,6 +977,7 @@ version = "0.0.1"
 dependencies = [
  "ws-io",
  "ws-model",
+ "ws-msx",
  "ws-solver",
 ]
 
@@ -1013,6 +1014,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ws-msx"
+version = "0.0.1"
+dependencies = [
+ "ws-io",
+ "ws-model",
+ "ws-solver",
+]
+
+[[package]]
 name = "ws-parity"
 version = "0.0.1"
 dependencies = [
@@ -1038,6 +1048,7 @@ dependencies = [
  "ws-hyd",
  "ws-io",
  "ws-model",
+ "ws-msx",
  "ws-solver",
 ]
 

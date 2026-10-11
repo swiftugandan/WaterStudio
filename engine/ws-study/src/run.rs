@@ -38,6 +38,8 @@ pub struct RunResults {
     /// EPANET's text report and binary output file, when asked for.
     pub report: Option<String>,
     pub out_file: Option<Vec<u8>>,
+    /// Multi-species results, when the run included an EPANET-MSX analysis.
+    pub msx: Option<crate::msx::MsxResults>,
 }
 
 impl RunResults {
@@ -130,11 +132,14 @@ struct Header<'a> {
     link_variables: &'a [&'a str],
     /// EPANET's last hydraulic warning code (0 if none).
     warning: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    msx: Option<crate::msx::MsxHeader<'a>>,
 }
 
 /// Binary form: u32 header length, the header as UTF-8 JSON, zero padding to a
 /// multiple of 4 bytes, then every node column followed by every link column as
-/// little-endian f32, `periods * count` values each.
+/// little-endian f32, `periods * count` values each. With multi-species results the
+/// header lists the species and each species' node and link columns follow.
 pub fn encode(results: &RunResults, engine: &str) -> Result<Vec<u8>, String> {
     let header = Header {
         engine,
@@ -146,13 +151,25 @@ pub fn encode(results: &RunResults, engine: &str) -> Result<Vec<u8>, String> {
         node_variables: &NODE_VARIABLES,
         link_variables: &LINK_VARIABLES,
         warning: results.warning,
+        msx: results.msx.as_ref().map(crate::msx::MsxResults::header),
     };
     let json = serde_json::to_vec(&header).map_err(|e| e.to_string())?;
     let len = u32::try_from(json.len()).map_err(|_| "header too large".to_string())?;
+    let species: Vec<&Vec<f32>> = match &results.msx {
+        Some(m) => m
+            .columns
+            .nodes
+            .iter()
+            .zip(&m.columns.links)
+            .flat_map(|(n, l)| [n, l])
+            .collect(),
+        None => Vec::new(),
+    };
     let values: usize = results
         .nodes
         .iter()
         .chain(&results.links)
+        .chain(species.iter().copied())
         .map(Vec::len)
         .sum();
     let mut out = Vec::with_capacity(4 + json.len() + 3 + 4 * values);
@@ -161,7 +178,12 @@ pub fn encode(results: &RunResults, engine: &str) -> Result<Vec<u8>, String> {
     while out.len() % 4 != 0 {
         out.push(0);
     }
-    for col in results.nodes.iter().chain(&results.links) {
+    for col in results
+        .nodes
+        .iter()
+        .chain(&results.links)
+        .chain(species.iter().copied())
+    {
         for v in col {
             out.extend_from_slice(&v.to_le_bytes());
         }

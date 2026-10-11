@@ -16,6 +16,9 @@ WaterStudio is a browser-based, open-source successor to EPA EPANET. Read `docs/
   `cargo run --release -p ws-solver --example dump` prints every time step for side-by-side debugging.
   `ws run net.inp out.rpt out.bin` writes EPANET's report and output file; `oracle/parity.sh` requires them
   identical to `runepanet`'s (ADR 0009).
+- `engine/ws-msx` is a port of EPANET-MSX 2.0 (ADR 0014) held to the same standard: identical binary results and
+  reports on `oracle/msx-cases.txt`. Run `oracle/build-msx.sh` once and `oracle/msx.sh` after any change to `ws-msx`
+  or to what `ws-solver` hands it (`ToolkitData`, `HydRecord`).
 - `engine/ws-hyd` is a fork of epanet-rs (ADR 0001), kept as a benchmark. Record every change in `engine/ws-hyd/FORK.md`.
 - Only `engine/ws-wasm` may use `unsafe`. Elsewhere: no `unwrap`, `expect` or `panic` outside tests.
 - Clean room: never read the epanet-js application's source (FSL licence). OWA-EPANET, EPA EPANET, epanet-rs and
@@ -31,11 +34,12 @@ WaterStudio is a browser-based, open-source successor to EPA EPANET. Read `docs/
 ## Layout
 
 - `engine/`: Rust workspace (`ws-model` canonical model, `ws-io` .inp reader/writer, `ws-solver` hydraulic engine,
-  `ws-study` studies, `ws-wasm` WebAssembly boundary, `ws-parity` harness, `ws-cli` command line, `ws-hyd` benchmark)
+  `ws-msx` multi-species quality, `ws-study` studies, `ws-wasm` WebAssembly boundary, `ws-parity` harness,
+  `ws-cli` command line, `ws-hyd` benchmark)
 - `packages/`: `core` (document store, edits, options, scenarios), `ui` (tokens, icons, components), `symbols`
   (symbol masters), `render` (WebGPU and Canvas 2D map renderer), `engine-client` (engine workers), `gis`
   (GeoJSON, shapefile, DXF), `agents` (tool registry, providers, assistant loop)
 - `apps/web`: the app (Vite, React for the shell only)
-- `oracle/`: reference engine build, corpus fetch, comparison and ratchet
+- `oracle/`: reference engine builds (OWA-EPANET, EPANET-MSX), corpus fetch, comparison and ratchet
 - `scripts/`: build and verification scripts
 - `docs/`: plan, roadmap, ADRs, accessibility audit, generated parity report

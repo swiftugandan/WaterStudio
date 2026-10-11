@@ -2,7 +2,7 @@
 // Ported from ARM optimized-routines (math/pow.c, exp.c, log.c), Copyright (c)
 // 2018-2026, Arm Limited. See LICENSES/ARM-optimized-routines.txt.
 
-//! `pow`, `exp` and `log` that return the same bits on every platform.
+//! `pow`, `exp`, `log` and `log10` that return the same bits on every platform.
 //!
 //! These are ARM optimized-routines' algorithms — the same code glibc uses for
 //! `pow`, `exp` and `log` — on the path without fused multiply-add, which is what
@@ -422,6 +422,42 @@ pub fn log(x: f64) -> f64 {
     lo + r2 * a(0) + r * r2 * (a(1) + r * a(2) + r2 * (a(3) + r * a(4))) + hi
 }
 
+/// Base-10 logarithm: glibc's `__ieee754_log10` (an fdlibm algorithm) on top of
+/// [`log`], so it returns glibc's bits too.
+pub fn log10(x: f64) -> f64 {
+    const TWO54: f64 = 1.801_439_850_948_198_4e16; // 0x4350000000000000
+    const IVLN10: f64 = f64::from_bits(0x3FDB_CB7B_1526_E50E);
+    const LOG10_2HI: f64 = f64::from_bits(0x3FD3_4413_509F_6000);
+    const LOG10_2LO: f64 = f64::from_bits(0x3D59_FEF3_11F1_2B36);
+    let bits = x.to_bits();
+    let mut hx = (bits >> 32) as i32;
+    let lx = bits as u32;
+    let mut k: i32 = 0;
+    let mut x = x;
+    if hx < 0x0010_0000 {
+        // x < 2**-1022
+        if ((hx & 0x7fff_ffff) as u32 | lx) == 0 {
+            return -TWO54 / 0.0; // log(+-0) = -inf
+        }
+        if hx < 0 {
+            return f64::NAN; // log(-#) = NaN (only ever turned into 0 by the evaluator)
+        }
+        k -= 54;
+        x *= TWO54; // subnormal number, scale up x
+        hx = (x.to_bits() >> 32) as i32;
+    }
+    if hx >= 0x7ff0_0000 {
+        return x + x;
+    }
+    k += (hx >> 20) - 1023;
+    let i = ((k as u32) & 0x8000_0000) >> 31;
+    hx = (hx & 0x000f_ffff) | (((0x3ff - i) as i32) << 20);
+    let y = f64::from(k + i as i32);
+    let x = f64::from_bits((u64::from(hx as u32) << 32) | u64::from(x.to_bits() as u32));
+    let z = y * LOG10_2LO + IVLN10 * log(x);
+    z + y * LOG10_2HI
+}
+
 #[cfg(test)]
 #[allow(clippy::panic, clippy::unwrap_used, clippy::expect_used)]
 mod tests {
@@ -460,5 +496,14 @@ mod tests {
             );
             assert!(rel(exp(y * 10.0), (y * 10.0).exp()) < 3e-16, "exp({y})");
         }
+    }
+
+    #[test]
+    fn log10_of_powers_of_ten_is_exact() {
+        for p in -20..=20 {
+            assert_eq!(log10(10f64.powi(p)), f64::from(p), "10^{p}");
+        }
+        assert_eq!(log10(0.0), f64::NEG_INFINITY);
+        assert!(log10(-1.0).is_nan());
     }
 }
