@@ -38,6 +38,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@waterstudio/agents':
+        specifier: workspace:*
+        version: link:../../packages/agents
       '@waterstudio/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -96,6 +99,19 @@ importers:
       vite:
         specifier: 8.3.2
         version: 8.3.2(@types/node@22.20.5)
+
+  packages/agents:
+    dependencies:
+      '@waterstudio/core':
+        specifier: workspace:*
+        version: link:../core
+      '@waterstudio/engine-client':
+        specifier: workspace:*
+        version: link:../engine-client
+    devDependencies:
+      '@types/node':
+        specifier: 22.20.5
+        version: 22.20.5
 
   packages/core:
     devDependencies:

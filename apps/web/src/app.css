@@ -939,3 +939,130 @@ input[type='search'] {
 .map-attribution a {
   color: var(--ws-color-text-secondary);
 }
+
+/* Assistant */
+.panel.assistant {
+  overflow: hidden;
+}
+.assistant-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+  max-width: 480px;
+}
+.assistant-settings label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-1);
+  color: var(--ws-color-text-secondary);
+}
+.assistant-settings label.check {
+  flex-direction: row;
+  align-items: center;
+}
+.assistant-settings input[type='url'],
+.assistant-settings input[type='text'],
+.assistant-settings input[type='password'],
+.assistant-settings select {
+  height: var(--ws-size-control);
+  color: var(--ws-color-text-primary);
+}
+.assistant-settings .row {
+  display: flex;
+  gap: var(--ws-space-2);
+}
+.btn.primary {
+  background: var(--ws-color-accent);
+  border-color: var(--ws-color-accent);
+  color: var(--ws-color-text-on-accent);
+}
+.btn.primary:hover:not(:disabled) {
+  background: var(--ws-color-accent-hover);
+}
+.btn.primary:disabled {
+  background: var(--ws-color-bg-sunken);
+  border-color: var(--ws-color-border-control);
+}
+.assistant-log {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+}
+.assistant-msg {
+  padding: var(--ws-space-2);
+  border-radius: var(--ws-radius-md);
+  white-space: pre-wrap;
+  line-height: var(--ws-line-height-normal);
+}
+.assistant-msg.user {
+  align-self: flex-end;
+  max-width: 85%;
+  background: var(--ws-color-accent-subtle);
+}
+.assistant-msg.assistant {
+  background: var(--ws-color-bg-surface-alt);
+}
+.assistant-msg.error {
+  background: var(--ws-color-danger-bg);
+  color: var(--ws-color-danger-text);
+}
+.assistant-msg.thinking {
+  color: var(--ws-color-text-secondary);
+}
+.assistant-tool {
+  font-size: var(--ws-font-size-sm);
+  color: var(--ws-color-text-secondary);
+}
+.assistant-tool summary {
+  cursor: pointer;
+}
+.assistant-tool.failed summary {
+  color: var(--ws-color-danger-text);
+}
+.assistant-tool pre {
+  max-height: 200px;
+  overflow: auto;
+  margin: var(--ws-space-1) 0 0;
+  padding: var(--ws-space-1);
+  background: var(--ws-color-bg-sunken);
+  font-family: var(--ws-font-mono);
+  font-size: var(--ws-font-size-xs);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.assistant-empty ul {
+  padding-left: var(--ws-space-4);
+}
+/* WCAG 2.5.8: each suggestion is a full 24px-high target. */
+.assistant-empty button.link {
+  min-height: var(--ws-space-6);
+}
+.btn.link,
+button.link {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--ws-color-accent);
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.assistant-input {
+  display: flex;
+  gap: var(--ws-space-2);
+  align-items: flex-end;
+}
+.assistant-input textarea {
+  flex: 1;
+  resize: vertical;
+  min-height: 2.5em;
+  font: inherit;
+  color: var(--ws-color-text-primary);
+  background: var(--ws-color-bg-surface);
+  border: 1px solid var(--ws-color-border-control);
+  border-radius: var(--ws-radius-sm);
+  padding: var(--ws-space-1) var(--ws-space-2);
+}

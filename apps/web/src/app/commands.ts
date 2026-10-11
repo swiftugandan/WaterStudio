@@ -123,7 +123,10 @@ export function createCommands(state: AppState): CommandBus<AppState> {
       run: (s) => {
         const crs = modelCrs(s.store.doc);
         const extra = resultAttributes(s);
-        const fc = modelToGeoJSON(toModel(s.store.doc), { project: crs?.crs, extra });
+        const fc = modelToGeoJSON(toModel(s.store.doc), {
+          project: crs?.crs,
+          ...(extra ? { extra } : {}),
+        });
         saveTextFile(JSON.stringify(fc), `${baseName(s.fileName)}.geojson`);
         s.log(
           crs ? 'info' : 'warning',
@@ -277,11 +280,12 @@ export function createCommands(state: AppState): CommandBus<AppState> {
         ['results', 'Results table'],
         ['messages', 'Messages'],
         ['report', 'Reports'],
+        ['assistant', 'Assistant'],
       ] as const
     ).map(([id, title]): Cmd => ({
       id: `view.panel.${id}`,
       title: `Show ${title.toLowerCase()}`,
-      icon: id === 'report' ? 'file-text' : 'panel',
+      icon: id === 'report' ? 'file-text' : id === 'assistant' ? 'sparkles' : 'panel',
       category: 'View',
       checked: (s) => s.panels.has(id),
       run: (s) => {

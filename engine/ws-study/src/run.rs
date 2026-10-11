@@ -128,6 +128,8 @@ struct Header<'a> {
     link_count: usize,
     node_variables: &'a [&'a str],
     link_variables: &'a [&'a str],
+    /// EPANET's last hydraulic warning code (0 if none).
+    warning: i32,
 }
 
 /// Binary form: u32 header length, the header as UTF-8 JSON, zero padding to a
@@ -143,6 +145,7 @@ pub fn encode(results: &RunResults, engine: &str) -> Result<Vec<u8>, String> {
         link_count: results.link_count,
         node_variables: &NODE_VARIABLES,
         link_variables: &LINK_VARIABLES,
+        warning: results.warning,
     };
     let json = serde_json::to_vec(&header).map_err(|e| e.to_string())?;
     let len = u32::try_from(json.len()).map_err(|_| "header too large".to_string())?;

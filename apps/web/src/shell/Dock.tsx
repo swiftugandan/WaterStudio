@@ -15,6 +15,7 @@ import {
 import 'dockview-react/dist/styles/dockview.css';
 import { useEffect, useRef } from 'react';
 import { useApp, useAppContext } from '../app/context.tsx';
+import { AssistantPanel } from '../panels/AssistantPanel.tsx';
 import { BrowserPanel } from '../panels/BrowserPanel.tsx';
 import { GraphPanel, graphTitle, type GraphParams } from '../panels/GraphPanel.tsx';
 import { ReportPanel } from '../panels/ReportPanel.tsx';
@@ -34,6 +35,7 @@ const PANELS: Record<
   results: { title: 'Results', position: () => ({ referencePanel: 'map', direction: 'below' }) },
   messages: { title: 'Messages', position: () => ({ referencePanel: 'results', direction: 'within' }) },
   report: { title: 'Reports', position: () => ({ referencePanel: 'results', direction: 'within' }) },
+  assistant: { title: 'Assistant', position: () => ({ referencePanel: 'properties', direction: 'within' }) },
 };
 
 const components = {
@@ -43,6 +45,7 @@ const components = {
   results: () => <ResultsPanel />,
   messages: () => <MessagesPanel />,
   report: () => <ReportPanel />,
+  assistant: () => <AssistantPanel />,
   graph: (props: IDockviewPanelProps<GraphParams>) => <GraphPanel {...props} />,
 };
 

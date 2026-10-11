@@ -311,6 +311,47 @@ test('imports GeoJSON into a projected network and exports GeoJSON and DXF', asy
   expect((await dxf).suggestedFilename()).toBe('mains.dxf');
 });
 
+test('the assistant answers with tools, showing each call', async ({ page }) => {
+  // A scripted model: run the analysis, look at pressures, then answer.
+  const bodies: { messages: { role: string; content: { type: string; content?: string }[] }[] }[] = [];
+  const replies = [
+    { content: [{ type: 'tool_use', id: 't1', name: 'run_analysis', input: {} }], stop_reason: 'tool_use' },
+    {
+      content: [
+        {
+          type: 'tool_use',
+          id: 't2',
+          name: 'get_results_slice',
+          input: { variable: 'pressure', top: 1, types: ['junction'] },
+        },
+      ],
+      stop_reason: 'tool_use',
+    },
+    { content: [{ type: 'text', text: 'The lowest pressure is at junction 32.' }], stop_reason: 'end_turn' },
+  ];
+  await page.route('https://api.anthropic.com/v1/messages', async (route) => {
+    bodies.push(route.request().postDataJSON() as (typeof bodies)[number]);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(replies.shift()),
+    });
+  });
+  await ready(page);
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Analysis' }).click();
+  await page.getByRole('button', { name: 'Show assistant' }).click();
+  const panel = page.locator('.panel.assistant');
+  await panel.getByRole('textbox', { name: 'Message to the assistant' }).fill('Where is pressure lowest?');
+  await panel.getByRole('button', { name: 'Send' }).click();
+  await expect(panel.getByRole('log')).toContainText('The lowest pressure is at junction 32.');
+  await expect(panel.locator('.assistant-tool')).toHaveCount(2);
+  await expect(panel.locator('.assistant-tool').first()).toContainText('Used run_analysis');
+  await expect(page.getByTestId('run-status')).toContainText('Solved');
+  // The model got the engine's numbers back as tool results.
+  const last = bodies[2]!.messages.at(-1)!.content[0]!;
+  expect(JSON.parse(last.content!)).toMatchObject({ variable: 'pressure', lowest: [{ id: '32' }] });
+});
+
 for (const theme of ['light', 'dark'] as const) {
   test(`no WCAG 2.2 AA violations in the ${theme} theme`, async ({ page }) => {
     await ready(page);
@@ -325,6 +366,9 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(page.locator('.panel.graph figure')).toBeVisible();
     await page.getByRole('button', { name: 'Reports' }).click();
     await expect(page.locator('.panel.report .report-text')).toBeVisible();
+    await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Analysis' }).click();
+    await page.getByRole('button', { name: 'Show assistant' }).click();
+    await expect(page.locator('.panel.assistant')).toBeVisible();
     const results = await new AxeBuilder({ page })
       // dockview renders each tab's close button inside the tab (nested-interactive);
       // tracked upstream, and every panel can also be closed from the View tab.

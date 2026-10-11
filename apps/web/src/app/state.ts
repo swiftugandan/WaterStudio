@@ -14,7 +14,9 @@ import {
   type RunResults,
 } from '@waterstudio/engine-client';
 import type { RampName, RendererStatus } from '@waterstudio/render';
+import { Conversation } from './assistant.ts';
 import { Emitter } from './emitter.ts';
+import { ctime } from './time.ts';
 import type { GraphSpec } from './graphs.ts';
 import type { Prefs } from './prefs.ts';
 import type { ViewApi } from './view.ts';
@@ -50,21 +52,13 @@ export interface FilesState {
   error?: string;
 }
 
-/** The current time as C's `ctime` prints it (local time), without the newline. */
-export function ctime(d = new Date()): string {
-  const day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
-  const mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][
-    d.getMonth()
-  ];
-  const p2 = (n: number) => String(n).padStart(2, '0');
-  return `${day} ${mon} ${String(d.getDate()).padStart(2, ' ')} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())} ${d.getFullYear()}`;
-}
-
 export interface MapTheme {
   node: NodeVariable | null;
   link: LinkVariable | null;
   ramp: RampName;
 }
+
+export { ctime };
 
 export class AppState extends Emitter {
   store = new Store();
@@ -94,12 +88,15 @@ export class AppState extends Emitter {
   panels = new Set(['browser', 'properties', 'results', 'messages']);
   readonly engine: EngineClient;
   readonly prefs: Prefs;
+  /** The assistant conversation (kept when its panel closes). */
+  readonly conversation: Conversation;
   private unsubscribeStore: () => void = () => {};
 
   constructor(prefs: Prefs, engine = new EngineClient({ workers: 1 })) {
     super();
     this.prefs = prefs;
     this.engine = engine;
+    this.conversation = new Conversation(this);
     this.bindStore();
   }
 

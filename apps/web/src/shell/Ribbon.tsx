@@ -105,7 +105,10 @@ const TABS: Tab[] = [
   {
     id: 'analysis',
     label: 'Analysis',
-    groups: [{ label: 'Run', items: [{ cmd: 'analysis.run', size: 'large', label: 'Run hydraulics' }] }],
+    groups: [
+      { label: 'Run', items: [{ cmd: 'analysis.run', size: 'large', label: 'Run hydraulics' }] },
+      { label: 'AI', items: [{ cmd: 'view.panel.assistant', size: 'large', label: 'Assistant' }] },
+    ],
   },
   {
     id: 'results',
@@ -137,6 +140,7 @@ const TABS: Tab[] = [
           { cmd: 'view.panel.results', label: 'Results' },
           { cmd: 'view.panel.messages', label: 'Messages' },
           { cmd: 'view.panel.report', label: 'Reports' },
+          { cmd: 'view.panel.assistant', label: 'Assistant' },
         ],
       },
       {

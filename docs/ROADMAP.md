@@ -56,7 +56,8 @@ Gate: every EPANET 2.2 GUI function available; quality within tolerance; WCAG 2.
 - [x] `.out` and `.rpt` writers (ADR 0009): identical to `runepanet`'s on all 64 networks; app results follow the `.out`
 - [x] GeoJSON and DXF import and export (`@waterstudio/gis`); GeoJSON in longitude and latitude is projected to its UTM zone
 - [ ] Shapefile import and export
-- [ ] Read-only agent tools and the Assistant panel
+- [x] Read-only agent tools and the Assistant panel (`@waterstudio/agents`, ADR 0011): Anthropic and
+  OpenAI-compatible providers, every tool call shown
 
 ## Phase 3: Pro 1.0
 

@@ -36,6 +36,8 @@ export interface RunResults {
   times: number[];
   nodeCount: number;
   linkCount: number;
+  /** EPANET's last hydraulic warning code (0 if none; 1 unbalanced, 2 unstable, 4 pumps, 5 valves, 6 negative pressures). */
+  warning: number;
   node: Record<NodeVariable, Float32Array>;
   link: Record<LinkVariable, Float32Array>;
 }
@@ -49,6 +51,7 @@ interface Header {
   linkCount: number;
   nodeVariables: string[];
   linkVariables: string[];
+  warning?: number;
 }
 
 /** Decode the engine's binary reply. Columns are copied out of `bytes`. */
@@ -78,6 +81,7 @@ export function decodeResults(bytes: Uint8Array): RunResults {
     times: header.times,
     nodeCount: header.nodeCount,
     linkCount: header.linkCount,
+    warning: header.warning ?? 0,
     node,
     link,
   };
