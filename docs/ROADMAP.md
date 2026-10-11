@@ -35,11 +35,13 @@ budget on both renderers.
 - [x] EPANET head-error and flow-change convergence criteria
 - [x] Energy: pump energy, efficiency, cost, demand charge (computed; reporting in Phase 2)
 - [x] Determinism: native and WebAssembly bit-identical (ADR 0003), gated in CI
-- [ ] Worker pool with document snapshots and edit forwarding
-- [ ] Document store with exact undo/redo over columnar tables
-- [ ] Renderer: display list, WebGPU and Canvas 2D backends, picking
-- [ ] Shell: ribbon, docking panels, inspector, status bar, command palette
-- [ ] Draw, edit, run and colour the map
+- [x] Engine workers with typed requests (read, write, run); results as transferred f32 columns
+- [ ] Edit forwarding to long-lived engine instances (runs send a snapshot today)
+- [x] Document store with exact undo/redo over columnar tables, field catalogue, command bus
+- [x] Renderer: display list, WebGPU and Canvas 2D backends in a render worker, picking, device-loss fallback (ADR 0008)
+- [x] Shell: ribbon, docking panels, inspector, model browser, results table, status bar, command palette
+- [x] Draw, edit, run and colour the map; legends and time player
+- [ ] 50,000-pipe pan benchmark on both backends, gated in CI
 
 ## Phase 2: EPANET parity beta
 

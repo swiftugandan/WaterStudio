@@ -1,0 +1,25 @@
+{
+  "name": "@waterstudio/render",
+  "version": "0.0.1",
+  "private": true,
+  "description": "The network canvas: a backend-neutral scene drawn with WebGPU or Canvas 2D, a camera, and picking.",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@waterstudio/core": "workspace:*",
+    "@waterstudio/symbols": "workspace:*",
+    "@waterstudio/ui": "workspace:*",
+    "flatbush": "4.6.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "@webgpu/types": "0.1.74",
+    "vite": "8.3.2"
+  }
+}

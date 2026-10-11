@@ -35,7 +35,15 @@ export default tseslint.config(
   {
     files: ['**/*.tsx'],
     plugins: { 'react-hooks': reactHooks },
-    rules: reactHooks.configs.recommended.rules,
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      // These rules assume React state is the only state. App state lives in an external
+      // store (AppState) that components read through useSyncExternalStore and mutate
+      // through commands, which they flag as errors by design.
+      'react-hooks/immutability': 'off',
+      'react-hooks/refs': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+    },
   },
   {
     files: ['**/*.js', '**/*.mjs'],

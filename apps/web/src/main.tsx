@@ -2,12 +2,28 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@waterstudio/ui/tokens.css';
 import './app.css';
-import { App } from './App.tsx';
+import { createCommands } from './app/commands.ts';
+import { AppContext } from './app/context.tsx';
+import { Prefs } from './app/prefs.ts';
+import { AppState } from './app/state.ts';
+import { App } from './shell/App.tsx';
+
+const prefs = new Prefs();
+const state = new AppState(prefs);
+prefs.subscribe(() => state.emit());
+const bus = createCommands(state);
+// Exposed for tests and the browser console.
+(globalThis as { waterstudio?: unknown }).waterstudio = { state, bus };
 
 const root = document.getElementById('root');
 if (!root) throw new Error('missing #root');
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <AppContext.Provider value={{ state, bus }}>
+      <App />
+    </AppContext.Provider>
   </StrictMode>,
 );
+
+// Start with a sample so the map is never empty on first visit.
+void bus.execute('file.sample.Net1');

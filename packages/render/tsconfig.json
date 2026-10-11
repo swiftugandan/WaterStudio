@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "erasableSyntaxOnly": true,
+    "allowImportingTsExtensions": true,
+    "lib": ["es2023", "dom", "dom.iterable", "webworker"],
+    "types": ["vite/client", "node", "@webgpu/types"]
+  },
+  "include": ["src"]
+}

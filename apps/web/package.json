@@ -13,9 +13,12 @@
     "e2e": "playwright test"
   },
   "dependencies": {
+    "@waterstudio/core": "workspace:*",
     "@waterstudio/engine-client": "workspace:*",
+    "@waterstudio/render": "workspace:*",
     "@waterstudio/symbols": "workspace:*",
     "@waterstudio/ui": "workspace:*",
+    "dockview-react": "8.4.0",
     "lucide-react": "1.51.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
