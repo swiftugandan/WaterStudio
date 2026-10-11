@@ -52,7 +52,7 @@ Gate: every EPANET 2.2 GUI function available; quality within tolerance; WCAG 2.
 - [x] Graphs: time series, profile, frequency, system flow, each with a data table; time player
 - [x] Reports: status log, energy, reaction rates, full report; .rpt and .out downloads
 - [ ] Contour plot and calibration report
-- [ ] MapLibre basemap, CRS, backdrop images
+- [x] MapLibre basemap, CRS, backdrop images (ADR 0010)
 - [x] `.out` and `.rpt` writers (ADR 0009): identical to `runepanet`'s on all 64 networks; app results follow the `.out`
 - [ ] GIS and DXF import and export
 - [ ] Read-only agent tools and the Assistant panel

@@ -25,6 +25,8 @@ export interface RendererOptions {
   worker?: boolean;
   onStatus?: (s: RendererStatus) => void;
   onFrame?: (ms: number) => void;
+  /** Called whenever the view changes, with the camera about to be drawn. */
+  onCamera?: (camera: Camera) => void;
 }
 
 export class Renderer {
@@ -173,6 +175,7 @@ export class Renderer {
 
   /** Draw the current camera. Cheap to call on every pointer move. */
   redraw(): void {
+    this.options.onCamera?.(this.camera);
     this.post({ t: 'camera', camera: this.camera.state() });
   }
 

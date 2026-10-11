@@ -7,6 +7,10 @@ import {
   ChartLine,
   Command,
   FileText,
+  Globe,
+  Image,
+  ImageOff,
+  Map as MapIcon,
   Mountain,
   FilePlus,
   FolderOpen,
@@ -62,6 +66,10 @@ const LUCIDE: Record<string, LucideIcon> = {
   mountain: Mountain,
   'arrow-left-right': ArrowLeftRight,
   'file-text': FileText,
+  globe: Globe,
+  image: Image,
+  'image-off': ImageOff,
+  map: MapIcon,
 };
 
 const HYDRAULIC = new Set<string>(hydraulicIconNames);

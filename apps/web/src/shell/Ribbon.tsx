@@ -159,6 +159,15 @@ const TABS: Tab[] = [
           { cmd: 'view.renderer.canvas2d', label: 'Canvas 2D' },
         ],
       },
+      {
+        label: 'Map',
+        items: [
+          { cmd: 'view.basemap', size: 'large', label: 'Street map' },
+          { cmd: 'map.crs', size: 'large', label: 'Coordinates' },
+          { cmd: 'map.backdrop', label: 'Backdrop' },
+          { cmd: 'map.backdrop.hide', label: 'No backdrop' },
+        ],
+      },
       { label: 'Find', items: [{ cmd: 'view.palette', size: 'large', label: 'Commands' }] },
     ],
   },

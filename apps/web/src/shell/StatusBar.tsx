@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../app/context.tsx';
+import { crsText } from '../geo/model.ts';
 
 export function StatusBar() {
   const { state } = useApp();
@@ -25,6 +26,7 @@ export function StatusBar() {
       {state.selection.size > 0 && <span>{state.selection.size} selected</span>}
       <span className="spacer" />
       <span className="mono">{cursor ? `${cursor[0].toFixed(2)}, ${cursor[1].toFixed(2)}` : '—'}</span>
+      <span title="Coordinate system (View › Coordinates)">{crsText(doc.data.backdrop) ?? 'No CRS'}</span>
       <span>
         {u.flow} · {u.headloss}
       </span>

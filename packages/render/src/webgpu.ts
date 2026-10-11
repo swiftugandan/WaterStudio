@@ -239,7 +239,7 @@ export class WebGPUBackend implements Backend {
     this.canvas = canvas;
     this.device = device;
     this.context = context;
-    context.configure({ device, format, alphaMode: 'opaque' });
+    context.configure({ device, format, alphaMode: 'premultiplied' });
     void device.lost.then((info) => this.onLost?.(info.message || 'GPU device lost'));
     device.addEventListener('uncapturederror', (e) => {
       this.onError?.(e.error.message);
@@ -501,13 +501,15 @@ export class WebGPUBackend implements Backend {
   render(frame: Frame): void {
     const s = this.scene;
     const t = this.theme;
-    const [br, bg, bb] = rgb(t?.background ?? '#ffffff');
+    const clear = t?.background ?? '#ffffff';
+    const [br, bg, bb] = clear === 'transparent' ? [0, 0, 0] : rgb(clear);
+    const ba = clear === 'transparent' ? 0 : 1;
     const encoder = this.device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
       colorAttachments: [
         {
           view: this.context.getCurrentTexture().createView(),
-          clearValue: { r: br, g: bg, b: bb, a: 1 },
+          clearValue: { r: br, g: bg, b: bb, a: ba },
           loadOp: 'clear',
           storeOp: 'store',
         },

@@ -84,6 +84,10 @@ export class AppState extends Emitter {
   renderer: RendererStatus = { backend: null };
   cursor: [number, number] | null = null;
   paletteOpen = false;
+  /** Whether the street map is drawn under the network (set by the map view). */
+  basemapShown = false;
+  /** A backdrop image loaded this session (EPANET records only its file name). */
+  backdrop: { url: string; name: string } | null = null;
   view: ViewApi | null = null;
   private graphRequests: GraphSpec[] = [];
   /** Panels the user has open, by id. */
@@ -187,6 +191,8 @@ export class AppState extends Emitter {
     this.hover = null;
     this.run = { status: 'idle' };
     this.files = {};
+    if (this.backdrop) URL.revokeObjectURL(this.backdrop.url);
+    this.backdrop = null;
     this.period = 0;
     const errors = issues.filter((i) => i.severity === 'error').length;
     this.log(

@@ -3,10 +3,13 @@
  * colour classes, and per-element flags (selected, hovered, hidden).
  */
 
-import { colormaps, themes, type ThemeName } from '@waterstudio/ui';
+import { colormaps, palette, themes, type ThemeName } from '@waterstudio/ui';
 
 export interface Theme {
+  /** A colour, or 'transparent' to let a basemap show through. */
   background: string;
+  /** Fill inside symbols (tanks, reservoirs); the background when absent. */
+  symbolFill?: string;
   grid: string;
   link: string;
   node: string;
@@ -15,8 +18,24 @@ export interface Theme {
   hover: string;
 }
 
-export function themeFor(name: ThemeName): Theme {
+/**
+ * The canvas colours for a UI theme. Over a basemap the canvas is transparent and the
+ * network is drawn dark, to read against light map tiles.
+ */
+export function themeFor(name: ThemeName, overBasemap = false): Theme {
   const t = themes[name];
+  if (overBasemap) {
+    return {
+      background: 'transparent',
+      symbolFill: palette.white,
+      grid: 'transparent',
+      link: palette.neutral[700],
+      node: palette.neutral[850],
+      label: palette.neutral[800],
+      selection: palette.orange[600],
+      hover: palette.blue[600],
+    };
+  }
   return {
     background: t.canvasBg,
     grid: t.canvasGrid,

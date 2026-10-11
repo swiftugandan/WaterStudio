@@ -20,6 +20,8 @@
     "@waterstudio/ui": "workspace:*",
     "dockview-react": "8.4.0",
     "lucide-react": "1.51.0",
+    "maplibre-gl": "6.11.2",
+    "proj4": "2.22.0",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },

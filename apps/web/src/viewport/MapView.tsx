@@ -27,6 +27,8 @@ import {
 } from '@waterstudio/render';
 import { useEffect, useRef, useState } from 'react';
 import { useApp, useAppContext } from '../app/context.tsx';
+import { Basemap, OSM_ATTRIBUTION } from '../geo/basemap.ts';
+import { backdropPlacement, modelCrs, type ModelCrs } from '../geo/model.ts';
 import type { AppState } from '../app/state.ts';
 import { variableLabel } from '../shell/Ribbon.tsx';
 import { computePaint, legendOf, VARIABLE_QUANTITY } from './paint.ts';
@@ -85,10 +87,30 @@ class MapController {
   private readonly state: AppState;
   frames = 0;
   frameMs = 0;
+  private readonly basemap: Basemap;
+  private readonly backdrop: HTMLImageElement;
+  private backdropUrl: string | null = null;
+  private transparent = false;
+  private crsKey = '';
+  /** The coordinate system the basemap is shown in, or null when it is hidden. */
+  shownCrs: ModelCrs | null = null;
 
   constructor(container: HTMLElement, state: AppState) {
     this.state = state;
+    this.backdrop = document.createElement('img');
+    this.backdrop.className = 'backdrop';
+    this.backdrop.alt = '';
+    this.backdrop.hidden = true;
+    container.prepend(this.backdrop);
+    this.basemap = new Basemap(container, (reason) => {
+      state.log('warning', `The street map is unavailable here: ${reason}`);
+      this.updateBasemap(true);
+    });
     this.renderer = new Renderer(container, {
+      onCamera: (cam) => {
+        this.basemap.follow(cam);
+        this.placeBackdrop();
+      },
       prefer: state.prefs.renderer,
       onStatus: (s) => {
         state.renderer = s;
@@ -101,14 +123,60 @@ class MapController {
         this.frameMs += ms;
       },
     });
-    void this.renderer.setTheme(themeFor(state.prefs.resolvedTheme));
     this.renderer.setOptions({});
+    this.updateBasemap(true);
     this.sync();
+  }
+
+  /** Show or hide the basemap for the model's coordinate system and the preference. */
+  updateBasemap(force = false): void {
+    const s = this.state;
+    const key = `${s.generation}:${s.store.rev}:${s.prefs.basemap}:${s.prefs.resolvedTheme}:${s.backdrop?.url ?? ''}`;
+    if (!force && key === this.crsKey) return;
+    this.crsKey = key;
+    const want = s.prefs.basemap === 'on' && !this.basemap.failure ? modelCrs(s.store.doc) : null;
+    const changed = (want?.crs.code ?? null) !== (this.shownCrs?.crs.code ?? null);
+    this.shownCrs = want;
+    this.basemap.show(want?.crs ?? null);
+    // The network is drawn on a transparent canvas whenever something shows beneath it.
+    const transparent = want !== null || s.backdrop !== null;
+    if (transparent !== this.transparent || force) {
+      this.transparent = transparent;
+      void this.renderer.setTheme(themeFor(s.prefs.resolvedTheme, transparent));
+    }
+    if (changed) {
+      s.basemapShown = want !== null;
+      s.emit();
+    }
+  }
+
+  /** Position the backdrop image over its [BACKDROP] rectangle. */
+  placeBackdrop(): void {
+    const s = this.state;
+    const img = this.backdrop;
+    const url = s.backdrop?.url ?? null;
+    if (url !== this.backdropUrl) {
+      this.backdropUrl = url;
+      if (url) img.src = url;
+      else img.removeAttribute('src');
+    }
+    const at = url ? backdropPlacement(s.store.doc.data.backdrop) : null;
+    img.hidden = !at;
+    if (!at) return;
+    const cam = this.renderer.camera;
+    const [left, top] = cam.toScreen(Math.min(at.x1, at.x2), Math.max(at.y1, at.y2));
+    const [right, bottom] = cam.toScreen(Math.max(at.x1, at.x2), Math.min(at.y1, at.y2));
+    img.style.left = `${left}px`;
+    img.style.top = `${top}px`;
+    img.style.width = `${right - left}px`;
+    img.style.height = `${bottom - top}px`;
   }
 
   /** Called on every app state change. */
   sync(): void {
     const s = this.state;
+    this.updateBasemap();
+    this.placeBackdrop();
     if (s.generation !== this.generation) {
       this.generation = s.generation;
       this.unsubStore();
@@ -191,7 +259,7 @@ class MapController {
   }
 
   setTheme(): void {
-    void this.renderer.setTheme(themeFor(this.state.prefs.resolvedTheme));
+    this.updateBasemap(true);
     this.drawOverlay();
   }
 
@@ -338,6 +406,8 @@ class MapController {
     cancelAnimationFrame(this.frame);
     this.unsubStore();
     this.renderer.destroy();
+    this.basemap.destroy();
+    this.backdrop.remove();
   }
 }
 
@@ -365,6 +435,18 @@ function LegendBox({ title, legend, unit }: { title: string; legend: Legend; uni
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function Attribution() {
+  const { state } = useApp();
+  if (!state.basemapShown) return null;
+  return (
+    <div className="map-attribution">
+      <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+        {OSM_ATTRIBUTION}
+      </a>
     </div>
   );
 }
@@ -676,6 +758,7 @@ export function MapView() {
         />
       </div>
       <Legends />
+      <Attribution />
     </div>
   );
 }

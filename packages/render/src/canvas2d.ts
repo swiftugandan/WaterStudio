@@ -60,7 +60,7 @@ export class Canvas2DBackend implements Backend {
   private highlight: { links: Path2D; hover: Path2D; nodes: number[]; hoverNodes: number[] } | null = null;
 
   constructor(canvas: HTMLCanvasElement | OffscreenCanvas) {
-    const ctx = canvas.getContext('2d', { alpha: false }) as Ctx | null;
+    const ctx = canvas.getContext('2d') as Ctx | null;
     if (!ctx) throw new Error('Canvas 2D is not available');
     this.canvas = canvas;
     this.ctx = ctx;
@@ -229,8 +229,7 @@ export class Canvas2DBackend implements Backend {
       ctx = next;
     }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = t.background;
-    ctx.fillRect(0, 0, w, h);
+    paintBackground(ctx, t.background, w, h);
     // Scene coordinates to cache pixels: the cache's top left is (rect[0], rect[3]).
     ctx.setTransform(scale * dpr, 0, 0, -scale * dpr, -rect[0] * scale * dpr, rect[3] * scale * dpr);
     const b = s.bounds;
@@ -254,8 +253,7 @@ export class Canvas2DBackend implements Backend {
     const t = this.theme;
     const s = this.scene;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = t?.background ?? '#ffffff';
-    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    paintBackground(ctx, t?.background ?? '#ffffff', this.canvas.width, this.canvas.height);
     if (!s || !t) return;
 
     const scale = camera.scale;
@@ -359,4 +357,18 @@ function hiddenChanged(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return true;
   for (let i = 0; i < a.length; i++) if ((a[i]! ^ b[i]!) & FLAG_HIDDEN) return true;
   return false;
+}
+
+function paintBackground(
+  ctx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D,
+  colour: string,
+  w: number,
+  h: number,
+): void {
+  if (colour === 'transparent') {
+    ctx.clearRect(0, 0, w, h);
+    return;
+  }
+  ctx.fillStyle = colour;
+  ctx.fillRect(0, 0, w, h);
 }

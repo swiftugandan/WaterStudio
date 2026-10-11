@@ -185,6 +185,63 @@ test('shows EPANET reports and offers the files', async ({ page }) => {
   expect((await download).suggestedFilename()).toBe('Net1.out');
 });
 
+test('puts the network on a street map once it has a coordinate system', async ({ page }) => {
+  // Serve tiles locally: tests must not load the OpenStreetMap servers.
+  let tiles = 0;
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==',
+    'base64',
+  );
+  await page.route('https://tile.openstreetmap.org/**', (route) => {
+    tiles++;
+    return route.fulfill({ status: 200, contentType: 'image/png', body: png });
+  });
+  await ready(page);
+  await expect(page.locator('.statusbar')).toContainText('No CRS');
+  await expect(page.locator('.map-attribution')).toHaveCount(0);
+  page.on('dialog', (d) => void d.accept('EPSG:32633'));
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'View' }).click();
+  await page.getByRole('button', { name: 'Set coordinate system' }).click();
+  await expect(page.locator('.statusbar')).toContainText('EPSG:32633');
+  await expect(page.locator('.map-attribution')).toContainText('OpenStreetMap');
+  await expect(page.locator('.basemap canvas')).toBeVisible();
+  await expect.poll(() => tiles).toBeGreaterThan(0);
+  // The coordinate system is part of the model: undo removes it.
+  await page.keyboard.press('Control+z');
+  await expect(page.locator('.statusbar')).toContainText('No CRS');
+  await expect(page.locator('.map-attribution')).toHaveCount(0);
+});
+
+test('shows a backdrop image where [BACKDROP] places it', async ({ page }) => {
+  await ready(page);
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'View' }).click();
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Load backdrop image' }).click();
+  await (
+    await chooser
+  ).setFiles({
+    name: 'aerial.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==',
+      'base64',
+    ),
+  });
+  const img = page.locator('img.backdrop');
+  await expect(img).toBeVisible();
+  const box = (await img.boundingBox())!;
+  expect(box.width).toBeGreaterThan(50);
+  // Net1's [BACKDROP] already gives DIMENSIONS; the file name is recorded with them.
+  const backdrop = await ws(page, (w) =>
+    (
+      w.state.store.doc as unknown as { data: { backdrop: { lines: { tokens: string[] }[] } } }
+    ).data.backdrop.lines.map((l) => l.tokens.join(' ')),
+  );
+  expect(backdrop).toContain('FILE aerial.png');
+  await page.getByRole('button', { name: 'Remove backdrop image' }).click();
+  await expect(img).toBeHidden();
+});
+
 for (const theme of ['light', 'dark'] as const) {
   test(`no WCAG 2.2 AA violations in the ${theme} theme`, async ({ page }) => {
     await ready(page);

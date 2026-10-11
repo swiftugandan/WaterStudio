@@ -4,6 +4,8 @@
  */
 
 import { CommandBus, deleteElements, type Command } from '@waterstudio/core';
+import { resolveCrs } from '../geo/crs.ts';
+import { backdropPlacement, crsText, withBackdropLine, withCrs } from '../geo/model.ts';
 import { openFilePicker, saveTextFile } from './files.ts';
 import type { AppState, Tool } from './state.ts';
 
@@ -239,6 +241,89 @@ export function createCommands(state: AppState): CommandBus<AppState> {
       },
     })),
     {
+      id: 'view.basemap',
+      title: 'Street map under the network',
+      icon: 'map',
+      category: 'View',
+      checked: (s) => s.prefs.basemap === 'on',
+      run: (s) => s.prefs.set({ basemap: s.prefs.basemap === 'on' ? 'off' : 'on' }),
+    },
+    {
+      id: 'map.crs',
+      title: 'Set coordinate system…',
+      icon: 'globe',
+      category: 'Map',
+      run: (s) => {
+        const doc = s.store.doc;
+        const current = crsText(doc.data.backdrop) ?? '';
+        const answer = globalThis.prompt(
+          'Coordinate system of the network: an EPSG code (e.g. EPSG:32633 for UTM 33N, EPSG:27700, ' +
+            'EPSG:4326) or a proj4 definition. Leave empty for none.',
+          current,
+        );
+        if (answer === null) return;
+        const text = answer.trim();
+        if (text && !resolveCrs(text)) {
+          s.log(
+            'error',
+            `Unknown coordinate system "${text}". Use an EPSG code listed in the help, or proj4.`,
+          );
+          return;
+        }
+        if (text === current) return;
+        s.store.transact('Set coordinate system', (tx) =>
+          tx.setDoc('backdrop', withCrs(doc.data.backdrop, text || null)),
+        );
+        s.log(
+          'info',
+          text ? `Coordinate system set to ${resolveCrs(text)!.label}.` : 'Coordinate system removed.',
+        );
+      },
+    },
+    {
+      id: 'map.backdrop',
+      title: 'Load backdrop image…',
+      icon: 'image',
+      category: 'Map',
+      run: (s) =>
+        guarded(s, 'Backdrop failed', async () => {
+          const file = await openFilePicker('image/*');
+          if (!file) return;
+          const doc = s.store.doc;
+          let backdrop = withBackdropLine(doc.data.backdrop, 'FILE', [file.name]);
+          // Without DIMENSIONS, stretch the image over the network, as EPANET does.
+          if (!backdropPlacement(backdrop)) {
+            const b = networkBounds(s);
+            if (b)
+              backdrop = withBackdropLine(
+                backdrop,
+                'DIMENSIONS',
+                b.map((v) => String(v)),
+              );
+          }
+          s.store.transact('Load backdrop', (tx) => tx.setDoc('backdrop', backdrop));
+          if (s.backdrop) URL.revokeObjectURL(s.backdrop.url);
+          s.backdrop = { url: URL.createObjectURL(file), name: file.name };
+          s.log(
+            'info',
+            `Backdrop ${file.name} shown; its position is saved in [BACKDROP], the image is not.`,
+          );
+          s.emit();
+        }),
+    },
+    {
+      id: 'map.backdrop.hide',
+      title: 'Remove backdrop image',
+      icon: 'image-off',
+      category: 'Map',
+      enabled: (s) => s.backdrop !== null,
+      run: (s) => {
+        if (s.backdrop) URL.revokeObjectURL(s.backdrop.url);
+        s.backdrop = null;
+        s.emit();
+      },
+    },
+    {
       id: 'analysis.run',
       title: 'Run hydraulics',
       icon: 'run-hydraulics',
@@ -315,4 +400,17 @@ export function createCommands(state: AppState): CommandBus<AppState> {
     },
   );
   return bus;
+}
+
+/** The network's bounding box as [minX, minY, maxX, maxY], or null if it has no nodes. */
+function networkBounds(s: AppState): [number, number, number, number] | null {
+  const doc = s.store.doc;
+  let b: [number, number, number, number] | null = null;
+  for (const h of doc.nodeHandles()) {
+    const x = doc.num(h, 'x');
+    const y = doc.num(h, 'y');
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    b = b ? [Math.min(b[0], x), Math.min(b[1], y), Math.max(b[2], x), Math.max(b[3], y)] : [x, y, x, y];
+  }
+  return b;
 }

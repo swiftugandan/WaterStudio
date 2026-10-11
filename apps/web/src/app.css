@@ -903,3 +903,39 @@ input[type='search'] {
   border-radius: 2px;
   background: var(--ws-color-chart1);
 }
+
+/* Basemap under the network canvas (specific enough to beat MapLibre's own .maplibregl-map) */
+.map-host > .basemap {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.map-host > .backdrop {
+  position: absolute;
+  z-index: 1;
+  max-width: none;
+  pointer-events: none;
+  user-select: none;
+}
+.ws-canvas {
+  z-index: 2;
+}
+.map-overlay {
+  z-index: 3;
+}
+.legends {
+  z-index: 4;
+}
+.map-attribution {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  padding: 1px var(--ws-space-1);
+  background: var(--ws-color-bg-surface);
+  font-size: var(--ws-font-size-xs);
+  opacity: 0.9;
+}
+.map-attribution a {
+  color: var(--ws-color-text-secondary);
+}

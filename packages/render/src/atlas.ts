@@ -62,7 +62,9 @@ export async function buildAtlas(theme: Theme): Promise<Atlas> {
   if (!ctx) throw new Error('no 2D context for the symbol atlas');
   const rows = [theme.node, theme.selection];
   const images = await Promise.all(
-    rows.flatMap((fg) => ATLAS_SYMBOLS.map((id) => load(paint(symbolSvg(id), fg, theme.background)))),
+    rows.flatMap((fg) =>
+      ATLAS_SYMBOLS.map((id) => load(paint(symbolSvg(id), fg, theme.symbolFill ?? theme.background))),
+    ),
   );
   images.forEach((img, i) => {
     ctx.drawImage(img, (i % columns) * ATLAS_CELL, Math.floor(i / columns) * ATLAS_CELL);
