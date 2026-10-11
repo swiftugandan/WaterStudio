@@ -3,218 +3,149 @@
 /**
  * A simple control, kept as its tokens (parsed into meaning by the engine).
  */
-export type Control = { tokens: Array<string>; comment: string | null };
+export type Control = { tokens: Array<string>, comment: string | null, };
 
-export type Curve = {
-  id: string;
-  comment: string | null;
-  /**
-   * The type keyword written on the curve's lines, if any (EPANET 2.3).
-   */
-  kind: CurveKind | null;
-  points: Array<[number, number]>;
-};
+export type Curve = { id: string, comment: string | null, 
+/**
+ * The type keyword written on the curve's lines, if any (EPANET 2.3).
+ */
+kind: CurveKind | null, points: Array<[number, number]>, };
 
-export type CurveKind = 'volume' | 'pump' | 'efficiency' | 'headloss' | 'generic' | 'valve';
+export type CurveKind = "volume" | "pump" | "efficiency" | "headloss" | "generic" | "valve";
 
-export type Demand = {
-  base: number;
-  pattern: string | null;
-  /**
-   * Category name (the comment on a [DEMANDS] line).
-   */
-  category: string | null;
-};
+export type Demand = { base: number, pattern: string | null, 
+/**
+ * Category name (the comment on a [DEMANDS] line).
+ */
+category: string | null, };
 
-export type Junction = {
-  elevation: number;
-  /**
-   * Demand categories. EPANET always gives a junction at least one.
-   */
-  demands: Array<Demand>;
-  /**
-   * Emitter coefficient from [EMITTERS].
-   */
-  emitter: number | null;
-};
+export type Junction = { elevation: number, 
+/**
+ * Demand categories. EPANET always gives a junction at least one.
+ */
+demands: Array<Demand>, 
+/**
+ * Emitter coefficient from [EMITTERS].
+ */
+emitter: number | null, };
 
-export type KeywordLine = { tokens: Array<string>; comment: string | null };
+export type KeywordLine = { tokens: Array<string>, comment: string | null, };
 
 /**
  * An ordered list of keyword lines, kept exactly as tokenised.
  */
-export type KeywordSection = { lines: Array<KeywordLine> };
+export type KeywordSection = { lines: Array<KeywordLine>, };
 
-export type Label = { x: number; y: number; text: string; anchor: string | null };
+export type Label = { x: number, y: number, text: string, anchor: string | null, };
 
-export type Link = {
-  id: string;
-  from: string;
-  to: string;
-  kind: LinkKind;
-  comment: string | null;
-  tag: string | null;
-  vertices: Array<[number, number]>;
-};
+export type Link = { id: string, from: string, to: string, kind: LinkKind, comment: string | null, tag: string | null, vertices: Array<[number, number]>, };
 
-export type LinkKind = ({ type: 'pipe' } & Pipe) | ({ type: 'pump' } & Pump) | ({ type: 'valve' } & Valve);
+export type LinkKind = { "type": "pipe" } & Pipe | { "type": "pump" } & Pump | { "type": "valve" } & Valve;
 
-export type MixModel = 'mixed' | 'twoComp' | 'fifo' | 'lifo';
+export type MixModel = "mixed" | "twoComp" | "fifo" | "lifo";
 
-export type Mixing = {
-  model: MixModel;
-  /**
-   * Mixing-zone volume fraction (2COMP only; EPANET uses 1 otherwise).
-   */
-  fraction: number;
-};
+export type Mixing = { model: MixModel, 
+/**
+ * Mixing-zone volume fraction (2COMP only; EPANET uses 1 otherwise).
+ */
+fraction: number, };
 
 /**
  * A whole network model.
  */
-export type Model = {
-  /**
-   * [TITLE] lines. EPANET reads the first three.
-   */
-  title: Array<string>;
-  nodes: Array<Node>;
-  links: Array<Link>;
-  patterns: Array<Pattern>;
-  curves: Array<Curve>;
-  controls: Array<Control>;
-  rules: Array<Rule>;
-  options: KeywordSection;
-  times: KeywordSection;
-  report: KeywordSection;
-  /**
-   * Global [ENERGY] lines (GLOBAL ..., DEMAND CHARGE). Pump lines live on pumps.
-   */
-  energy: KeywordSection;
-  /**
-   * Global [REACTIONS] lines (ORDER, GLOBAL, LIMITING, ROUGHNESS). Element lines live on elements.
-   */
-  reactions: KeywordSection;
-  backdrop: KeywordSection;
-  labels: Array<Label>;
-  /**
-   * Sections EPANET does not know, kept verbatim with their header.
-   */
-  extraSections: Array<RawSection>;
-};
+export type Model = { 
+/**
+ * [TITLE] lines. EPANET reads the first three.
+ */
+title: Array<string>, nodes: Array<Node>, links: Array<Link>, patterns: Array<Pattern>, curves: Array<Curve>, controls: Array<Control>, rules: Array<Rule>, options: KeywordSection, times: KeywordSection, report: KeywordSection, 
+/**
+ * Global [ENERGY] lines (GLOBAL ..., DEMAND CHARGE). Pump lines live on pumps.
+ */
+energy: KeywordSection, 
+/**
+ * Global [REACTIONS] lines (ORDER, GLOBAL, LIMITING, ROUGHNESS). Element lines live on elements.
+ */
+reactions: KeywordSection, backdrop: KeywordSection, labels: Array<Label>, 
+/**
+ * Sections EPANET does not know, kept verbatim with their header.
+ */
+extraSections: Array<RawSection>, };
 
-export type Node = {
-  id: string;
-  kind: NodeKind;
-  /**
-   * EPANET's description: the comment on the element's line.
-   */
-  comment: string | null;
-  tag: string | null;
-  coordinates: [number, number] | null;
-  /**
-   * Initial water quality from [QUALITY].
-   */
-  initialQuality: number | null;
-  source: Source | null;
-};
+export type Node = { id: string, kind: NodeKind, 
+/**
+ * EPANET's description: the comment on the element's line.
+ */
+comment: string | null, tag: string | null, coordinates: [number, number] | null, 
+/**
+ * Initial water quality from [QUALITY].
+ */
+initialQuality: number | null, source: Source | null, };
 
-export type NodeKind =
-  ({ type: 'junction' } & Junction) | ({ type: 'reservoir' } & Reservoir) | ({ type: 'tank' } & Tank);
+export type NodeKind = { "type": "junction" } & Junction | { "type": "reservoir" } & Reservoir | { "type": "tank" } & Tank;
 
-export type OpenClosed = 'open' | 'closed';
+export type OpenClosed = "open" | "closed";
 
-export type Pattern = { id: string; comment: string | null; multipliers: Array<number> };
+export type Pattern = { id: string, comment: string | null, multipliers: Array<number>, };
 
-export type Pipe = {
-  length: number;
-  diameter: number;
-  roughness: number;
-  minorLoss: number;
-  status: PipeStatus;
-  /**
-   * FAVAD leakage from [LEAKAGE]: (area coefficient, expansion coefficient).
-   */
-  leakage: [number, number] | null;
-  bulkCoeff: number | null;
-  wallCoeff: number | null;
-};
+export type Pipe = { length: number, diameter: number, roughness: number, minorLoss: number, status: PipeStatus, 
+/**
+ * FAVAD leakage from [LEAKAGE]: (area coefficient, expansion coefficient).
+ */
+leakage: [number, number] | null, bulkCoeff: number | null, wallCoeff: number | null, };
 
-export type PipeStatus = 'open' | 'closed' | 'checkValve';
+export type PipeStatus = "open" | "closed" | "checkValve";
 
-export type Pump = {
-  curve: PumpCurve | null;
-  /**
-   * Relative speed (EPANET's initial setting).
-   */
-  speed: number;
-  pattern: string | null;
-  status: OpenClosed;
-  price: number | null;
-  pricePattern: string | null;
-  efficiencyCurve: string | null;
-};
+export type Pump = { curve: PumpCurve | null, 
+/**
+ * Relative speed (EPANET's initial setting).
+ */
+speed: number, pattern: string | null, status: OpenClosed, price: number | null, pricePattern: string | null, efficiencyCurve: string | null, };
 
-export type PumpCurve = { type: 'head'; value: string } | { type: 'power'; value: number };
+export type PumpCurve = { "type": "head", "value": string } | { "type": "power", "value": number };
 
-export type RawSection = { header: string; lines: Array<string> };
+export type RawSection = { header: string, lines: Array<string>, };
 
-export type Reservoir = {
-  /**
-   * Head, which is also the node's elevation (EPANET reports pressure relative to it).
-   */
-  head: number;
-  pattern: string | null;
-  /**
-   * A level above `head` that EPANET adds to the fixed head. Only a tank line with
-   * zero diameter produces it (EPANET makes such a tank a reservoir whose head is
-   * elevation + initial level); it is 0 for every ordinary reservoir.
-   */
-  level: number;
-};
+export type Reservoir = { 
+/**
+ * Head, which is also the node's elevation (EPANET reports pressure relative to it).
+ */
+head: number, pattern: string | null, 
+/**
+ * A level above `head` that EPANET adds to the fixed head. Only a tank line with
+ * zero diameter produces it (EPANET makes such a tank a reservoir whose head is
+ * elevation + initial level); it is 0 for every ordinary reservoir.
+ */
+level: number, };
 
 /**
  * A rule-based control, kept as the text of its lines.
  */
-export type Rule = { name: string; lines: Array<string> };
+export type Rule = { name: string, lines: Array<string>, };
 
-export type Source = { kind: SourceKind; strength: number; pattern: string | null };
+export type Source = { kind: SourceKind, strength: number, pattern: string | null, };
 
-export type SourceKind = 'concen' | 'mass' | 'setpoint' | 'flowPaced';
+export type SourceKind = "concen" | "mass" | "setpoint" | "flowPaced";
 
-export type Tank = {
-  elevation: number;
-  initLevel: number;
-  minLevel: number;
-  maxLevel: number;
-  diameter: number;
-  minVolume: number;
-  volumeCurve: string | null;
-  /**
-   * The ninth column: `Some(true)` for YES, `Some(false)` for NO.
-   */
-  overflow: boolean | null;
-  mixing: Mixing | null;
-  /**
-   * Tank bulk reaction coefficient from [REACTIONS] TANK.
-   */
-  bulkCoeff: number | null;
-};
+export type Tank = { elevation: number, initLevel: number, minLevel: number, maxLevel: number, diameter: number, minVolume: number, volumeCurve: string | null, 
+/**
+ * The ninth column: `Some(true)` for YES, `Some(false)` for NO.
+ */
+overflow: boolean | null, mixing: Mixing | null, 
+/**
+ * Tank bulk reaction coefficient from [REACTIONS] TANK.
+ */
+bulkCoeff: number | null, };
 
-export type Valve = {
-  valveType: ValveType;
-  diameter: number;
-  setting: ValveSetting;
-  minorLoss: number;
-  /**
-   * Position-loss curve of a PCV (EPANET 2.3).
-   */
-  pcvCurve: string | null;
-  /**
-   * A fixed status from [STATUS]; `None` means the valve controls (ACTIVE).
-   */
-  fixedStatus: OpenClosed | null;
-};
+export type Valve = { valveType: ValveType, diameter: number, setting: ValveSetting, minorLoss: number, 
+/**
+ * Position-loss curve of a PCV (EPANET 2.3).
+ */
+pcvCurve: string | null, 
+/**
+ * A fixed status from [STATUS]; `None` means the valve controls (ACTIVE).
+ */
+fixedStatus: OpenClosed | null, };
 
-export type ValveSetting = { type: 'value'; value: number } | { type: 'curve'; value: string };
+export type ValveSetting = { "type": "value", "value": number } | { "type": "curve", "value": string };
 
-export type ValveType = 'prv' | 'psv' | 'pbv' | 'fcv' | 'tcv' | 'gpv' | 'pcv';
+export type ValveType = "prv" | "psv" | "pbv" | "fcv" | "tcv" | "gpv" | "pcv";
