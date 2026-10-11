@@ -25,7 +25,7 @@ your models never leave it unless you choose.
 
 | Path | What it is |
 | --- | --- |
-| `engine/` | Rust workspace: the hydraulic solver (`ws-hyd`, forked from [epanet-rs](https://github.com/vitens/epanet-rs)), studies (`ws-study`), the WebAssembly boundary (`ws-wasm`) and the parity harness (`ws-parity`) |
+| `engine/` | Rust workspace: the canonical model (`ws-model`), the `.inp` reader and writer (`ws-io`), the hydraulic engine (`ws-solver`, a port of OWA-EPANET that is bit-identical to it), studies (`ws-study`), the WebAssembly boundary (`ws-wasm`), the parity harness (`ws-parity`), the `ws` command line (`ws-cli`), and `ws-hyd`, an [epanet-rs](https://github.com/vitens/epanet-rs) fork kept as a benchmark |
 | `oracle/` | Builds OWA-EPANET at a pinned release and compares our results with it |
 | `scripts/` | Build and verification scripts |
 | `docs/` | Plan, roadmap, architecture decisions (`docs/adr/`) and parity reports |
@@ -56,6 +56,11 @@ development: small changes, straight to `main`, always green.
 ## Licence
 
 Dual-licensed under either [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your option.
+`engine/ws-solver` is a port of [OWA-EPANET](https://github.com/OpenWaterAnalytics/EPANET) (MIT; see
+[LICENSES/OWA-EPANET.txt](LICENSES/OWA-EPANET.txt)). Its `math` module ports ARM
+[optimized-routines](https://github.com/ARM-software/optimized-routines) (MIT OR Apache-2.0 WITH LLVM-exception; see
+[LICENSES/ARM-optimized-routines.txt](LICENSES/ARM-optimized-routines.txt)).
+
 `engine/ws-hyd` is derived from [epanet-rs](https://github.com/vitens/epanet-rs) by Abel Heinsbroek (Vitens N.V.),
 under the same dual licence; see [engine/ws-hyd/FORK.md](engine/ws-hyd/FORK.md).
 

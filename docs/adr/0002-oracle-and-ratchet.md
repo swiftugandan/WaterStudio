@@ -1,6 +1,6 @@
 # ADR 0002: OWA-EPANET as the oracle, with a ratchet
 
-- Status: accepted
+- Status: accepted; amended 2026-10-11 (the gate is bit-identity, see below)
 - Date: 2026-10-10
 
 ## Context
@@ -25,3 +25,11 @@ ways unit tests do not catch: a valve state rule, a convergence criterion, a rep
   that matters, compare through the toolkit API instead.
 - Two correct solvers can stop at different iterates within EPANET's ACCURACY. `compare.py --accuracy 1e-8`
   separates that from real algorithmic differences.
+
+## Amendment (2026-10-11)
+
+Once `ws-solver` (ADR 0006) matched the reference exactly, the comparison moved from the binary output file to the
+toolkit API, read in double precision, with glibc pinned to its portable math routines (ADR 0003). The gate is now
+that every value is identical to the bit; the tolerances above are still computed and reported for information.
+`known-failures.txt` lists networks that are not bit-identical, and is empty. The `--accuracy` option was removed:
+EPANET clamps ACCURACY to at least 1e-5, so it never compared converged solutions.

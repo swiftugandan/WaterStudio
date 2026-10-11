@@ -1,17 +1,23 @@
 //! Studies over a network. For now: an extended-period hydraulic run reported the
 //! way EPANET reports it, shared by the native parity harness and the WebAssembly
 //! engine so both produce identical numbers.
+//!
+//! [`run_hydraulics_inp`] uses WaterStudio's engine (`ws-solver`, a port of
+//! OWA-EPANET). [`run_hydraulics_reference`] uses the epanet-rs fork (`ws-hyd`), kept
+//! as an independent implementation to benchmark against (ADR 0006).
 
 use epanet_rs::model::network::Network;
 use epanet_rs::simulation::Simulation;
 use serde::Serialize;
 
-/// Results of a hydraulic run at every report step, in the network's own units.
-/// Series are indexed `[step][element]`; step k is at time `k * report_step` seconds.
+/// Results of a hydraulic run at every report period, in the network's own units.
+/// Series are indexed `[period][element]`; period k is at
+/// `report_start + k * report_step` seconds.
 #[derive(Debug, Serialize)]
 pub struct HydraulicReport {
     pub engine: &'static str,
-    pub report_step: usize,
+    pub report_start: i64,
+    pub report_step: i64,
     pub nodes: Vec<String>,
     pub links: Vec<String>,
     pub heads: Vec<Vec<f64>>,
@@ -19,8 +25,36 @@ pub struct HydraulicReport {
     pub flows: Vec<Vec<f64>>,
 }
 
-/// Solve a network's hydraulics over its whole duration.
-pub fn run_hydraulics(network: Network) -> Result<HydraulicReport, String> {
+/// Read INP text and solve its hydraulics with WaterStudio's engine.
+pub fn run_hydraulics_inp(text: &str) -> Result<HydraulicReport, String> {
+    let read = ws_io::read_inp(text);
+    if let Some(issue) = read.errors().next() {
+        return Err(format!(
+            "input: line {} [{}]: {}",
+            issue.line, issue.section, issue.message
+        ));
+    }
+    run_hydraulics(&read.model)
+}
+
+/// Solve a model's hydraulics over its whole duration with WaterStudio's engine.
+pub fn run_hydraulics(model: &ws_model::Model) -> Result<HydraulicReport, String> {
+    let r = ws_solver::solve_hydraulics(model).map_err(|e| e.to_string())?;
+    Ok(HydraulicReport {
+        engine: concat!("waterstudio-engine ", env!("CARGO_PKG_VERSION")),
+        report_start: r.report_start,
+        report_step: r.report_step,
+        nodes: r.node_ids,
+        links: r.link_ids,
+        heads: r.heads,
+        demands: r.demands,
+        flows: r.flows,
+    })
+}
+
+/// Solve INP text with the epanet-rs fork, for benchmarking.
+pub fn run_hydraulics_reference(text: &str) -> Result<HydraulicReport, String> {
+    let network = Network::from_inp_str(text).map_err(|e| format!("input: {e}"))?;
     let mut sim = Simulation::new(network);
     // Step through every hydraulic event, as EPANET does, rather than jumping
     // straight between report times.
@@ -31,20 +65,15 @@ pub fn run_hydraulics(network: Network) -> Result<HydraulicReport, String> {
     let net = &sim.network;
     let demands = fixed_grade_demands(net, result.demands, &result.flows);
     Ok(HydraulicReport {
-        engine: concat!("waterstudio-engine ", env!("CARGO_PKG_VERSION")),
-        report_step: net.options.time_options.report_timestep,
+        engine: concat!("epanet-rs fork ", env!("CARGO_PKG_VERSION")),
+        report_start: 0,
+        report_step: net.options.time_options.report_timestep as i64,
         nodes: net.nodes.iter().map(|n| n.id.to_string()).collect(),
         links: net.links.iter().map(|l| l.id.to_string()).collect(),
         heads: result.heads,
         demands,
         flows: result.flows,
     })
-}
-
-/// Parse INP text and solve it.
-pub fn run_hydraulics_inp(text: &str) -> Result<HydraulicReport, String> {
-    let network = Network::from_inp_str(text).map_err(|e| format!("input: {e}"))?;
-    run_hydraulics(network)
 }
 
 /// EPANET reports a reservoir's or tank's "demand" as its net inflow from the

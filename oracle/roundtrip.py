@@ -20,7 +20,7 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from compare import ENR_LINK, ENR_NODE, ENR_NUM_PERIODS, OutFile, load_lib  # noqa: E402
+from enr import ENR_LINK, ENR_NODE, ENR_NUM_PERIODS, OutFile, load_lib  # noqa: E402
 
 NODE_ATTRS = {1: "demand", 2: "head", 3: "pressure", 4: "quality"}
 LINK_ATTRS = {1: "flow", 2: "velocity", 3: "headloss", 4: "quality", 5: "status",

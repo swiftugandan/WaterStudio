@@ -604,8 +604,16 @@ mod tests {
         let b = read_inp(&write_inp(&a.model));
         let ids = |r: &crate::ReadResult| {
             (
-                r.model.nodes.iter().map(|n| n.id.clone()).collect::<Vec<_>>(),
-                r.model.links.iter().map(|l| l.id.clone()).collect::<Vec<_>>(),
+                r.model
+                    .nodes
+                    .iter()
+                    .map(|n| n.id.clone())
+                    .collect::<Vec<_>>(),
+                r.model
+                    .links
+                    .iter()
+                    .map(|l| l.id.clone())
+                    .collect::<Vec<_>>(),
             )
         };
         assert_eq!(ids(&a), ids(&b));

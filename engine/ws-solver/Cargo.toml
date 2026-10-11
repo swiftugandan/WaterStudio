@@ -1,0 +1,17 @@
+[package]
+name = "ws-solver"
+description = "WaterStudio's hydraulic engine: a Rust port of OWA-EPANET 2.3.5's Global Gradient Algorithm."
+version.workspace = true
+edition.workspace = true
+license = "MIT"
+authors = ["WaterStudio contributors", "OWA-EPANET authors (see LICENSES/OWA-EPANET-AUTHORS.txt)"]
+
+[dependencies]
+ws-model = { workspace = true }
+ws-io = { workspace = true }
+
+[dev-dependencies]
+ws-io = { workspace = true }
+
+[lints]
+workspace = true

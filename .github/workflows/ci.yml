@@ -30,7 +30,7 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --release --all-targets -- -D warnings
       - run: cargo test --release
-      - run: cargo build --release
+      - run: cargo build --release --bins --examples
       - run: cargo build --release --target wasm32-unknown-unknown -p ws-wasm
       - uses: actions/upload-artifact@v7
         with:
@@ -38,6 +38,7 @@ jobs:
           path: |
             engine/target/release/ws-parity
             engine/target/release/ws
+            engine/target/release/examples/mathbits
             engine/target/wasm32-unknown-unknown/release/ws_wasm.wasm
           retention-days: 7
 
@@ -55,7 +56,7 @@ jobs:
           name: engine-builds
           path: engine/target
       - name: Restore executable bits
-        run: chmod +x engine/target/release/ws-parity engine/target/release/ws
+        run: chmod +x engine/target/release/ws-parity engine/target/release/ws engine/target/release/examples/mathbits
       - uses: actions/cache@v6
         with:
           path: oracle/.build
@@ -67,6 +68,8 @@ jobs:
       - run: oracle/build.sh
       - run: oracle/fetch-corpus.sh
       - run: oracle/roundtrip.sh
+      - name: Math library bits match glibc
+        run: python3 -I oracle/math-bits.py engine/target/release/examples/mathbits
       - run: oracle/parity.sh --write-doc
       - name: Parity report
         if: always()
