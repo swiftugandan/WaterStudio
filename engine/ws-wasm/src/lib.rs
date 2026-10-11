@@ -11,6 +11,7 @@
 //! - `ws_run_files`: `{ model, inpName, date, statusLog }` JSON -> EPANET's report and output file:
 //!   a u32 report length, the report text, then the binary output file
 //! - `ws_run_hydraulics_inp`: .inp text -> JSON report (the parity harness's format)
+//! - `ws_msx`: `{ model, msx, fileName }` JSON -> binary results with every species added
 //!
 //! This is the only crate in the workspace allowed `unsafe`, and only here.
 
@@ -113,6 +114,39 @@ pub unsafe extern "C" fn ws_run(ptr: *const u8, len: usize) -> *mut u8 {
     let outcome = serde_json::from_slice::<ws_model::Model>(bytes)
         .map_err(|e| format!("model: {e}"))
         .and_then(|m| ws_study::run::run_model(&m, None))
+        .and_then(|r| {
+            ws_study::run::encode(
+                &r,
+                concat!("waterstudio-engine ", env!("CARGO_PKG_VERSION")),
+            )
+        });
+    reply(outcome)
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MsxRequest {
+    model: ws_model::Model,
+    /// The EPANET-MSX input file's text.
+    msx: String,
+    /// Its name, for messages.
+    #[serde(default)]
+    file_name: String,
+}
+
+/// Run a model's hydraulics and an EPANET-MSX analysis; binary results as `ws_run`
+/// with the species' columns added (see `ws_study::run::encode`). On an input error
+/// the message lists each bad line.
+///
+/// # Safety
+/// `ptr..ptr+len` must be readable memory the host wrote.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ws_msx(ptr: *const u8, len: usize) -> *mut u8 {
+    // SAFETY: guaranteed by the caller.
+    let bytes = unsafe { std::slice::from_raw_parts(ptr, len) };
+    let outcome = serde_json::from_slice::<MsxRequest>(bytes)
+        .map_err(|e| format!("request: {e}"))
+        .and_then(|req| ws_study::msx::run_msx(&req.model, &req.msx, &req.file_name))
         .and_then(|r| {
             ws_study::run::encode(
                 &r,

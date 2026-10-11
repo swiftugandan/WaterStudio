@@ -35,6 +35,14 @@ export interface DocData {
   extraSections: RawSection[];
   /** Isolation valves at pipe ends (WaterStudio's own; EPANET files have no place for them). */
   isolationValves: IsolationValve[];
+  /** The EPANET-MSX input that goes with the network, if any (its own file beside the .inp). */
+  msx: MsxInput | null;
+}
+
+/** An EPANET-MSX input file: its name and text. */
+export interface MsxInput {
+  name: string;
+  text: string;
 }
 
 /** An isolation valve on a link next to one of its end nodes. */
@@ -62,6 +70,7 @@ export function emptyDocData(): DocData {
     labels: [],
     extraSections: [],
     isolationValves: [],
+    msx: null,
   };
 }
 

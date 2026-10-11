@@ -6,6 +6,7 @@ export {
   type DocData,
   type DocKey,
   type IsolationValve,
+  type MsxInput,
   type Op,
 } from './document.ts';
 export {

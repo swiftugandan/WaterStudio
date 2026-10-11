@@ -8,7 +8,8 @@ kept current: a change that affects a criterion below updates this file in the s
 - Method: automated checks in CI plus the manual review below. The automated checks run axe-core with the
   `wcag2a`, `wcag2aa`, `wcag21aa` and `wcag22aa` rules (`apps/web/e2e/app.spec.ts`) on the whole app with a graph,
   the reports and the assistant open, in both themes, and on every editor in turn: the inspector, each options
-  tab, patterns, curves, controls, query and group edit, add element, the legend editor and the calibration report.
+  tab, patterns, curves, controls, query and group edit, add element, the legend editor, the calibration report,
+  the studies and the multi-species panel.
   Token contrast is unit-tested (`packages/ui/src/tokens/tokens.test.ts`).
 
 ## Result
@@ -28,7 +29,7 @@ Passes, with the exception noted under 2.5.7 (dock splitters) and the known thir
 | 1.4.11 Non-text contrast | Control borders and focus rings meet 3:1; chart series colours meet 3:1 against the chart background (unit-tested). |
 | 1.4.12 Text spacing | No fixed-height text containers clip when spacing grows, except virtualised list rows (24 px), which are single-line IDs and numbers. |
 | 1.4.13 Content on hover or focus | Only native `title` tooltips and the chart crosshair, which does not hide content and goes on pointer leave. |
-| 2.1.1 Keyboard | Every command is in the ribbon (Tab, Enter) and the command palette (Ctrl+K), most with shortcuts. Elements are chosen in the model browser or results table (arrow keys, Enter; Ctrl/Shift to toggle/add), found by ID (Ctrl+F) or by query. Nodes and links are added by typing in the Add element panel; nodes move by editing X and Y; vertices are typed in the inspector. The focused map pans with arrow keys and zooms with = and -. |
+| 2.1.1 Keyboard | Every command is in the ribbon (Tab, Enter) and the command palette (Ctrl+K), most with shortcuts. Elements are chosen in the model browser or results table (arrow keys, Enter; Ctrl/Shift to toggle/add), found by ID (Ctrl+F) or by query. Nodes and links are added by typing in the Add element panel; nodes move by editing X and Y; vertices are typed in the inspector. The focused map pans with arrow keys and zooms with = and -. In the MSX editor Ctrl+Enter applies and runs. |
 | 2.1.2 No keyboard trap | Focus leaves every panel with Tab; the map's Escape cancels a gesture without trapping focus. |
 | 2.1.4 Character key shortcuts | Single-key tool shortcuts (V, H, J, R, T, P, U, L, B, F) can be turned off (View › Single-key shortcuts), never act while typing in a field, and every one is also a ribbon button. |
 | 2.4.2 Page titled | The title is the file name and "WaterStudio", with a mark when unsaved. |
@@ -41,7 +42,7 @@ Passes, with the exception noted under 2.5.7 (dock splitters) and the known thir
 | 2.5.8 Target size (minimum) | Controls are at least 24 by 24 CSS pixels or spaced to meet the criterion (checked by axe). |
 | 3.1.1 Language of page | `lang="en"`. |
 | 3.2.1, 3.2.2 On focus, on input | Focusing never changes context; selects apply their value immediately but only to the edited option, and every change can be undone. |
-| 3.3.1, 3.3.3 Error identification and suggestion | Invalid input keeps the typed text, marks the field `aria-invalid` and says what is wrong and how to fix it (`role="alert"`). Controls and rules are checked by the engine before they apply, with EPANET's message. |
+| 3.3.1, 3.3.3 Error identification and suggestion | Invalid input keeps the typed text, marks the field `aria-invalid` and says what is wrong and how to fix it (`role="alert"`). Controls and rules are checked by the engine before they apply, with EPANET's message. MSX input errors list each bad line as a button that selects the line in the editor. |
 | 3.3.2 Labels or instructions | Every input has a visible label; formats are given in placeholders and help (h:mm, x y). |
 | 3.3.7 Redundant entry | Defaults (Options › Defaults) avoid retyping common values; Copy and Paste properties carry an element's values to others. |
 | 3.3.8 Accessible authentication | No authentication; the assistant's API key is a pasteable field. |

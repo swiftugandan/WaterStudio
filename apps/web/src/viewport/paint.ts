@@ -1,9 +1,15 @@
 /** Turning engine results into colour classes for the scene, and the legend shown on the map. */
 
 import {
+  isSpecies,
+  linkColumn,
   linkFrame,
+  nodeColumn,
   nodeFrame,
+  speciesOf,
+  type LinkVar,
   type LinkVariable,
+  type NodeVar,
   type NodeVariable,
   type RunResults,
 } from '@waterstudio/engine-client';
@@ -37,9 +43,16 @@ export const VARIABLE_QUANTITY: Record<NodeVariable | LinkVariable, Quantity | '
   friction: 'none',
 };
 
-/** The unit a result variable is shown in. */
-export function variableUnit(v: NodeVariable | LinkVariable, u: UnitSystem): string {
-  const q = VARIABLE_QUANTITY[v];
+/** The quantity a result variable measures; species are in their own units. */
+export function quantityOf(v: string): Quantity | 'headloss' {
+  if (isSpecies(v)) return 'none';
+  return (VARIABLE_QUANTITY as Partial<Record<string, Quantity | 'headloss'>>)[v] ?? 'none';
+}
+
+/** The unit a result variable is shown in (a species' from the run that has it). */
+export function variableUnit(v: string, u: UnitSystem, r?: RunResults): string {
+  if (isSpecies(v)) return speciesOf(r, v)?.units ?? '';
+  const q = quantityOf(v);
   return q === 'headloss' ? (u.si ? 'm/km' : 'ft/kft') : unitLabel(q, u);
 }
 
@@ -66,7 +79,7 @@ export function legendOf(
   const key = `${table}:${v}:${ramp}`;
   let l = m.get(key);
   if (!l) {
-    const col = table === 'node' ? r.node[v as NodeVariable] : r.link[v as LinkVariable];
+    const col = table === 'node' ? nodeColumn(r, v as NodeVar) : linkColumn(r, v as LinkVar);
     // Flow colours by magnitude: direction is shown by arrows, not colour.
     const values = v === 'flow' ? col.map(Math.abs) : col;
     l = legendFor(values, ramp);
@@ -108,8 +121,8 @@ export function computePaint(
   run: RunState,
   period: number,
   theme: {
-    node: NodeVariable | null;
-    link: LinkVariable | null;
+    node: NodeVar | null;
+    link: LinkVar | null;
     ramp: RampName;
     breaks?: Record<string, number[]>;
   },

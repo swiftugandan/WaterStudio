@@ -81,7 +81,9 @@ Gate: MSX examples within tolerance; all performance budgets met; agent evaluati
 - [x] EPANET-MSX engine (`ws-msx`, ADR 0014): a port of EPANET-MSX 2.0 that matches the reference to the bit on its
   five examples and our fixtures (every source type, tank model, statistic, equilibrium coupling, dispersion);
   `ws msx` on the command line
-- [ ] EPANET-MSX in the app: species editor, run, results on the map, graphs and tables
+- [x] EPANET-MSX in the app: the Multi-species panel edits the MSX input (errors point at their line), runs the
+  hydraulics and MSX on a separate worker that can be stopped, and every species becomes a result variable on the
+  map, in graphs, the results table, the inspector, queries and legends; the MSX report and input save as files
 - [x] Scenario manager (ADR 0013): property overrides that inherit as a tree over a shared network; compare any two
 - [x] Fire flow (available flow at a residual and system pressure, warm-started bisection), criticality (each link out
   of service over the whole simulation), isolation segments (valves at pipe ends, N−1 and every-end rules, unintended

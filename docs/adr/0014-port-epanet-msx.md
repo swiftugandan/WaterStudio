@@ -46,4 +46,9 @@ the smallest difference, so a "reimplement to a tolerance" approach would chase 
   no tolerance at all; `ws-msx/tests` pins one results file's hash so drift shows up without the reference.
 - `ws msx` writes the MSX report and binary file as `runepanetmsx` does. It does not reproduce the EPANET part of
   `runepanetmsx`'s report, so EPANET's own page breaks (a `PAGESIZE` in the .inp) are not reproduced.
-- MSX runs as fast as the C code. Stiff examples are slow in both (Batch-NH2Cl takes about two minutes).
+- MSX runs at the C code's speed, within a few tens of percent. Stiff examples are slow in both (Batch-NH2Cl takes
+  about two minutes), so the app runs MSX on its own worker, which Stop terminates.
+- In the app a species is a result variable named `msx:<id>` beside EPANET's (`ws_msx` adds its columns to the
+  run's binary results), so every view of results shows species without code of its own. The app always asks for
+  every period, whatever statistic the network reports. The MSX input lives in the project document (one per
+  scenario, as other document data) and saves as its own .msx file.

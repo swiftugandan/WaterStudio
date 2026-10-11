@@ -13,6 +13,7 @@ import {
   type EpanetFiles,
   type FilesRequest,
   type HydraulicReport,
+  type MsxRequest,
   type ReadResult,
 } from './protocol.ts';
 import type { RunResults } from './results.ts';
@@ -46,6 +47,7 @@ interface Replies {
   'run-files': EpanetFiles;
   check: string | null;
   study: FireFlowResult[] | CriticalityResult[];
+  msx: RunResults;
 }
 
 type Body = EngineRequest extends infer R ? (R extends { id: number } ? Omit<R, 'id'> : never) : never;
@@ -122,6 +124,11 @@ export class EngineClient {
   /** Run a model as EPANET's runepanet does, for its report and output file. */
   runFiles(request: FilesRequest): Promise<Timed<EpanetFiles>> {
     return this.typed({ kind: 'run-files', request });
+  }
+
+  /** Hydraulics and an EPANET-MSX analysis: the run's results with every species added. */
+  msx(request: MsxRequest): Promise<Timed<RunResults>> {
+    return this.typed({ kind: 'msx', request });
   }
 
   /** Run a study on one worker; split long lists across workers with several calls. */

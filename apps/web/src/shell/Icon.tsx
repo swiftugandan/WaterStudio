@@ -39,6 +39,7 @@ import {
   Clipboard,
   Hash,
   Flame,
+  FlaskConical,
   ArrowRight,
   Filter,
   ListChecks,
@@ -57,6 +58,7 @@ import {
 } from 'lucide-react';
 
 const LUCIDE: Record<string, LucideIcon> = {
+  flask: FlaskConical,
   'file-plus': FilePlus,
   'folder-open': FolderOpen,
   save: Save,

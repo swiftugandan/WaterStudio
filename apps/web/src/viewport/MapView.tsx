@@ -11,7 +11,6 @@ import {
   moveNodes,
   sectionGet,
   setVertices,
-  unitLabel,
   type Change,
   type LinkKind,
   type NodeKind,
@@ -32,8 +31,8 @@ import { useApp, useAppContext } from '../app/context.tsx';
 import { Basemap, OSM_ATTRIBUTION } from '../geo/basemap.ts';
 import { backdropPlacement, modelCrs, withBackdropLine, type ModelCrs } from '../geo/model.ts';
 import type { AppState } from '../app/state.ts';
-import { variableLabel } from '../shell/Ribbon.tsx';
-import { computePaint, themeLegend, VARIABLE_QUANTITY } from './paint.ts';
+import { variableNoun } from '../shell/Ribbon.tsx';
+import { computePaint, themeLegend, variableUnit } from './paint.ts';
 import { drawAnnotations, LABEL_FONT, labelBoxes } from './annotations.ts';
 import { mapSvg } from './svg.ts';
 import { drawSizes } from '../app/prefs.ts';
@@ -667,11 +666,7 @@ function Legends() {
   if (r.status !== 'done' || !r.results) return null;
   const results = r.results;
   const u = state.units;
-  const unit = (v: string) => {
-    const q = VARIABLE_QUANTITY[v as keyof typeof VARIABLE_QUANTITY];
-    if (q === 'headloss') return u.si ? 'm/km' : 'ft/kft';
-    return unitLabel(q, u);
-  };
+  const unit = (v: string) => variableUnit(v, u, results);
   const items: ['node' | 'link', string][] = [];
   if (state.mapTheme.node) items.push(['node', state.mapTheme.node]);
   if (state.mapTheme.link) items.push(['link', state.mapTheme.link]);
@@ -684,7 +679,7 @@ function Legends() {
         return (
           <LegendBox
             key={table}
-            title={`${table === 'node' ? 'Node' : 'Link'} ${variableLabel(v).toLowerCase()}`}
+            title={`${table === 'node' ? 'Node' : 'Link'} ${variableNoun(v)}`}
             legend={legend}
             unit={unit(v)}
           />

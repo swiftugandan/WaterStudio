@@ -17,7 +17,7 @@ import { openFilePicker } from '../app/files.ts';
 import { hours } from '../app/graphs.ts';
 import type { AppState } from '../app/state.ts';
 import { LineChart } from '../charts/LineChart.tsx';
-import { variableLabel } from '../shell/Ribbon.tsx';
+import { variableLabel, variableNoun } from '../shell/Ribbon.tsx';
 import { variableUnit } from '../viewport/paint.ts';
 
 const f3 = (v: number) => (Number.isFinite(v) ? v.toFixed(3) : '–');
@@ -108,7 +108,7 @@ export function CalibrationReport({ state }: { state: AppState }) {
         {rep.pairs.length > 0 && (
           <div className="calibration-chart">
             <LineChart
-              title={`Computed and observed ${variableLabel(variable).toLowerCase()}`}
+              title={`Computed and observed ${variableNoun(variable)}`}
               xLabel={`Observed${unit ? ` (${unit})` : ''}`}
               yLabel={`Computed${unit ? ` (${unit})` : ''}`}
               series={[
@@ -163,8 +163,8 @@ export function CalibrationReport({ state }: { state: AppState }) {
       )}
       {!data ? (
         <p className="panel-empty">
-          Load measured {variableLabel(variable).toLowerCase()} values: one “location time value” per line, as
-          EPANET’s calibration files have them.
+          Load measured {variableNoun(variable)} values: one “location time value” per line, as EPANET’s
+          calibration files have them.
         </p>
       ) : r.status !== 'done' ? (
         <p className="panel-empty">Run the analysis to compare the measurements with the simulation.</p>

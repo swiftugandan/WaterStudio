@@ -4,10 +4,11 @@
  */
 
 import {
-  LINK_VARIABLES,
-  NODE_VARIABLES,
-  type LinkVariable,
-  type NodeVariable,
+  isSpecies,
+  linkVariables,
+  nodeVariables,
+  type LinkVar,
+  type NodeVar,
 } from '@waterstudio/engine-client';
 import { useState, type ReactNode } from 'react';
 import { useApp } from '../app/context.tsx';
@@ -158,7 +159,14 @@ const TABS: Tab[] = [
     label: 'Analysis',
     groups: [
       { label: 'Setup', items: [{ cmd: 'view.panel.options', size: 'large', label: 'Options' }] },
-      { label: 'Run', items: [{ cmd: 'analysis.run', size: 'large', label: 'Run hydraulics' }] },
+      {
+        label: 'Run',
+        items: [
+          { cmd: 'analysis.run', size: 'large', label: 'Run hydraulics' },
+          { cmd: 'analysis.msx', size: 'large', label: 'Run MSX' },
+          { cmd: 'view.panel.msx', label: 'Multi-species' },
+        ],
+      },
       {
         label: 'Studies',
         items: [{ cmd: 'view.panel.studies', size: 'large', label: 'Fire flow, criticality' }],
@@ -324,12 +332,12 @@ function MapTheme() {
         <span>Nodes</span>
         <select
           value={t.node ?? ''}
-          onChange={(e) => state.setMapTheme({ node: (e.target.value || null) as NodeVariable | null })}
+          onChange={(e) => state.setMapTheme({ node: (e.target.value || null) as NodeVar | null })}
         >
           <option value="">None</option>
-          {NODE_VARIABLES.map((v) => (
+          {nodeVariables(state.run.results).map((v) => (
             <option key={v} value={v}>
-              {VAR_LABEL[v]}
+              {variableLabel(v)}
             </option>
           ))}
         </select>
@@ -338,12 +346,12 @@ function MapTheme() {
         <span>Links</span>
         <select
           value={t.link ?? ''}
-          onChange={(e) => state.setMapTheme({ link: (e.target.value || null) as LinkVariable | null })}
+          onChange={(e) => state.setMapTheme({ link: (e.target.value || null) as LinkVar | null })}
         >
           <option value="">None</option>
-          {LINK_VARIABLES.map((v) => (
+          {linkVariables(state.run.results).map((v) => (
             <option key={v} value={v}>
-              {VAR_LABEL[v]}
+              {variableLabel(v)}
             </option>
           ))}
         </select>
@@ -360,7 +368,14 @@ function MapTheme() {
   );
 }
 
+/** A variable's name inside a sentence: lower case, but a species keeps its ID's case. */
+export function variableNoun(v: string): string {
+  return isSpecies(v) ? v.slice(4) : variableLabel(v).toLowerCase();
+}
+
+/** A result variable's name; a species is named by its ID. */
 export function variableLabel(v: string): string {
+  if (isSpecies(v)) return v.slice(4);
   return VAR_LABEL[v] ?? v;
 }
 

@@ -7,6 +7,7 @@ export {
   type FilesRequest,
   type HydraulicReport,
   type InpIssue,
+  type MsxRequest,
   type ReadResult,
 } from './protocol.ts';
 export * from './outfile.ts';

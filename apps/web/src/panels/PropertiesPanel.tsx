@@ -12,7 +12,14 @@ import {
   type ElementKind,
   type FieldSpec,
 } from '@waterstudio/core';
-import { linkFrame, LINK_VARIABLES, nodeFrame, NODE_VARIABLES } from '@waterstudio/engine-client';
+import {
+  linkFrame,
+  linkVariables,
+  nodeFrame,
+  nodeVariables,
+  type LinkVar,
+  type NodeVar,
+} from '@waterstudio/engine-client';
 import { useEffect, useState } from 'react';
 import { useApp } from '../app/context.tsx';
 import type { AppState } from '../app/state.ts';
@@ -169,7 +176,7 @@ function ResultValues({ state, handle }: { state: AppState; handle: number }) {
   const isNode = doc.isNode(handle);
   const idx = (isNode ? r.nodes : r.links).indexOf(handle);
   if (idx < 0) return null;
-  const vars = isNode ? NODE_VARIABLES : LINK_VARIABLES;
+  const vars: string[] = isNode ? nodeVariables(r.results) : linkVariables(r.results);
   const u = state.units;
   return (
     <section className="results-values" aria-label="Results at this time">
@@ -177,9 +184,9 @@ function ResultValues({ state, handle }: { state: AppState; handle: number }) {
       <dl>
         {vars.map((v) => {
           const frame = isNode
-            ? nodeFrame(r.results!, v as (typeof NODE_VARIABLES)[number], state.period)
-            : linkFrame(r.results!, v as (typeof LINK_VARIABLES)[number], state.period);
-          const unit = variableUnit(v, u);
+            ? nodeFrame(r.results!, v as NodeVar, state.period)
+            : linkFrame(r.results!, v as LinkVar, state.period);
+          const unit = variableUnit(v, u, r.results);
           const val = frame[idx]!;
           return (
             <div key={v}>

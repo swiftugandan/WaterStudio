@@ -6,7 +6,14 @@
  */
 
 import { fieldsOf, LINK_KINDS, NODE_KINDS, unitLabel, type FieldSpec } from '@waterstudio/core';
-import { linkFrame, LINK_VARIABLES, nodeFrame, NODE_VARIABLES } from '@waterstudio/engine-client';
+import {
+  linkFrame,
+  linkVariables,
+  nodeFrame,
+  nodeVariables,
+  type LinkVar,
+  type NodeVar,
+} from '@waterstudio/engine-client';
 import { variableLabel } from '../shell/Ribbon.tsx';
 import { variableUnit } from '../viewport/paint.ts';
 import type { AppState } from './state.ts';
@@ -45,10 +52,11 @@ export function attributes(state: AppState, table: 'node' | 'link'): Attribute[]
     result: false,
   }));
   if (state.run.status !== 'done') return props;
-  const results = (table === 'node' ? NODE_VARIABLES : LINK_VARIABLES).map((v) => ({
+  const run = state.run.results;
+  const results = (table === 'node' ? nodeVariables(run) : linkVariables(run)).map((v) => ({
     id: `result:${v}`,
     label: `${variableLabel(v)} (result)`,
-    unit: variableUnit(v, state.units),
+    unit: variableUnit(v, state.units, run),
     result: true,
   }));
   return [...results, ...props];
@@ -64,8 +72,8 @@ export function valueOf(state: AppState, table: 'node' | 'link', attribute: stri
     const handles = table === 'node' ? r.nodes : r.links;
     const frame =
       table === 'node'
-        ? nodeFrame(r.results, v as (typeof NODE_VARIABLES)[number], state.period)
-        : linkFrame(r.results, v as (typeof LINK_VARIABLES)[number], state.period);
+        ? nodeFrame(r.results, v as NodeVar, state.period)
+        : linkFrame(r.results, v as LinkVar, state.period);
     const col = new Map<number, number>();
     handles.forEach((h, i) => col.set(h, i));
     return (h) => {

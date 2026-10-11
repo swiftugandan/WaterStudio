@@ -17,7 +17,7 @@ import {
 import { useId, useState } from 'react';
 import { useApp } from '../app/context.tsx';
 import type { AppState } from '../app/state.ts';
-import { variableLabel } from '../shell/Ribbon.tsx';
+import { variableLabel, variableNoun } from '../shell/Ribbon.tsx';
 import { variableUnit } from '../viewport/paint.ts';
 
 const BASE = '__base__';
@@ -87,7 +87,7 @@ function Compare({ state }: { state: AppState }) {
       .filter((r) => Number.isFinite(r.d));
     const changed = rows.filter((r) => Math.abs(r.d) > 1e-6);
     const top = [...changed].sort((x, y) => Math.abs(y.d) - Math.abs(x.d)).slice(0, 20);
-    const unit = variableUnit(cmp.variable as NodeVariable, state.units);
+    const unit = variableUnit(cmp.variable, state.units);
     const stat = (f: Float32Array, fn: (a: number, b: number) => number) =>
       Array.from(f).filter(Number.isFinite).reduce(fn);
     const f3 = (v: number) => v.toFixed(state.prefs.places(cmp.variable));
@@ -175,12 +175,12 @@ function Compare({ state }: { state: AppState }) {
         <select id={ids.v} value={variable} onChange={(e) => setVariable(e.target.value)}>
           {NODE_VARIABLES.map((v) => (
             <option key={`n${v}`} value={`node:${v}`}>
-              Node {variableLabel(v).toLowerCase()}
+              Node {variableNoun(v)}
             </option>
           ))}
           {LINK_VARIABLES.map((v) => (
             <option key={`l${v}`} value={`link:${v}`}>
-              Link {variableLabel(v).toLowerCase()}
+              Link {variableNoun(v)}
             </option>
           ))}
         </select>

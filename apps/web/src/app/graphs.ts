@@ -10,20 +10,20 @@ import {
   nodeFrame,
   linkFrame,
   nodeSeries,
-  type LinkVariable,
-  type NodeVariable,
+  type LinkVar,
+  type NodeVar,
   type RunResults,
 } from '@waterstudio/engine-client';
 import type { Series } from '../charts/LineChart.tsx';
 
 export type GraphSpec =
-  | { kind: 'series'; table: 'node'; variable: NodeVariable; ids: string[] }
-  | { kind: 'series'; table: 'link'; variable: LinkVariable; ids: string[] }
-  | { kind: 'profile'; variable: NodeVariable; ids: string[] }
-  | { kind: 'frequency'; table: 'node'; variable: NodeVariable }
-  | { kind: 'frequency'; table: 'link'; variable: LinkVariable }
+  | { kind: 'series'; table: 'node'; variable: NodeVar; ids: string[] }
+  | { kind: 'series'; table: 'link'; variable: LinkVar; ids: string[] }
+  | { kind: 'profile'; variable: NodeVar; ids: string[] }
+  | { kind: 'frequency'; table: 'node'; variable: NodeVar }
+  | { kind: 'frequency'; table: 'link'; variable: LinkVar }
   | { kind: 'flow' }
-  | { kind: 'contour'; variable: NodeVariable };
+  | { kind: 'contour'; variable: NodeVar };
 
 export interface RunIndex {
   results: RunResults;

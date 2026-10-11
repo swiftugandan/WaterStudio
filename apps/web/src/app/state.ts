@@ -21,8 +21,8 @@ import {
   EngineClient,
   type EpanetFiles,
   type InpIssue,
-  type LinkVariable,
-  type NodeVariable,
+  type LinkVar,
+  type NodeVar,
   type RunResults,
 } from '@waterstudio/engine-client';
 import type { RampName, RendererStatus } from '@waterstudio/render';
@@ -75,9 +75,17 @@ export interface FilesState {
   error?: string;
 }
 
+/** The last multi-species run, while it runs or when it failed (results go to `run`). */
+export interface MsxRunState {
+  status: 'idle' | 'running' | 'error';
+  /** When the running analysis started (ms since the epoch). */
+  started?: number;
+  error?: string;
+}
+
 export interface MapTheme {
-  node: NodeVariable | null;
-  link: LinkVariable | null;
+  node: NodeVar | null;
+  link: LinkVar | null;
   ramp: RampName;
   /** Legend intervals set by hand, by `table:variable` (EPANET's legend editor). */
   breaks?: Record<string, number[]>;
@@ -95,6 +103,9 @@ export class AppState extends Emitter {
   hover: number | null = null;
   tool: Tool = 'select';
   run: RunState = { status: 'idle' };
+  msxRun: MsxRunState = { status: 'idle' };
+  /** A separate engine for multi-species runs, which can take minutes and be stopped. */
+  private msxEngine: EngineClient | null = null;
   /** EPANET's files, by whether the status log was asked for. */
   files: Partial<Record<'report' | 'status', FilesState>> = {};
   /** Measurements loaded for the calibration report, by variable. */
@@ -267,6 +278,11 @@ export class AppState extends Emitter {
     this.selection = new Set();
     this.hover = null;
     this.run = { status: 'idle' };
+    if (this.msxRun.status === 'running') {
+      this.msxEngine?.dispose();
+      this.msxEngine = null;
+    }
+    this.msxRun = { status: 'idle' };
     this.files = {};
     this.calibration = {};
     if (this.backdrop) URL.revokeObjectURL(this.backdrop.url);
@@ -346,6 +362,66 @@ export class AppState extends Emitter {
       this.run = { status: 'error', error };
       this.log('error', `Run failed: ${error}`);
     }
+    this.emit();
+  }
+
+  /** Load an EPANET-MSX input file to go with the network (undoable). */
+  setMsx(
+    input: { name: string; text: string } | null,
+    label = input ? 'Load MSX input' : 'Remove MSX input',
+  ): void {
+    this.store.transact(label, (tx) => tx.setDoc('msx', input));
+  }
+
+  /**
+   * Run the hydraulics and the EPANET-MSX analysis of the network's MSX input. The
+   * results replace the current run's and include every species as a variable.
+   */
+  async runMsx(): Promise<void> {
+    if (this.msxRun.status === 'running') return;
+    const input = this.store.doc.data.msx;
+    if (!input) {
+      this.msxRun = { status: 'error', error: 'No MSX input: open or write one in the Multi-species panel.' };
+      this.emit();
+      return;
+    }
+    const rev = this.store.rev;
+    const doc = this.store.doc;
+    const nodes = Uint32Array.from(doc.nodeHandles());
+    const links = Uint32Array.from(doc.linkHandles());
+    this.msxRun = { status: 'running', started: Date.now() };
+    this.emit();
+    this.msxEngine ??= new EngineClient({ workers: 1 });
+    try {
+      const { value, ms } = await this.msxEngine.msx({
+        model: toModel(doc),
+        msx: input.text,
+        fileName: input.name,
+      });
+      this.run = { status: 'done', results: value, rev, nodes, links, ms };
+      this.period = Math.min(this.period, value.times.length - 1);
+      this.msxRun = { status: 'idle' };
+      const n = value.msx?.species.length ?? 0;
+      this.log(
+        'info',
+        `MSX analysis solved: ${n} species over ${value.times.length} report periods in ${(ms / 1000).toFixed(1)} s.`,
+      );
+    } catch (e) {
+      if (this.msxRun.status !== 'running') return; // stopped, or a new network was opened
+      const error = e instanceof Error ? e.message : String(e);
+      this.msxRun = { status: 'error', error };
+      this.log('error', `MSX analysis failed: ${error.split('\n').slice(-1)[0] ?? error}`);
+    }
+    this.emit();
+  }
+
+  /** Stop a running multi-species analysis. */
+  stopMsx(): void {
+    if (this.msxRun.status !== 'running') return;
+    this.msxEngine?.dispose();
+    this.msxEngine = null;
+    this.msxRun = { status: 'error', error: 'Stopped.' };
+    this.log('warning', 'MSX analysis stopped.');
     this.emit();
   }
 }

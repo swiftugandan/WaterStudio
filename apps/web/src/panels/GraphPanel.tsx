@@ -6,11 +6,11 @@
  */
 
 import {
-  LINK_VARIABLES,
-  NODE_VARIABLES,
+  linkVariables,
+  nodeVariables,
   nodeFrame,
-  type LinkVariable,
-  type NodeVariable,
+  type LinkVar,
+  type NodeVar,
 } from '@waterstudio/engine-client';
 import type { IDockviewPanelProps } from 'dockview-react';
 import { useMemo, useState } from 'react';
@@ -26,7 +26,7 @@ import {
 } from '../app/graphs.ts';
 import { LineChart, type Series } from '../charts/LineChart.tsx';
 import { hoursLabel, tickLabel } from '../charts/scale.ts';
-import { variableLabel } from '../shell/Ribbon.tsx';
+import { variableLabel, variableNoun } from '../shell/Ribbon.tsx';
 import { clock } from '../shell/TimeControl.tsx';
 import { themeLegend, variableUnit } from '../viewport/paint.ts';
 import { ContourPlot } from '../charts/ContourPlot.tsx';
@@ -139,7 +139,7 @@ export function GraphPanel(props: IDockviewPanelProps<GraphParams>) {
     <label>
       <span>Variable</span>
       <select value={value} onChange={(e) => onChange(e.target.value)}>
-        {(table === 'node' ? NODE_VARIABLES : LINK_VARIABLES).map((v) => (
+        {(table === 'node' ? nodeVariables(r.results) : linkVariables(r.results)).map((v) => (
           <option key={v} value={v}>
             {variableLabel(v)}
           </option>
@@ -153,12 +153,12 @@ export function GraphPanel(props: IDockviewPanelProps<GraphParams>) {
     picker = variablePicker(spec.table, spec.variable, (v) =>
       setSpec(
         spec.table === 'node'
-          ? { ...spec, table: 'node', variable: v as NodeVariable }
-          : { ...spec, table: 'link', variable: v as LinkVariable },
+          ? { ...spec, table: 'node', variable: v as NodeVar }
+          : { ...spec, table: 'link', variable: v as LinkVar },
       ),
     );
   } else if (spec.kind === 'profile' || spec.kind === 'contour') {
-    picker = variablePicker('node', spec.variable, (v) => setSpec({ ...spec, variable: v as NodeVariable }));
+    picker = variablePicker('node', spec.variable, (v) => setSpec({ ...spec, variable: v as NodeVar }));
   }
 
   const addSelection =
@@ -205,7 +205,7 @@ export function GraphPanel(props: IDockviewPanelProps<GraphParams>) {
     switch (spec.kind) {
       case 'series':
         series = timeSeries(doc, run, spec);
-        yLabel = withUnit(variableLabel(spec.variable), variableUnit(spec.variable, u));
+        yLabel = withUnit(variableLabel(spec.variable), variableUnit(spec.variable, u, r.results));
         marker = nowHours;
         step = true;
         break;
@@ -214,7 +214,7 @@ export function GraphPanel(props: IDockviewPanelProps<GraphParams>) {
         series = prof?.series ?? [];
         title = `${variableLabel(spec.variable)} profile at ${at}`;
         xLabel = withUnit('Distance', u.si ? 'm' : 'ft');
-        yLabel = withUnit(variableLabel(spec.variable), variableUnit(spec.variable, u));
+        yLabel = withUnit(variableLabel(spec.variable), variableUnit(spec.variable, u, r.results));
         xFormat = undefined;
         series = series.map((s) => ({
           ...s,
@@ -224,8 +224,8 @@ export function GraphPanel(props: IDockviewPanelProps<GraphParams>) {
       }
       case 'frequency':
         series = frequencySeries(run, spec, period, doc);
-        title = `Distribution of ${variableLabel(spec.variable).toLowerCase()} at ${at}`;
-        xLabel = withUnit(variableLabel(spec.variable), variableUnit(spec.variable, u));
+        title = `Distribution of ${variableNoun(spec.variable)} at ${at}`;
+        xLabel = withUnit(variableLabel(spec.variable), variableUnit(spec.variable, u, r.results));
         yLabel = 'Percent less than or equal';
         xFormat = (x) => tickLabel(x, 0.01);
         break;
@@ -312,7 +312,7 @@ function Contour({
 }: {
   state: AppState;
   run: RunIndex;
-  variable: NodeVariable;
+  variable: NodeVar;
   period: number;
   at: string;
   table: boolean;
@@ -354,7 +354,7 @@ function Contour({
   return (
     <ContourPlot
       title={`${variableLabel(variable)} at ${at}`}
-      unit={variableUnit(variable, state.units)}
+      unit={variableUnit(variable, state.units, run.results)}
       {...data}
       breaks={legend.breaks}
       colors={legend.colors}

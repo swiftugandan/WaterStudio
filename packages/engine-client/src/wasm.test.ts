@@ -3,7 +3,7 @@ import { loadModel, Store, toModel } from '@waterstudio/core';
 import { describe, expect, it } from 'vitest';
 import { readOutFile } from './outfile.ts';
 import { EngineError } from './protocol.ts';
-import { linkFrame, linkSeries, nodeFrame, nodeSeries } from './results.ts';
+import { linkFrame, linkSeries, nodeFrame, nodeSeries, speciesVariable } from './results.ts';
 import { instantiateEngine } from './wasm.ts';
 
 const wasmPath = new URL('../wasm/ws_wasm.wasm', import.meta.url);
@@ -29,7 +29,9 @@ const NET = `[RESERVOIRS]
 const root = new URL('../../../', import.meta.url);
 const networks = [
   ...['Net1', 'Net2', 'Net3'].map((n) => new URL(`apps/web/public/samples/${n}.inp`, root)),
-  ...readdirSync(new URL('oracle/fixtures/', root)).map((f) => new URL(`oracle/fixtures/${f}`, root)),
+  ...readdirSync(new URL('oracle/fixtures/', root))
+    .filter((f) => f.endsWith('.inp'))
+    .map((f) => new URL(`oracle/fixtures/${f}`, root)),
 ];
 
 describe.skipIf(!have)('WebAssembly engine', async () => {
@@ -51,6 +53,28 @@ describe.skipIf(!have)('WebAssembly engine', async () => {
   it('reports input problems as issues', () => {
     const { issues } = e().readInp(NET.replace(' P2 J1 J2', ' P2 J1 J9'));
     expect(issues.some((i) => i.severity === 'error' && i.message.includes('J9'))).toBe(true);
+  });
+
+  it('runs an EPANET-MSX analysis and adds each species to the results', () => {
+    // Long enough for the reservoir's water to reach J1.
+    const { model } = e().readInp(NET.replace('Duration 2:00', 'Duration 6:00'));
+    const msx = `[SPECIES]\nBULK CL MG\nWALL B UG\n[PIPES]\nRATE CL -0.5*CL\nRATE B 0.1\n[TANKS]\nRATE CL -0.5*CL\n[QUALITY]\nNODE R CL 1.0\n`;
+    const r = e().msx({ model, msx, fileName: 'test.msx' });
+    expect(r.msx?.species.map((s) => [s.id, s.kind, s.units])).toEqual([
+      ['CL', 'bulk', 'MG/L'],
+      ['B', 'wall', 'UG/FT2'],
+    ]);
+    expect(nodeFrame(r, speciesVariable('CL'), 6)[0]).toBe(1); // the reservoir
+    expect(nodeFrame(r, speciesVariable('CL'), 6)[1]).toBeGreaterThan(0);
+    expect(linkFrame(r, speciesVariable('B'), 6)[0]).toBeGreaterThan(0);
+    expect(nodeFrame(r, 'pressure', 0)[1]).toBeGreaterThan(0); // hydraulics come too
+  });
+
+  it('reports MSX input errors with their lines', () => {
+    const { model } = e().readInp(NET);
+    expect(() =>
+      e().msx({ model, msx: '[SPECIES]\nBULK CL MG\n[PIPES]\nRATE CL -k*CL\n', fileName: 'x.msx' }),
+    ).toThrow(/Error 409 \(illegal math expression\) at line 4/);
   });
 
   it('runs a model and returns columns in model order', () => {

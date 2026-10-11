@@ -38,6 +38,7 @@ const PANEL_ICONS: Record<string, string> = {
   formats: 'hash',
   scenarios: 'layers',
   studies: 'flame',
+  msx: 'flask',
 };
 
 export const SAMPLES = ['Net1', 'Net2', 'Net3'] as const;
@@ -229,6 +230,31 @@ export function createCommands(state: AppState): CommandBus<AppState> {
           s.log('info', `Applied scenario ${file.name}: ${what}.`);
           for (const i of r.issues) s.log('warning', i);
         }),
+    },
+    {
+      id: 'file.import.msx',
+      title: 'Open EPANET-MSX input…',
+      icon: 'file-input',
+      category: 'File',
+      run: (s) =>
+        guarded(s, 'MSX input could not be opened', async () => {
+          const file = await openFilePicker('.msx,.txt');
+          if (!file) return;
+          s.setMsx({ name: file.name, text: await file.text() });
+          s.showPanel('msx');
+          s.log('info', `Loaded the MSX input ${file.name}.`);
+        }),
+    },
+    {
+      id: 'file.export.msx',
+      title: 'Save EPANET-MSX input',
+      icon: 'file-output',
+      category: 'File',
+      enabled: (s) => s.store.doc.data.msx !== null,
+      run: (s) => {
+        const input = s.store.doc.data.msx;
+        if (input) saveTextFile(input.text, input.name || `${baseName(s.fileName)}.msx`);
+      },
     },
     {
       id: 'file.export.svg',
@@ -566,6 +592,7 @@ export function createCommands(state: AppState): CommandBus<AppState> {
         ['formats', 'Number formats'],
         ['scenarios', 'Scenarios'],
         ['studies', 'Studies'],
+        ['msx', 'Multi-species'],
       ] as const
     ).map(([id, title]): Cmd => ({
       id: `view.panel.${id}`,
@@ -681,6 +708,24 @@ export function createCommands(state: AppState): CommandBus<AppState> {
       category: 'Analysis',
       enabled: (s) => s.run.status !== 'running' && s.store.doc.nodes.liveCount > 0,
       run: (s) => s.runHydraulics(),
+    },
+    {
+      id: 'analysis.msx',
+      title: 'Run multi-species quality (EPANET-MSX)',
+      description:
+        'Solve the hydraulics and the MSX analysis of the network’s MSX input; every species becomes a result.',
+      icon: 'run-quality',
+      shortcut: 'Shift+F5',
+      category: 'Analysis',
+      enabled: (s) => s.msxRun.status !== 'running' && s.store.doc.nodes.liveCount > 0,
+      run: (s) => {
+        if (!s.store.doc.data.msx) {
+          s.showPanel('msx');
+          return;
+        }
+        s.showPanel('msx');
+        void s.runMsx();
+      },
     },
     {
       id: 'graph.series',

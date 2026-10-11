@@ -3,7 +3,14 @@
  * by any column and filtered by a condition, as EPANET's network tables are.
  */
 
-import { linkFrame, LINK_VARIABLES, nodeFrame, NODE_VARIABLES } from '@waterstudio/engine-client';
+import {
+  linkFrame,
+  linkVariables,
+  nodeFrame,
+  nodeVariables,
+  type LinkVar,
+  type NodeVar,
+} from '@waterstudio/engine-client';
 import { getfloat } from '@waterstudio/core';
 import { useId, useState } from 'react';
 import { holds, type Relation } from '../app/query.ts';
@@ -11,7 +18,7 @@ import { copyText, tsv } from '../app/files.ts';
 import { useApp } from '../app/context.tsx';
 import { clock } from '../shell/TimeControl.tsx';
 import { variableLabel } from '../shell/Ribbon.tsx';
-import { variableUnit, type VARIABLE_QUANTITY } from '../viewport/paint.ts';
+import { variableUnit } from '../viewport/paint.ts';
 import { VirtualList } from './VirtualList.tsx';
 
 export function ResultsPanel() {
@@ -36,9 +43,11 @@ export function ResultsPanel() {
   const res = r.results;
   const doc = state.store.doc;
   const handles = table === 'node' ? r.nodes : r.links;
-  const vars = table === 'node' ? NODE_VARIABLES : LINK_VARIABLES;
+  const vars: string[] = table === 'node' ? nodeVariables(res) : linkVariables(res);
   const frames = vars.map((v) =>
-    table === 'node' ? nodeFrame(res, v as never, state.period) : linkFrame(res, v as never, state.period),
+    table === 'node'
+      ? nodeFrame(res, v as NodeVar, state.period)
+      : linkFrame(res, v as LinkVar, state.period),
   );
   const order = (() => {
     let rows = Array.from({ length: handles.length }, (_, i) => i);
@@ -57,7 +66,7 @@ export function ResultsPanel() {
   })();
   const u = state.units;
   const unit = (v: string) => {
-    return variableUnit(v as keyof typeof VARIABLE_QUANTITY, u);
+    return variableUnit(v, u, res);
   };
   const cols = `minmax(80px, 1.2fr) repeat(${vars.length}, minmax(70px, 1fr))`;
   return (

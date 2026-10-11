@@ -14,6 +14,7 @@ import {
   type EpanetFiles,
   type FilesRequest,
   type HydraulicReport,
+  type MsxRequest,
   type ReadResult,
 } from './protocol.ts';
 import { decodeResults, type RunResults } from './results.ts';
@@ -31,6 +32,7 @@ interface Exports {
   ws_run_files: Entry;
   ws_check: Entry;
   ws_study: Entry;
+  ws_msx: Entry;
 }
 
 export interface Engine {
@@ -42,6 +44,8 @@ export interface Engine {
   /** The error EPANET's input stage would refuse the model with, or null. */
   check(m: model.Model): string | null;
   study(req: StudyRequest): FireFlowResult[] | CriticalityResult[];
+  /** Hydraulics and an EPANET-MSX analysis: the run's results with the species added. */
+  msx(req: MsxRequest): RunResults;
 }
 
 export async function instantiateEngine(source: BufferSource | WebAssembly.Module): Promise<Engine> {
@@ -84,6 +88,7 @@ export async function instantiateEngine(source: BufferSource | WebAssembly.Modul
       const n = new DataView(body.buffer, body.byteOffset, 4).getUint32(0, true);
       return { report: decoder.decode(body.subarray(4, 4 + n)), out: body.slice(4 + n) };
     },
+    msx: (req) => decodeResults(call(x.ws_msx, json(req))),
     study: (req) =>
       JSON.parse(decoder.decode(call(x.ws_study, json(req)))) as FireFlowResult[] | CriticalityResult[],
     check: (m) => {

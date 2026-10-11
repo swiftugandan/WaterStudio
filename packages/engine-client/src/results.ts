@@ -28,6 +28,59 @@ export const LINK_VARIABLES = [
 export type NodeVariable = (typeof NODE_VARIABLES)[number];
 export type LinkVariable = (typeof LINK_VARIABLES)[number];
 
+/** A species of an EPANET-MSX run, as a result variable: `msx:` and the species ID. */
+export type SpeciesVariable = `msx:${string}`;
+/** Any node result: an EPANET variable or an MSX species. */
+export type NodeVar = NodeVariable | SpeciesVariable;
+/** Any link result: an EPANET variable or an MSX species. */
+export type LinkVar = LinkVariable | SpeciesVariable;
+
+export interface SpeciesInfo {
+  id: string;
+  /** Bulk species are carried by the flow; wall species stay on pipe walls (zero at nodes). */
+  kind: 'bulk' | 'wall';
+  /** Concentration units, e.g. "MG/L" or "UG/M2". */
+  units: string;
+  /** Reporting precision (decimal places). */
+  precision: number;
+}
+
+/** What an EPANET-MSX analysis adds to a run. */
+export interface MsxInfo {
+  title: string;
+  species: SpeciesInfo[];
+  /** The report the MSX input's [REPORT] section asks for (may be empty). */
+  report: string;
+  /** Lines written while reading the input. */
+  messages: string[];
+}
+
+export function isSpecies(v: string): v is SpeciesVariable {
+  return v.startsWith('msx:');
+}
+
+export function speciesVariable(id: string): SpeciesVariable {
+  return `msx:${id}`;
+}
+
+/** Node variables a run has: EPANET's, then the bulk species (wall species stay on pipe walls). */
+export function nodeVariables(r?: RunResults): NodeVar[] {
+  const species = (r?.msx?.species ?? []).filter((s) => s.kind === 'bulk').map((s) => speciesVariable(s.id));
+  return [...NODE_VARIABLES, ...species];
+}
+
+/** Link variables a run has: EPANET's, then every species. */
+export function linkVariables(r?: RunResults): LinkVar[] {
+  return [...LINK_VARIABLES, ...(r?.msx?.species ?? []).map((s) => speciesVariable(s.id))];
+}
+
+/** The species a variable names, if it names one in this run. */
+export function speciesOf(r: RunResults | undefined, v: string): SpeciesInfo | undefined {
+  if (!r?.msx || !isSpecies(v)) return undefined;
+  const id = v.slice(4);
+  return r.msx.species.find((s) => s.id === id);
+}
+
 export interface RunResults {
   engine: string;
   reportStart: number;
@@ -38,8 +91,11 @@ export interface RunResults {
   linkCount: number;
   /** EPANET's last hydraulic warning code (0 if none; 1 unbalanced, 2 unstable, 4 pumps, 5 valves, 6 negative pressures). */
   warning: number;
+  /** Columns by variable; species columns are keyed `msx:<id>` (see {@link nodeColumn}). */
   node: Record<NodeVariable, Float32Array>;
   link: Record<LinkVariable, Float32Array>;
+  /** Present when the run included an EPANET-MSX analysis. */
+  msx?: MsxInfo;
 }
 
 interface Header {
@@ -52,6 +108,19 @@ interface Header {
   nodeVariables: string[];
   linkVariables: string[];
   warning?: number;
+  msx?: MsxInfo;
+}
+
+const EMPTY = new Float32Array(0);
+
+/** The column of any node variable (empty if the run does not have it). */
+export function nodeColumn(r: RunResults, v: NodeVar): Float32Array {
+  return (r.node as Record<string, Float32Array | undefined>)[v] ?? EMPTY;
+}
+
+/** The column of any link variable (empty if the run does not have it). */
+export function linkColumn(r: RunResults, v: LinkVar): Float32Array {
+  return (r.link as Record<string, Float32Array | undefined>)[v] ?? EMPTY;
 }
 
 /** Decode the engine's binary reply. Columns are copied out of `bytes`. */
@@ -73,6 +142,10 @@ export function decodeResults(bytes: Uint8Array): RunResults {
   for (const v of header.nodeVariables) node[v as NodeVariable] = take(header.nodeCount);
   const link = {} as Record<LinkVariable, Float32Array>;
   for (const v of header.linkVariables) link[v as LinkVariable] = take(header.linkCount);
+  for (const sp of header.msx?.species ?? []) {
+    (node as Record<string, Float32Array>)[speciesVariable(sp.id)] = take(header.nodeCount);
+    (link as Record<string, Float32Array>)[speciesVariable(sp.id)] = take(header.linkCount);
+  }
   if (offset !== bytes.byteLength) throw new Error('engine results have an unexpected length');
   return {
     engine: header.engine,
@@ -84,28 +157,31 @@ export function decodeResults(bytes: Uint8Array): RunResults {
     warning: header.warning ?? 0,
     node,
     link,
+    ...(header.msx ? { msx: header.msx } : {}),
   };
 }
 
 /** One period of a node variable, as a view (no copy). */
-export function nodeFrame(r: RunResults, v: NodeVariable, period: number): Float32Array {
-  return r.node[v].subarray(period * r.nodeCount, (period + 1) * r.nodeCount);
+export function nodeFrame(r: RunResults, v: NodeVar, period: number): Float32Array {
+  return nodeColumn(r, v).subarray(period * r.nodeCount, (period + 1) * r.nodeCount);
 }
 
-export function linkFrame(r: RunResults, v: LinkVariable, period: number): Float32Array {
-  return r.link[v].subarray(period * r.linkCount, (period + 1) * r.linkCount);
+export function linkFrame(r: RunResults, v: LinkVar, period: number): Float32Array {
+  return linkColumn(r, v).subarray(period * r.linkCount, (period + 1) * r.linkCount);
 }
 
 /** Every period of one element's variable. */
-export function nodeSeries(r: RunResults, v: NodeVariable, i: number): Float32Array {
+export function nodeSeries(r: RunResults, v: NodeVar, i: number): Float32Array {
+  const col = nodeColumn(r, v);
   const out = new Float32Array(r.times.length);
-  for (let p = 0; p < out.length; p++) out[p] = r.node[v][p * r.nodeCount + i]!;
+  for (let p = 0; p < out.length; p++) out[p] = col[p * r.nodeCount + i] ?? 0;
   return out;
 }
 
-export function linkSeries(r: RunResults, v: LinkVariable, i: number): Float32Array {
+export function linkSeries(r: RunResults, v: LinkVar, i: number): Float32Array {
+  const col = linkColumn(r, v);
   const out = new Float32Array(r.times.length);
-  for (let p = 0; p < out.length; p++) out[p] = r.link[v][p * r.linkCount + i]!;
+  for (let p = 0; p < out.length; p++) out[p] = col[p * r.linkCount + i] ?? 0;
   return out;
 }
 

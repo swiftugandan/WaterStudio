@@ -129,9 +129,9 @@ export class Prefs extends Emitter {
     this.emit();
   }
 
-  /** Decimal places for a variable: the preference, or EPANET's defaults (2; status 0). */
+  /** Decimal places for a variable: the preference, or EPANET's defaults (2; status 0; MSX species 4). */
   places(variable: string): number {
-    return this.decimals[variable] ?? (variable === 'status' ? 0 : 2);
+    return this.decimals[variable] ?? (variable === 'status' ? 0 : variable.startsWith('msx:') ? 4 : 2);
   }
 
   setSingleKeys(on: boolean): void {

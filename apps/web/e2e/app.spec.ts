@@ -962,6 +962,46 @@ test('runs fire flow and criticality studies across the engine pool', async ({ p
   expect(axe.violations.map((v) => v.id)).toEqual([]);
 });
 
+test('runs a multi-species analysis and shows its species as results', async ({ page }) => {
+  await ready(page);
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Analysis' }).click();
+  await page.getByRole('button', { name: 'Show multi-species' }).click();
+  const panel = page.locator('.panel.msx-panel');
+  await panel.getByRole('button', { name: 'Start from a template' }).click();
+  const editor = panel.getByLabel('EPANET-MSX input');
+  await expect(editor).toHaveValue(/\[SPECIES\]/);
+  // An input error names its line, and the line is one click (or Enter) away.
+  await editor.fill('[SPECIES]\nBULK CL2 MG\n[PIPES]\nRATE CL2 -k*CL2\n');
+  await panel.getByRole('button', { name: 'Run MSX' }).click();
+  await expect(panel.getByRole('alert')).toContainText('Error 409 (illegal math expression) at line 4');
+  await panel.getByRole('button', { name: /at line 4/ }).click();
+  await expect(editor).toBeFocused();
+  expect(
+    await editor.evaluate((t: HTMLTextAreaElement) => t.value.slice(t.selectionStart, t.selectionEnd)),
+  ).toBe('RATE CL2 -k*CL2');
+  await editor.fill(
+    '[SPECIES]\nBULK CL2 MG\nWALL BIO UG\n[PIPES]\nRATE CL2 -0.5*CL2\nRATE BIO 0.01*CL2\n' +
+      '[TANKS]\nRATE CL2 -0.5*CL2\n[QUALITY]\nGLOBAL CL2 1.0\n[REPORT]\nNODES 10 22\nSPECIES CL2 YES\n',
+  );
+  await editor.press('Control+Enter');
+  await expect(panel.getByRole('tab', { name: 'Species (2)' })).toBeVisible({ timeout: 30_000 });
+  await panel.getByRole('tab', { name: 'Species (2)' }).click();
+  await panel.getByRole('row', { name: /CL2/ }).getByRole('button', { name: 'Nodes' }).click();
+  await expect(page.locator('.legends')).toContainText('Node CL2');
+  // Species are results like any other: the map theme, the results table, the report.
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Results' }).click();
+  await expect(page.getByLabel('Nodes').locator('option[value="msx:CL2"]')).toHaveCount(1);
+  await expect(page.getByLabel('Links').locator('option[value="msx:BIO"]')).toHaveCount(1);
+  await expect(page.getByLabel('Nodes').locator('option[value="msx:BIO"]')).toHaveCount(0);
+  await panel.getByRole('tab', { name: 'Report' }).click();
+  await expect(panel.getByLabel('MSX report')).toContainText('<<< Node 22 >>>');
+  const axe = await new AxeBuilder({ page })
+    .include('.panel.msx-panel')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  expect(axe.violations.map((v) => v.id)).toEqual([]);
+});
+
 test('the editors have no WCAG 2.2 AA violations', async ({ page }) => {
   await ready(page);
   await ws(page, (w) => {

@@ -47,6 +47,15 @@ export interface FilesRequest {
   statusLog: boolean;
 }
 
+/** A multi-species run: the model and an EPANET-MSX input file. */
+export interface MsxRequest {
+  model: model.Model;
+  /** The MSX input file's text. */
+  msx: string;
+  /** Its name, for messages. */
+  fileName: string;
+}
+
 export type EngineRequest =
   | { id: number; kind: 'read-inp'; inp: string }
   | { id: number; kind: 'write-inp'; model: model.Model }
@@ -54,7 +63,8 @@ export type EngineRequest =
   | { id: number; kind: 'run-hydraulics'; inp: string }
   | { id: number; kind: 'run-files'; request: FilesRequest }
   | { id: number; kind: 'check'; model: model.Model }
-  | { id: number; kind: 'study'; request: StudyRequest };
+  | { id: number; kind: 'study'; request: StudyRequest }
+  | { id: number; kind: 'msx'; request: MsxRequest };
 
 export type EngineReply =
   | { kind: 'read-inp'; value: ReadResult }
@@ -63,7 +73,8 @@ export type EngineReply =
   | { kind: 'run-hydraulics'; value: HydraulicReport }
   | { kind: 'run-files'; value: EpanetFiles }
   | { kind: 'check'; value: string | null }
-  | { kind: 'study'; value: FireFlowResult[] | CriticalityResult[] };
+  | { kind: 'study'; value: FireFlowResult[] | CriticalityResult[] }
+  | { kind: 'msx'; value: RunResults };
 
 export type EngineResponse =
   { id: number; ok: true; reply: EngineReply; ms: number } | { id: number; ok: false; error: string };

@@ -6,11 +6,12 @@
  */
 
 import { getfloat } from '@waterstudio/core';
+import { linkColumn, nodeColumn, type LinkVar, type NodeVar } from '@waterstudio/engine-client';
 import { rampColors } from '@waterstudio/render';
 import { useId, useState } from 'react';
 import { useApp } from '../app/context.tsx';
 import type { AppState } from '../app/state.ts';
-import { variableLabel } from '../shell/Ribbon.tsx';
+import { variableNoun } from '../shell/Ribbon.tsx';
 import { legendOf, themeLegend, variableUnit } from '../viewport/paint.ts';
 
 function nice(x: number): number {
@@ -30,17 +31,14 @@ function Editor({ state, table }: { state: AppState; table: 'node' | 'link' }) {
   const key = `${table}:${v}`;
   const custom = state.mapTheme.breaks?.[key];
   const legend = themeLegend(results, table, v, state.mapTheme);
-  const unit = variableUnit(v, state.units);
+  const unit = variableUnit(v, state.units, results);
   const set = (breaks: number[] | null) => {
     const all = { ...(state.mapTheme.breaks ?? {}) };
     const next = Object.fromEntries(Object.entries(all).filter(([k]) => k !== key));
     if (breaks) next[key] = breaks;
     state.setMapTheme({ breaks: next });
   };
-  const col =
-    table === 'node'
-      ? results.node[v as keyof typeof results.node]
-      : results.link[v as keyof typeof results.link];
+  const col = table === 'node' ? nodeColumn(results, v as NodeVar) : linkColumn(results, v as LinkVar);
   const values = Array.from(col, (x) => (v === 'flow' ? Math.abs(x) : x)).filter(Number.isFinite);
   const lo = Math.min(...values);
   const hi = Math.max(...values);
@@ -48,7 +46,7 @@ function Editor({ state, table }: { state: AppState; table: 'node' | 'link' }) {
   return (
     <section className="field-group" aria-labelledby={`${id}-h`}>
       <h3 id={`${id}-h`}>
-        {table === 'node' ? 'Nodes' : 'Links'}: {variableLabel(v).toLowerCase()}
+        {table === 'node' ? 'Nodes' : 'Links'}: {variableNoun(v)}
         {unit ? ` (${unit})` : ''} {custom ? '· set by hand' : '· automatic'}
       </h3>
       <ol className="legend-edit">

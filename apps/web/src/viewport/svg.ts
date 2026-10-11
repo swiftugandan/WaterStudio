@@ -6,7 +6,7 @@
 
 import { buildScene, type Legend } from '@waterstudio/render';
 import type { AppState } from '../app/state.ts';
-import { variableLabel } from '../shell/Ribbon.tsx';
+import { variableNoun } from '../shell/Ribbon.tsx';
 import { drawSizes } from '../app/prefs.ts';
 import { computePaint, themeLegend, variableUnit } from './paint.ts';
 import type { View } from './annotations.ts';
@@ -110,17 +110,17 @@ export function mapSvg(state: AppState, view: View, colours: SvgColours): string
     if (state.mapTheme.link) {
       const v = state.mapTheme.link;
       items.push([
-        `Link ${variableLabel(v).toLowerCase()}`,
+        `Link ${variableNoun(v)}`,
         themeLegend(run.results, 'link', v, state.mapTheme),
-        variableUnit(v, state.units),
+        variableUnit(v, state.units, run.results),
       ]);
     }
     if (state.mapTheme.node) {
       const v = state.mapTheme.node;
       items.push([
-        `Node ${variableLabel(v).toLowerCase()}`,
+        `Node ${variableNoun(v)}`,
         themeLegend(run.results, 'node', v, state.mapTheme),
-        variableUnit(v, state.units),
+        variableUnit(v, state.units, run.results),
       ]);
     }
     let lx = 12;

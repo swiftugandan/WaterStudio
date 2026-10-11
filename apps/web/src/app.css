@@ -1485,3 +1485,59 @@ button.link {
 .studies-table tr.fails td {
   color: var(--ws-color-danger-text);
 }
+
+/* Multi-species (EPANET-MSX) */
+.msx-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-1);
+}
+.msx-panel .code-editor {
+  flex: 1;
+  min-height: 200px;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow: auto;
+}
+.msx-file {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-1);
+}
+.msx-file .spacer {
+  flex: 1;
+}
+.msx-errors {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: var(--ws-font-mono);
+  font-size: var(--ws-font-size-sm);
+  white-space: pre-wrap;
+}
+.msx-errors .link-button {
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.msx-species td,
+.msx-species th {
+  text-align: left;
+}
+.msx-actions {
+  display: flex;
+  gap: var(--ws-space-1);
+}
+.msx-report {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.msx-empty p {
+  margin: 0 0 var(--ws-space-2);
+}

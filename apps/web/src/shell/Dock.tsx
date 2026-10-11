@@ -29,12 +29,13 @@ import { StudiesPanel } from '../panels/StudiesPanel.tsx';
 import { GraphPanel, graphTitle, type GraphParams } from '../panels/GraphPanel.tsx';
 import { ReportPanel } from '../panels/ReportPanel.tsx';
 import { MessagesPanel } from '../panels/MessagesPanel.tsx';
+import { MsxPanel } from '../panels/MsxPanel.tsx';
 import { PropertiesPanel } from '../panels/PropertiesPanel.tsx';
 import { ResultsPanel } from '../panels/ResultsPanel.tsx';
 import { MapView } from '../viewport/MapView.tsx';
 
 const LAYOUT_KEY = 'ws.layout.v1';
-const DATA_EDITORS = new Set(['patterns', 'curves', 'controls', 'studies']);
+const DATA_EDITORS = new Set(['patterns', 'curves', 'controls', 'studies', 'msx']);
 
 const PANELS: Record<
   string,
@@ -59,6 +60,7 @@ const PANELS: Record<
   },
   scenarios: { title: 'Scenarios', position: () => ({ referencePanel: 'browser', direction: 'within' }) },
   studies: { title: 'Studies', position: () => ({ referencePanel: 'map', direction: 'right' }) },
+  msx: { title: 'Multi-species', position: () => ({ referencePanel: 'map', direction: 'right' }) },
 };
 
 const components = {
@@ -79,6 +81,7 @@ const components = {
   formats: () => <FormatsPanel />,
   scenarios: () => <ScenariosPanel />,
   studies: () => <StudiesPanel />,
+  msx: () => <MsxPanel />,
   graph: (props: IDockviewPanelProps<GraphParams>) => <GraphPanel {...props} />,
 };
 
