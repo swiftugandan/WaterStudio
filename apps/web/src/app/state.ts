@@ -4,6 +4,7 @@
  * re-render when it changes; the viewport subscribes directly for speed.
  */
 
+import { readDefaults, saveDefaults, type Defaults } from './defaults.ts';
 import { planLengthOf } from './geometry.ts';
 import type { CalibrationData, CalibrationVariable } from './calibration.ts';
 import { loadModel, Store, toModel, unitSystem, type model, type UnitSystem } from '@waterstudio/core';
@@ -91,6 +92,8 @@ export class AppState extends Emitter {
   /** Panels the user has open, by id. */
   panels = new Set(['browser', 'properties', 'results', 'messages']);
   private panelFocus: string | null = null;
+  /** Defaults for new elements (Project › Defaults). */
+  defaults: Defaults = readDefaults();
   /** Bumped to ask the query panel to focus its Find box. */
   findRequest = 0;
   readonly engine: EngineClient;
@@ -159,6 +162,12 @@ export class AppState extends Emitter {
   /** With auto-length on, the plan length of a link for edits; otherwise undefined. */
   get lengthOf(): ((link: number) => number | undefined) | undefined {
     return this.prefs.autoLength === 'on' ? planLengthOf(this.store.doc, this.units.si) : undefined;
+  }
+
+  setDefaults(d: Defaults): void {
+    this.defaults = d;
+    saveDefaults(d);
+    this.emit();
   }
 
   /** Open a panel (if closed) and bring it to the front. */

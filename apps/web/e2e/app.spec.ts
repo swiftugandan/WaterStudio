@@ -445,8 +445,32 @@ test('edits project options with undo', async ({ page }) => {
   await panel.getByLabel('Total duration').fill('48');
   await panel.getByLabel('Total duration').press('Enter');
   await expect(panel.getByLabel('Total duration')).toHaveValue('48:00');
-  await panel.getByRole('tab', { name: 'Title' }).click();
+  await panel.getByRole('tab', { name: 'Summary' }).click();
   await expect(panel.getByLabel('Title and notes')).toHaveValue(/EPANET Example Network 1/);
+  await expect(panel.getByRole('region', { name: 'Project summary' })).toContainText('Junctions9');
+  // Defaults: new pipes get the prefix and diameter set here.
+  await panel.getByRole('tab', { name: 'Defaults' }).click();
+  await panel.getByLabel('Pipe', { exact: true }).fill('P-');
+  await panel.getByLabel('Pipe', { exact: true }).press('Enter');
+  await panel.getByLabel('Pipe diameter').fill('8');
+  await panel.getByLabel('Pipe diameter').press('Enter');
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Draw' }).click();
+  await page.getByRole('button', { name: 'Show add element' }).click();
+  const add = page.locator('.panel.add-element');
+  await add.getByLabel('Type').selectOption('pipe');
+  await add.getByLabel('Start node').fill('10');
+  await add.getByLabel('End node').fill('23');
+  await add.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(add.getByRole('status')).toHaveText('Added pipe P-14.');
+  expect(
+    await ws(page, (w) => {
+      const d = w.state.store.doc as unknown as {
+        findLink(id: string): number;
+        num(h: number, f: string): number;
+      };
+      return d.num(d.findLink('P-14'), 'diameter');
+    }),
+  ).toBe(8);
 });
 
 test('edits patterns and curves, renaming every reference', async ({ page }) => {
@@ -720,7 +744,16 @@ test('the editors have no WCAG 2.2 AA violations', async ({ page }) => {
   };
   await audit('inspector');
   await page.getByRole('button', { name: 'Show options' }).click();
-  for (const tab of ['Hydraulics', 'Demands', 'Quality', 'Times', 'Energy', 'Report', 'Title']) {
+  for (const tab of [
+    'Hydraulics',
+    'Demands',
+    'Quality',
+    'Times',
+    'Energy',
+    'Report',
+    'Defaults',
+    'Summary',
+  ]) {
     await page.locator('.panel.options').getByRole('tab', { name: tab }).click();
     await audit(`options ${tab}`);
   }

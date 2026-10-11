@@ -36,6 +36,7 @@ import { computePaint, legendOf, VARIABLE_QUANTITY } from './paint.ts';
 import { drawAnnotations, LABEL_FONT, labelBoxes } from './annotations.ts';
 import { drawSizes } from '../app/prefs.ts';
 import { autoLength, linkPoints } from '../app/geometry.ts';
+import { newElement } from '../app/defaults.ts';
 
 const GEOMETRY_FIELDS = new Set(['x', 'y', 'vertices', 'from', 'to', 'kind', 'pipeStatus', 'valveType']);
 const DRAG_THRESHOLD = 4;
@@ -745,7 +746,8 @@ export function MapView() {
     if (NODE_TOOLS.has(tool)) {
       const [wx, wy] = cam.toWorld(x, y);
       tryEdit(() => {
-        const h = addNode(state.store, tool as NodeKind, { x: wx, y: wy });
+        const init = newElement(state, tool as NodeKind);
+        const h = addNode(state.store, tool as NodeKind, { x: wx, y: wy, ...init });
         state.select([h]);
       });
       return;
@@ -767,11 +769,13 @@ export function MapView() {
             doc0.num(hit.handle, 'x'),
             doc0.num(hit.handle, 'y'),
           ]);
+          const init = newElement(state, g.tool);
           const h = addLink(state.store, g.tool, {
             from: g.from,
             to: hit.handle,
             vertices: g.points,
-            ...(values ? { values } : {}),
+            ...(init.id ? { id: init.id } : {}),
+            values: { ...init.values, ...values },
           });
           state.select([h]);
         });

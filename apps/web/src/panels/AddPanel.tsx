@@ -8,6 +8,7 @@ import { addLink, addNode, EditError, getfloat, type LinkKind, type NodeKind } f
 import { useId, useState } from 'react';
 import { useApp } from '../app/context.tsx';
 import { autoLength } from '../app/geometry.ts';
+import { newElement } from '../app/defaults.ts';
 
 const KINDS: [NodeKind | LinkKind, string][] = [
   ['junction', 'Junction'],
@@ -37,7 +38,13 @@ export function AddPanel() {
         const y = getfloat(f.y.trim());
         if (x === undefined || y === undefined)
           throw new EditError('Enter the X and Y coordinates as numbers.');
-        h = addNode(state.store, kind, { x, y, ...(id ? { id } : {}) });
+        const init = newElement(state, kind);
+        h = addNode(state.store, kind, {
+          x,
+          y,
+          values: init.values,
+          ...((id ?? init.id) ? { id: id ?? init.id } : {}),
+        });
       } else {
         const from = doc.findNode(f.from.trim());
         const to = doc.findNode(f.to.trim());
@@ -49,7 +56,13 @@ export function AddPanel() {
           doc.num(to, 'x'),
           doc.num(to, 'y'),
         ]);
-        h = addLink(state.store, kind, { from, to, ...(id ? { id } : {}), ...(values ? { values } : {}) });
+        const init = newElement(state, kind);
+        h = addLink(state.store, kind, {
+          from,
+          to,
+          values: { ...init.values, ...values },
+          ...((id ?? init.id) ? { id: id ?? init.id } : {}),
+        });
       }
       state.select([h]);
       setMessage({ ok: true, text: `Added ${kind} ${doc.id(h)}.` });

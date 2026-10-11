@@ -6,6 +6,7 @@
 
 import {
   displayOption,
+  getfloat,
   OPTION_SPECS,
   optionSpec,
   parseOption,
@@ -21,6 +22,7 @@ import { useId, useState } from 'react';
 import { useApp } from '../app/context.tsx';
 import type { AppState } from '../app/state.ts';
 import { CommitInput, InputRow, Row } from './fields.tsx';
+import { builtIn, DEFAULT_KEYS, type DefaultKey } from '../app/defaults.ts';
 
 const TABS = [
   ['hydraulics', 'Hydraulics', ['Hydraulics']],
@@ -29,7 +31,8 @@ const TABS = [
   ['times', 'Times', ['Times']],
   ['energy', 'Energy', ['Energy']],
   ['report', 'Report', ['Report']],
-  ['title', 'Title', []],
+  ['defaults', 'Defaults', []],
+  ['title', 'Summary', []],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
@@ -313,7 +316,133 @@ function TitleEditor({ state }: { state: AppState }) {
         }}
       />
       <p className="muted">EPANET shows the first three lines as the title of its reports.</p>
+      <Summary state={state} />
     </div>
+  );
+}
+
+/** EPANET's project summary: what the network holds and how it will be analysed. */
+function Summary({ state }: { state: AppState }) {
+  const doc = state.store.doc;
+  const count: Record<string, number> = { junction: 0, reservoir: 0, tank: 0, pipe: 0, pump: 0, valve: 0 };
+  for (const h of doc.nodeHandles()) count[doc.nodeKind(h)]!++;
+  for (const h of doc.linkHandles()) count[doc.linkKind(h)]!++;
+  const u = state.units;
+  const d = doc.data;
+  const q = readQuality(d.options);
+  const rows: [string, string][] = [
+    ['Junctions', String(count['junction'])],
+    ['Reservoirs', String(count['reservoir'])],
+    ['Tanks', String(count['tank'])],
+    ['Pipes', String(count['pipe'])],
+    ['Pumps', String(count['pump'])],
+    ['Valves', String(count['valve'])],
+    ['Patterns, curves', `${d.patterns.length}, ${d.curves.length}`],
+    ['Controls, rules', `${d.controls.length}, ${d.rules.length}`],
+    ['Flow units', u.flow],
+    ['Headloss formula', u.headloss],
+    ['Demand multiplier', displayOption(d.options, 'demandMultiplier') ?? '1'],
+    ['Demand model', displayOption(d.options, 'demandModel') ?? 'DDA'],
+    [
+      'Quality analysis',
+      q.kind === 'none'
+        ? 'None'
+        : q.kind === 'age'
+          ? 'Water age'
+          : q.kind === 'trace'
+            ? `Trace from ${q.node}`
+            : q.name || 'Chemical',
+    ],
+    ['Duration', displayOption(d.times, 'duration') ?? '0:00'],
+    ['Hydraulic time step', displayOption(d.times, 'hydraulicStep') ?? '1:00'],
+    ['Reporting time step', displayOption(d.times, 'reportStep') ?? '1:00'],
+  ];
+  return (
+    <section className="results-values" aria-label="Project summary">
+      <h3>Summary</h3>
+      <dl>
+        {rows.map(([k, v]) => (
+          <div key={k}>
+            <dt>{k}</dt>
+            <dd>{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+const DEFAULT_LABELS: Record<DefaultKey, [string, Parameters<typeof unitLabel>[0]]> = {
+  junctionElevation: ['Junction elevation', 'elevation'],
+  tankElevation: ['Tank elevation', 'elevation'],
+  tankDiameter: ['Tank diameter', 'tankDiameter'],
+  tankInitLevel: ['Tank initial level', 'level'],
+  tankMaxLevel: ['Tank maximum level', 'level'],
+  pipeLength: ['Pipe length', 'length'],
+  pipeDiameter: ['Pipe diameter', 'diameter'],
+  pipeRoughness: ['Pipe roughness', 'roughness'],
+};
+
+/** Project › Defaults: ID prefixes and starting values for new elements. */
+function DefaultsEditor({ state }: { state: AppState }) {
+  const d = state.defaults;
+  return (
+    <>
+      <section className="field-group" aria-label="ID prefixes">
+        <h3>ID prefixes</h3>
+        {(Object.keys(d.prefixes) as (keyof typeof d.prefixes)[]).map((k) => (
+          <InputRow
+            key={k}
+            label={`${k[0]!.toUpperCase()}${k.slice(1)}`}
+            help="New elements of this type are numbered after this prefix."
+            value={d.prefixes[k]}
+            placeholder="None"
+            onCommit={(t) => {
+              const v = t.trim();
+              if (/[\s;"]/.test(v)) return 'A prefix cannot contain spaces, semicolons or quotes.';
+              state.setDefaults({ ...d, prefixes: { ...d.prefixes, [k]: v } });
+              return undefined;
+            }}
+          />
+        ))}
+      </section>
+      <section className="field-group" aria-label="Properties of new elements">
+        <h3>Properties of new elements</h3>
+        {DEFAULT_KEYS.map((k) => {
+          const [label, q] = DEFAULT_LABELS[k];
+          return (
+            <InputRow
+              key={k}
+              label={label}
+              unit={unitLabel(q, state.units)}
+              numeric
+              value={d.values[k] === undefined ? '' : String(d.values[k])}
+              placeholder={String(builtIn(k, state.units))}
+              onCommit={(t) => {
+                const values: typeof d.values = Object.fromEntries(
+                  Object.entries(d.values).filter(([key]) => key !== k),
+                );
+                if (t.trim() !== '') {
+                  const n = getfloat(t.trim());
+                  if (n === undefined) return `${label} must be a number.`;
+                  if (
+                    n < 0 ||
+                    (n === 0 && k !== 'junctionElevation' && k !== 'tankElevation' && k !== 'tankInitLevel')
+                  )
+                    return `${label} must be more than 0.`;
+                  values[k] = n;
+                }
+                state.setDefaults({ ...d, values });
+                return undefined;
+              }}
+            />
+          );
+        })}
+        <p className="muted">
+          Remembered in this browser. Empty fields use the values shown, which follow the model’s units.
+        </p>
+      </section>
+    </>
   );
 }
 
@@ -357,6 +486,8 @@ export function OptionsPanel() {
       <div className="options-body" role="tabpanel" aria-label={current[1]}>
         {tab === 'title' ? (
           <TitleEditor state={state} />
+        ) : tab === 'defaults' ? (
+          <DefaultsEditor state={state} />
         ) : (
           current[2].map((g) => <Group key={g} state={state} group={g} />)
         )}
