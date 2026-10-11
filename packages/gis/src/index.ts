@@ -16,3 +16,18 @@ export {
   type ImportOptions,
   type Projector,
 } from './geojson.ts';
+export {
+  crsFromPrj,
+  layersFromFiles,
+  modelToShapefiles,
+  readDbf,
+  readLayer,
+  readShp,
+  shapefilesToModel,
+  writeDbf,
+  writeShp,
+  ShapefileError,
+  type ShapefileImportOptions,
+  type ShapefileLayer,
+} from './shapefile.ts';
+export { readZip, writeZip, crc32, ZipError } from './zip.ts';

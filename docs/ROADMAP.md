@@ -58,7 +58,8 @@ Gate: every EPANET 2.2 GUI function available; quality within tolerance; WCAG 2.
 - [x] MapLibre basemap, CRS, backdrop images (ADR 0010)
 - [x] `.out` and `.rpt` writers (ADR 0009): identical to `runepanet`'s on all 64 networks; app results follow the `.out`
 - [x] GeoJSON and DXF import and export (`@waterstudio/gis`); GeoJSON in longitude and latitude is projected to its UTM zone
-- [ ] Shapefile import and export
+- [x] Shapefile import and export: point and line layers with dBASE attributes, from a .zip or loose files; the .prj's
+  coordinate system is used when it names one; exports are WGS 84 with a .prj when the model has a CRS
 - [x] Read-only agent tools and the Assistant panel (`@waterstudio/agents`, ADR 0011): Anthropic and
   OpenAI-compatible providers, every tool call shown
 

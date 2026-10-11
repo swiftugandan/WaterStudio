@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
@@ -335,7 +336,7 @@ test('imports GeoJSON into a projected network and exports GeoJSON and DXF', asy
     ],
   };
   const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: 'Import GeoJSON or DXF' }).click();
+  await page.getByRole('button', { name: 'Import GeoJSON, shapefile or DXF' }).click();
   await (
     await chooser
   ).setFiles({
@@ -355,6 +356,19 @@ test('imports GeoJSON into a projected network and exports GeoJSON and DXF', asy
   const dxf = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Export DXF' }).click();
   expect((await dxf).suggestedFilename()).toBe('mains.dxf');
+  // Shapefiles in longitude and latitude come back into the same zone.
+  const shp = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export shapefiles' }).click();
+  const zip = await shp;
+  expect(zip.suggestedFilename()).toBe('mains_shp.zip');
+  const bytes = await readFile((await zip.path()));
+  page.once('dialog', (d) => void d.accept());
+  const again = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Import GeoJSON, shapefile or DXF' }).click();
+  await (await again).setFiles({ name: 'mains_shp.zip', mimeType: 'application/zip', buffer: bytes });
+  await expect(page.locator('.statusbar')).toContainText('mains_shp.inp');
+  await expect(page.locator('.statusbar')).toContainText('3 nodes · 2 links');
+  await expect(page.locator('.statusbar')).toContainText('EPSG:32630');
 });
 
 test('the assistant answers with tools, showing each call', async ({ page }) => {

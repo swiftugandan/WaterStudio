@@ -214,10 +214,10 @@ export function buildModel(rawNodes: RawNode[], rawLinks: RawLink[], opts: Build
     const n: model.Node = {
       id,
       kind: nodeKind(p, z, si),
-      comment: str(p, 'description', 'comment') ?? null,
+      comment: str(p, 'description', 'descr', 'comment') ?? null,
       tag: str(p, 'tag') ?? null,
       coordinates: [x, y],
-      initialQuality: num(p, 'initial_quality', 'quality') ?? null,
+      initialQuality: num(p, 'initial_quality', 'init_qual', 'quality') ?? null,
       source: null,
     };
     m.nodes.push(n);
@@ -294,7 +294,7 @@ export function buildModel(rawNodes: RawNode[], rawLinks: RawLink[], opts: Build
       from,
       to,
       kind,
-      comment: str(p, 'description', 'comment') ?? null,
+      comment: str(p, 'description', 'descr', 'comment') ?? null,
       tag: str(p, 'tag') ?? null,
       vertices: pts.slice(1, -1),
     });

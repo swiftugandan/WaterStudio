@@ -1,5 +1,26 @@
 /** Opening and saving files with the browser's own pickers. */
 
+/** Choose several files at once (a shapefile's .shp, .dbf and .prj, say). */
+export function openFilesPicker(accept: string): Promise<File[]> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.multiple = true;
+    input.style.display = 'none';
+    input.addEventListener('change', () => {
+      resolve([...(input.files ?? [])]);
+      input.remove();
+    });
+    input.addEventListener('cancel', () => {
+      resolve([]);
+      input.remove();
+    });
+    document.body.append(input);
+    input.click();
+  });
+}
+
 export function openFilePicker(accept: string): Promise<File | null> {
   return new Promise((resolve) => {
     const input = document.createElement('input');
