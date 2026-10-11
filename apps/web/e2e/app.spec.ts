@@ -778,6 +778,39 @@ test('exports a scenario and applies an edited one', async ({ page }) => {
     .toBe(24);
 });
 
+test('sets legend intervals by hand, and copies properties between elements', async ({ page }) => {
+  await ready(page);
+  await page.keyboard.press('F5');
+  await expect(page.getByTestId('run-status')).toContainText('Solved');
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Results' }).click();
+  await page.getByRole('button', { name: 'Show legend editor' }).click();
+  const editor = page.locator('.legend-panel section').first();
+  await expect(editor).toContainText('automatic');
+  await editor.getByLabel('Upper limit of interval 1').fill('50');
+  await editor.getByLabel('Upper limit of interval 1').press('Enter');
+  await expect(editor).toContainText('set by hand');
+  await expect(page.locator('.legends')).toContainText('< 50');
+  await editor.getByRole('button', { name: 'Automatic' }).click();
+  await expect(page.locator('.legends')).not.toContainText('< 50');
+  // Copy junction 10's properties onto junction 12.
+  const list = page.getByRole('listbox', { name: 'junction list' });
+  await list.focus();
+  await page.keyboard.press('Home');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Control+c');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Control+v');
+  const twelve = () =>
+    ws(page, (w) => {
+      const d = w.state.store.doc;
+      const h = d.findNode('12')!;
+      return [d.num(h, 'elevation'), (d.get(h, 'demands') as { base: number }[])[0]!.base];
+    });
+  await expect.poll(twelve).toEqual([710, 0]);
+});
+
 test('the editors have no WCAG 2.2 AA violations', async ({ page }) => {
   await ready(page);
   await ws(page, (w) => {
@@ -818,6 +851,11 @@ test('the editors have no WCAG 2.2 AA violations', async ({ page }) => {
   await audit('controls');
   await page.keyboard.press('Control+f');
   await audit('query');
+  await page.keyboard.press('F5');
+  await expect(page.getByTestId('run-status')).toContainText('Solved');
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Results' }).click();
+  await page.getByRole('button', { name: 'Show legend editor' }).click();
+  await audit('legend');
   await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Draw' }).click();
   await page.getByRole('button', { name: 'Show add element' }).click();
   await audit('add element');

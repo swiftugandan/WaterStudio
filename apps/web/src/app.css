@@ -1349,3 +1349,33 @@ button.link {
 .status-toggle[aria-pressed='true'] {
   color: var(--ws-color-accent);
 }
+
+/* Legend editor */
+.legend-edit {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--ws-space-1);
+}
+.legend-edit li {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-2);
+}
+.legend-edit .chip {
+  width: 18px;
+  height: 12px;
+  border-radius: 2px;
+  flex: none;
+}
+.legend-edit input {
+  width: 110px;
+  height: calc(var(--ws-size-control) - 4px);
+}
+.legend-panel .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ws-space-1);
+  margin-top: var(--ws-space-1);
+}

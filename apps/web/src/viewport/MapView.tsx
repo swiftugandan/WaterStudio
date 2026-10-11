@@ -32,7 +32,7 @@ import { Basemap, OSM_ATTRIBUTION } from '../geo/basemap.ts';
 import { backdropPlacement, modelCrs, type ModelCrs } from '../geo/model.ts';
 import type { AppState } from '../app/state.ts';
 import { variableLabel } from '../shell/Ribbon.tsx';
-import { computePaint, legendOf, VARIABLE_QUANTITY } from './paint.ts';
+import { computePaint, themeLegend, VARIABLE_QUANTITY } from './paint.ts';
 import { drawAnnotations, LABEL_FONT, labelBoxes } from './annotations.ts';
 import { mapSvg } from './svg.ts';
 import { drawSizes } from '../app/prefs.ts';
@@ -581,7 +581,7 @@ function Legends() {
     <div className="legends" aria-label="Map legend">
       {state.stale && <div className="stale-badge">Results are out of date — run again</div>}
       {items.map(([table, v]) => {
-        const legend = legendOf(results, table, v, state.mapTheme.ramp);
+        const legend = themeLegend(results, table, v, state.mapTheme);
         if (legend.breaks.length === 0) return null;
         return (
           <LegendBox

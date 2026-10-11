@@ -6,6 +6,8 @@
 import {
   applyScenario,
   CommandBus,
+  copyProperties,
+  pasteProperties,
   deleteElements,
   reverseLinks,
   scenarioText,
@@ -30,6 +32,7 @@ const PANEL_ICONS: Record<string, string> = {
   controls: 'list-checks',
   query: 'filter',
   add: 'plus',
+  legend: 'palette',
 };
 
 export const SAMPLES = ['Net1', 'Net2', 'Net3'] as const;
@@ -325,6 +328,36 @@ export function createCommands(state: AppState): CommandBus<AppState> {
       run: (s) => s.select([...s.store.doc.nodeHandles(), ...s.store.doc.linkHandles()]),
     },
     {
+      id: 'edit.copyProps',
+      title: 'Copy properties',
+      icon: 'copy',
+      shortcut: 'Mod+C',
+      category: 'Edit',
+      enabled: (s) => s.selection.size === 1 && s.store.doc.has([...s.selection][0]!),
+      run: (s) => {
+        const h = [...s.selection][0]!;
+        s.clipboard = copyProperties(s.store.doc, h);
+        s.log('info', `Copied the properties of ${s.store.doc.kind(h)} ${s.store.doc.id(h)}.`);
+      },
+    },
+    {
+      id: 'edit.pasteProps',
+      title: 'Paste properties',
+      icon: 'clipboard',
+      shortcut: 'Mod+V',
+      category: 'Edit',
+      enabled: (s) => s.clipboard !== null && s.selection.size > 0,
+      run: (s) => {
+        const clip = s.clipboard;
+        if (!clip) return;
+        const n = pasteProperties(s.store, s.selection, clip);
+        s.log(
+          n ? 'info' : 'warning',
+          n ? `Pasted onto ${n} ${clip.kind}${n === 1 ? '' : 's'}.` : `Select ${clip.kind}s to paste onto.`,
+        );
+      },
+    },
+    {
       id: 'edit.reverse',
       title: 'Reverse link direction',
       icon: 'arrow-left-right',
@@ -489,6 +522,7 @@ export function createCommands(state: AppState): CommandBus<AppState> {
         ['controls', 'Controls'],
         ['query', 'Query and group edit'],
         ['add', 'Add element'],
+        ['legend', 'Legend editor'],
       ] as const
     ).map(([id, title]): Cmd => ({
       id: `view.panel.${id}`,

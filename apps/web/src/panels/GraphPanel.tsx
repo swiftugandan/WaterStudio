@@ -28,7 +28,7 @@ import { LineChart, type Series } from '../charts/LineChart.tsx';
 import { hoursLabel, tickLabel } from '../charts/scale.ts';
 import { variableLabel } from '../shell/Ribbon.tsx';
 import { clock } from '../shell/TimeControl.tsx';
-import { legendOf, variableUnit } from '../viewport/paint.ts';
+import { themeLegend, variableUnit } from '../viewport/paint.ts';
 import { ContourPlot } from '../charts/ContourPlot.tsx';
 import type { AppState } from '../app/state.ts';
 
@@ -265,7 +265,7 @@ function Contour({
     // The run's results change with the document's revision.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run, variable, period, doc, state.store.rev]);
-  const legend = legendOf(run.results, 'node', variable, state.mapTheme.ramp);
+  const legend = themeLegend(run.results, 'node', variable, state.mapTheme);
   if (data.xs.length < 3)
     return <p className="panel-empty">A contour plot needs three or more nodes with coordinates.</p>;
   return (

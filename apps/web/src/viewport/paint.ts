@@ -10,6 +10,7 @@ import {
 import {
   classify,
   emptyPaint,
+  rampColors,
   legendFor,
   type Legend,
   type Paint,
@@ -44,8 +45,19 @@ export function variableUnit(v: NodeVariable | LinkVariable, u: UnitSystem): str
 
 const legendCache = new WeakMap<RunResults, Map<string, Legend>>();
 
-/** A legend for a variable over every period, so colours stay put during playback. */
-export function legendOf(r: RunResults, table: 'node' | 'link', v: string, ramp: RampName): Legend {
+/**
+ * A legend for a variable over every period, so colours stay put during playback;
+ * intervals set by hand (`custom`) replace the automatic ones.
+ */
+export function legendOf(
+  r: RunResults,
+  table: 'node' | 'link',
+  v: string,
+  ramp: RampName,
+  custom?: readonly number[],
+): Legend {
+  if (custom && custom.length > 0)
+    return { breaks: [...custom], colors: rampColors(ramp, custom.length + 1) };
   let m = legendCache.get(r);
   if (!m) {
     m = new Map();
@@ -95,14 +107,19 @@ export function computePaint(
   scene: Scene,
   run: RunState,
   period: number,
-  theme: { node: NodeVariable | null; link: LinkVariable | null; ramp: RampName },
+  theme: {
+    node: NodeVariable | null;
+    link: LinkVariable | null;
+    ramp: RampName;
+    breaks?: Record<string, number[]>;
+  },
 ): Paint {
   const paint = emptyPaint(scene.nodeCount, scene.linkCount);
   const r = run.results;
   if (!r || !run.nodes || !run.links) return paint;
   const p = Math.min(period, r.times.length - 1);
   if (theme.node) {
-    const legend = legendOf(r, 'node', theme.node, theme.ramp);
+    const legend = legendOf(r, 'node', theme.node, theme.ramp, theme.breaks?.[`node:${theme.node}`]);
     classify(
       mapFrame(nodeFrame(r, theme.node, p), run.nodes, scene.nodeHandles, false),
       legend,
@@ -111,7 +128,7 @@ export function computePaint(
     paint.nodeLegend = legend;
   }
   if (theme.link) {
-    const legend = legendOf(r, 'link', theme.link, theme.ramp);
+    const legend = legendOf(r, 'link', theme.link, theme.ramp, theme.breaks?.[`link:${theme.link}`]);
     const abs = theme.link === 'flow';
     classify(
       mapFrame(linkFrame(r, theme.link, p), run.links, scene.linkHandles, abs),
@@ -121,4 +138,14 @@ export function computePaint(
     paint.linkLegend = legend;
   }
   return paint;
+}
+
+/** The legend the map shows for a table's themed variable. */
+export function themeLegend(
+  r: RunResults,
+  table: 'node' | 'link',
+  v: string,
+  theme: { ramp: RampName; breaks?: Record<string, number[]> },
+): Legend {
+  return legendOf(r, table, v, theme.ramp, theme.breaks?.[`${table}:${v}`]);
 }

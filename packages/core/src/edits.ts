@@ -270,3 +270,37 @@ export function reverseLinks(store: Store, handles: Iterable<number>): number {
   );
   return links.length;
 }
+
+/** The properties EPANET's Edit › Copy takes from an element: everything but identity and place. */
+const NOT_COPIED = new Set(['id', 'kind', 'x', 'y', 'from', 'to', 'vertices', 'comment', 'tag']);
+
+export interface PropertyClip {
+  kind: string;
+  values: Record<string, unknown>;
+}
+
+export function copyProperties(doc: Document, h: number): PropertyClip {
+  const values: Record<string, unknown> = {};
+  for (const f of fieldsOf(doc.kind(h))) {
+    if (NOT_COPIED.has(f.name)) continue;
+    const v = doc.get(h, f.name);
+    values[f.name] = typeof v === 'object' && v !== null ? structuredClone(v) : v;
+  }
+  return { kind: doc.kind(h), values };
+}
+
+/** Paste copied properties onto the elements of the same kind, as one undoable step. */
+export function pasteProperties(store: Store, handles: Iterable<number>, clip: PropertyClip): number {
+  const doc = store.doc;
+  const targets = [...handles].filter((h) => doc.has(h) && doc.kind(h) === clip.kind);
+  if (targets.length === 0) return 0;
+  store.transact(
+    `Paste properties onto ${targets.length} ${clip.kind}${targets.length === 1 ? '' : 's'}`,
+    (tx) => {
+      for (const h of targets)
+        for (const [f, v] of Object.entries(clip.values))
+          tx.set(h, f, typeof v === 'object' && v !== null ? structuredClone(v) : v);
+    },
+  );
+  return targets.length;
+}

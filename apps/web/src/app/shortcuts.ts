@@ -25,6 +25,11 @@ function matches(shortcut: string, e: KeyboardEvent): boolean {
   return e.key.toLowerCase() === key.toLowerCase() || e.code === key;
 }
 
+function hasTextSelection(): boolean {
+  const sel = typeof getSelection === 'function' ? getSelection() : null;
+  return sel !== null && !sel.isCollapsed && sel.toString().length > 0;
+}
+
 function typing(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
@@ -40,10 +45,13 @@ export function installShortcuts<C>(bus: CommandBus<C>): () => void {
       const plain = !c.shortcut.includes('Mod') && !c.shortcut.includes('Alt') && !c.shortcut.startsWith('F');
       if (
         inField &&
-        (plain || c.shortcut === 'Mod+A' || c.shortcut === 'Mod+Z' || c.shortcut === 'Mod+Shift+Z')
+        (plain || ['Mod+A', 'Mod+Z', 'Mod+Shift+Z', 'Mod+C', 'Mod+V', 'Mod+X'].includes(c.shortcut))
       ) {
         return;
       }
+      // Copying selected text (in a report, say) stays the browser's.
+      if ((c.shortcut === 'Mod+C' || c.shortcut === 'Mod+X') && hasTextSelection()) return;
+      if (!bus.isEnabled(c.id) && (c.shortcut === 'Mod+C' || c.shortcut === 'Mod+V')) return;
       e.preventDefault();
       if (bus.isEnabled(c.id)) bus.execute(c.id);
       return;

@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   addLink,
   addNode,
+  copyProperties,
   deleteElements,
   EditError,
   groupEdit,
   moveNodes,
   nextId,
+  pasteProperties,
   reverseLinks,
   setField,
   setVertices,
@@ -192,5 +194,22 @@ describe('link geometry', () => {
     store.undo();
     expect([store.doc.num(b, 'x'), store.doc.num(p, 'length')]).toEqual([30, 50]);
     expect(() => setVertices(store, p, [1])).toThrow(EditError);
+  });
+});
+
+describe('copy and paste properties', () => {
+  it('pastes everything but identity and place onto elements of the same kind', () => {
+    const store = new Store();
+    const a = addNode(store, 'junction', { x: 0, y: 0, id: 'A', values: { elevation: 12 } });
+    const b = addNode(store, 'junction', { x: 5, y: 5, id: 'B' });
+    const t = addNode(store, 'tank', { x: 9, y: 9, id: 'T' });
+    store.transact('demand', (tx) => tx.set(a, 'demands', [{ base: 4, pattern: null, category: 'x' }]));
+    const clip = copyProperties(store.doc, a);
+    expect(pasteProperties(store, [b, t], clip)).toBe(1);
+    expect(store.doc.num(b, 'elevation')).toBe(12);
+    expect(store.doc.get(b, 'demands')).toEqual([{ base: 4, pattern: null, category: 'x' }]);
+    expect([store.doc.id(b), store.doc.num(b, 'x')]).toEqual(['B', 5]);
+    store.undo();
+    expect(store.doc.num(b, 'elevation')).toBe(0);
   });
 });

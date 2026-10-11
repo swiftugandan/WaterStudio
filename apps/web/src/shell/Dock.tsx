@@ -20,6 +20,7 @@ import { AddPanel } from '../panels/AddPanel.tsx';
 import { BrowserPanel } from '../panels/BrowserPanel.tsx';
 import { ControlsPanel } from '../panels/ControlsPanel.tsx';
 import { CurvesPanel, PatternsPanel } from '../panels/DataPanel.tsx';
+import { LegendPanel } from '../panels/LegendPanel.tsx';
 import { OptionsPanel } from '../panels/OptionsPanel.tsx';
 import { QueryPanel } from '../panels/QueryPanel.tsx';
 import { GraphPanel, graphTitle, type GraphParams } from '../panels/GraphPanel.tsx';
@@ -48,6 +49,7 @@ const PANELS: Record<
   controls: { title: 'Controls', position: () => ({ referencePanel: 'map', direction: 'right' }) },
   query: { title: 'Query', position: () => ({ referencePanel: 'properties', direction: 'within' }) },
   add: { title: 'Add element', position: () => ({ referencePanel: 'properties', direction: 'within' }) },
+  legend: { title: 'Legend', position: () => ({ referencePanel: 'properties', direction: 'within' }) },
 };
 
 const components = {
@@ -64,6 +66,7 @@ const components = {
   controls: () => <ControlsPanel />,
   query: () => <QueryPanel />,
   add: () => <AddPanel />,
+  legend: () => <LegendPanel />,
   graph: (props: IDockviewPanelProps<GraphParams>) => <GraphPanel {...props} />,
 };
 

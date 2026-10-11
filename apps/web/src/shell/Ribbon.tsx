@@ -63,6 +63,8 @@ const TABS: Tab[] = [
           { cmd: 'edit.redo', size: 'large' },
           { cmd: 'edit.delete', label: 'Delete' },
           { cmd: 'edit.selectAll' },
+          { cmd: 'edit.copyProps', label: 'Copy' },
+          { cmd: 'edit.pasteProps', label: 'Paste' },
         ],
       },
       {
@@ -157,7 +159,10 @@ const TABS: Tab[] = [
     id: 'results',
     label: 'Results',
     groups: [
-      { label: 'Map', items: [{ custom: 'mapTheme' }] },
+      {
+        label: 'Map',
+        items: [{ custom: 'mapTheme' }, { cmd: 'view.panel.legend', size: 'large', label: 'Legend' }],
+      },
       { label: 'Time', items: [{ custom: 'time' }] },
       {
         label: 'Graphs',

@@ -4,6 +4,7 @@
  * re-render when it changes; the viewport subscribes directly for speed.
  */
 
+import type { PropertyClip } from '@waterstudio/core';
 import { readDefaults, saveDefaults, type Defaults } from './defaults.ts';
 import { planLengthOf } from './geometry.ts';
 import type { CalibrationData, CalibrationVariable } from './calibration.ts';
@@ -59,6 +60,8 @@ export interface MapTheme {
   node: NodeVariable | null;
   link: LinkVariable | null;
   ramp: RampName;
+  /** Legend intervals set by hand, by `table:variable` (EPANET's legend editor). */
+  breaks?: Record<string, number[]>;
 }
 
 export { ctime };
@@ -92,6 +95,8 @@ export class AppState extends Emitter {
   /** Panels the user has open, by id. */
   panels = new Set(['browser', 'properties', 'results', 'messages']);
   private panelFocus: string | null = null;
+  /** Properties copied with Edit › Copy, for pasting onto elements of the same kind. */
+  clipboard: PropertyClip | null = null;
   /** Defaults for new elements (Project › Defaults). */
   defaults: Defaults = readDefaults();
   /** Bumped to ask the query panel to focus its Find box. */
