@@ -7,6 +7,11 @@ license.workspace = true
 
 [dependencies]
 serde = { workspace = true }
+ts-rs = { version = "=12.0.1", optional = true, default-features = false, features = ["serde-compat"] }
 
 [lints]
 workspace = true
+
+[features]
+# Generates TypeScript declarations for the model (see tests/typescript.rs).
+ts = ["dep:ts-rs"]

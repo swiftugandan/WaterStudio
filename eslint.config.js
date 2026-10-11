@@ -13,6 +13,7 @@ export default tseslint.config(
       'oracle/**',
       '**/playwright-report/**',
       '**/test-results/**',
+      '**/generated/**',
     ],
   },
   js.configs.recommended,

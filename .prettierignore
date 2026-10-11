@@ -8,3 +8,4 @@ coverage/
 apps/web/public/samples/
 *.md
 packages/ui/src/tokens/tokens.css
+packages/core/src/generated/

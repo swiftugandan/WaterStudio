@@ -1,7 +1,8 @@
 /// <reference lib="webworker" />
 /** Engine worker: one WebAssembly engine instance, one request at a time. */
 
-import type { EngineRequest, EngineResponse } from './protocol.ts';
+import type { EngineReply, EngineRequest, EngineResponse } from './protocol.ts';
+import { transferables } from './results.ts';
 import { instantiateEngine, type Engine } from './wasm.ts';
 
 declare const self: DedicatedWorkerGlobalScope;
@@ -18,16 +19,31 @@ function load(): Promise<Engine> {
   return engine;
 }
 
+function handle(e: Engine, req: EngineRequest): EngineReply {
+  switch (req.kind) {
+    case 'read-inp':
+      return { kind: 'read-inp', value: e.readInp(req.inp) };
+    case 'write-inp':
+      return { kind: 'write-inp', value: e.writeInp(req.model) };
+    case 'run':
+      return { kind: 'run', value: e.run(req.model) };
+    case 'run-hydraulics':
+      return { kind: 'run-hydraulics', value: e.runHydraulicsInp(req.inp) };
+  }
+}
+
 self.onmessage = async (event: MessageEvent<EngineRequest>) => {
   const req = event.data;
   let reply: EngineResponse;
+  let transfer: ArrayBuffer[] = [];
   try {
     const e = await load();
     const t0 = performance.now();
-    const report = e.runHydraulicsInp(req.inp);
-    reply = { id: req.id, ok: true, report, solveMs: performance.now() - t0 };
+    const value = handle(e, req);
+    reply = { id: req.id, ok: true, reply: value, ms: performance.now() - t0 };
+    if (value.kind === 'run') transfer = transferables(value.value);
   } catch (err) {
     reply = { id: req.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
-  self.postMessage(reply);
+  self.postMessage(reply, transfer);
 };

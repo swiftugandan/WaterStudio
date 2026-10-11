@@ -30,6 +30,8 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --release --all-targets -- -D warnings
       - run: cargo test --release
+      - name: Generated TypeScript model types are up to date
+        run: cargo test -p ws-model --features ts --test typescript && git diff --exit-code ../packages/core/src/generated
       - run: cargo build --release --bins --examples
       - run: cargo build --release --target wasm32-unknown-unknown -p ws-wasm
       - uses: actions/upload-artifact@v7

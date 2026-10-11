@@ -10,6 +10,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 ws-study = { workspace = true }
-epanet-rs = { workspace = true }
+ws-io = { workspace = true }
+ws-model = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

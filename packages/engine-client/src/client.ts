@@ -3,23 +3,46 @@
  * instance, behind a promise-based API. Requests go to the least busy worker.
  */
 
-import { EngineError, type EngineRequest, type EngineResponse, type HydraulicReport } from './protocol.ts';
+import type { model } from '@waterstudio/core';
+import {
+  EngineError,
+  type EngineReply,
+  type EngineRequest,
+  type EngineResponse,
+  type HydraulicReport,
+  type ReadResult,
+} from './protocol.ts';
+import type { RunResults } from './results.ts';
 
-export interface RunResult {
-  report: HydraulicReport;
-  /** Time spent solving inside the worker, in milliseconds. */
-  solveMs: number;
+export interface Timed<T> {
+  value: T;
+  /** Time spent inside the worker, in milliseconds. */
+  ms: number;
+}
+
+interface Pending {
+  resolve: (r: Timed<EngineReply>) => void;
+  reject: (e: Error) => void;
 }
 
 interface Slot {
   worker: Worker;
-  pending: Map<number, { resolve: (r: RunResult) => void; reject: (e: Error) => void }>;
+  pending: Map<number, Pending>;
 }
 
 export type WorkerFactory = () => Worker;
 
 const defaultFactory: WorkerFactory = () =>
   new Worker(new URL('./worker.ts', import.meta.url), { type: 'module', name: 'ws-engine' });
+
+interface Replies {
+  'read-inp': ReadResult;
+  'write-inp': string;
+  run: RunResults;
+  'run-hydraulics': HydraulicReport;
+}
+
+type Body = EngineRequest extends infer R ? (R extends { id: number } ? Omit<R, 'id'> : never) : never;
 
 export class EngineClient {
   private readonly slots: Slot[];
@@ -39,7 +62,7 @@ export class EngineClient {
       const p = slot.pending.get(res.id);
       if (!p) return;
       slot.pending.delete(res.id);
-      if (res.ok) p.resolve({ report: res.report, solveMs: res.solveMs });
+      if (res.ok) p.resolve({ value: res.reply, ms: res.ms });
       else p.reject(new EngineError(res.error));
     };
     slot.worker.onerror = (event) => {
@@ -54,15 +77,40 @@ export class EngineClient {
     return this.slots.length;
   }
 
-  /** Solve the hydraulics of an EPANET .inp file over its whole duration. */
-  runHydraulics(inp: string): Promise<RunResult> {
+  private request(body: Body): Promise<Timed<EngineReply>> {
     const slot = this.slots.reduce((a, b) => (b.pending.size < a.pending.size ? b : a));
     const id = this.nextId++;
-    const req: EngineRequest = { id, kind: 'run-hydraulics', inp };
+    const req = { ...body, id };
     return new Promise((resolve, reject) => {
       slot.pending.set(id, { resolve, reject });
       slot.worker.postMessage(req);
     });
+  }
+
+  private async typed<K extends keyof Replies>(body: Body & { kind: K }): Promise<Timed<Replies[K]>> {
+    const r = await this.request(body);
+    if (r.value.kind !== body.kind) throw new EngineError(`unexpected reply ${r.value.kind}`);
+    return { value: r.value.value as Replies[K], ms: r.ms };
+  }
+
+  /** Read an EPANET .inp file into the canonical model, with any issues found. */
+  readInp(inp: string): Promise<Timed<ReadResult>> {
+    return this.typed({ kind: 'read-inp', inp });
+  }
+
+  /** Write the canonical model as .inp text. */
+  writeInp(m: model.Model): Promise<Timed<string>> {
+    return this.typed({ kind: 'write-inp', model: m });
+  }
+
+  /** Solve a model's hydraulics over its whole duration. */
+  run(m: model.Model): Promise<Timed<RunResults>> {
+    return this.typed({ kind: 'run', model: m });
+  }
+
+  /** Solve an .inp file, returning the parity harness's JSON report. */
+  runHydraulicsInp(inp: string): Promise<Timed<HydraulicReport>> {
+    return this.typed({ kind: 'run-hydraulics', inp });
   }
 
   dispose(): void {

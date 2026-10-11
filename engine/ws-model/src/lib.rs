@@ -13,11 +13,15 @@
 //! resolved the way EPANET resolves them.
 
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "ts")]
+use ts_rs::TS;
 
 pub type Id = String;
 
 /// A whole network model.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub struct Model {
     /// [TITLE] lines. EPANET reads the first three.
     pub title: Vec<String>,
@@ -42,11 +46,15 @@ pub struct Model {
 
 /// An ordered list of keyword lines, kept exactly as tokenised.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub struct KeywordSection {
     pub lines: Vec<KeywordLine>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub struct KeywordLine {
     pub tokens: Vec<String>,
     pub comment: Option<String>,
@@ -80,12 +88,16 @@ pub fn keyword_matches(token: &str, keyword: &str) -> bool {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub struct RawSection {
     pub header: String,
     pub lines: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub struct Node {
     pub id: Id,
     pub kind: NodeKind,
@@ -99,6 +111,8 @@ pub struct Node {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum NodeKind {
     Junction(Junction),
     Reservoir(Reservoir),
@@ -106,6 +120,8 @@ pub enum NodeKind {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub struct Junction {
     pub elevation: f64,
     /// Demand categories. EPANET always gives a junction at least one.
@@ -115,6 +131,8 @@ pub struct Junction {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub struct Demand {
     pub base: f64,
     pub pattern: Option<Id>,
@@ -123,6 +141,8 @@ pub struct Demand {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub struct Reservoir {
     /// Head, which is also the node's elevation (EPANET reports pressure relative to it).
     pub head: f64,
@@ -134,6 +154,8 @@ pub struct Reservoir {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub struct Tank {
     pub elevation: f64,
     pub init_level: f64,
@@ -150,6 +172,8 @@ pub struct Tank {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub struct Mixing {
     pub model: MixModel,
     /// Mixing-zone volume fraction (2COMP only; EPANET uses 1 otherwise).
@@ -157,6 +181,8 @@ pub struct Mixing {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub enum MixModel {
     Mixed,
     TwoComp,
@@ -165,6 +191,8 @@ pub enum MixModel {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub struct Source {
     pub kind: SourceKind,
     pub strength: f64,
@@ -172,6 +200,8 @@ pub struct Source {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub enum SourceKind {
     Concen,
     Mass,
@@ -180,6 +210,8 @@ pub enum SourceKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub struct Link {
     pub id: Id,
     pub from: Id,
@@ -191,6 +223,8 @@ pub struct Link {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum LinkKind {
     Pipe(Pipe),
     Pump(Pump),
@@ -198,6 +232,8 @@ pub enum LinkKind {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub struct Pipe {
     pub length: f64,
     pub diameter: f64,
@@ -211,6 +247,8 @@ pub struct Pipe {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub enum PipeStatus {
     Open,
     Closed,
@@ -218,6 +256,8 @@ pub enum PipeStatus {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub struct Pump {
     pub curve: Option<PumpCurve>,
     /// Relative speed (EPANET's initial setting).
@@ -230,18 +270,24 @@ pub struct Pump {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(tag = "type", content = "value", rename_all = "camelCase")]
 pub enum PumpCurve {
     Head(Id),
     Power(f64),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub enum OpenClosed {
     Open,
     Closed,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub struct Valve {
     pub valve_type: ValveType,
     pub diameter: f64,
@@ -254,6 +300,8 @@ pub struct Valve {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub enum ValveType {
     Prv,
     Psv,
@@ -265,6 +313,8 @@ pub enum ValveType {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(tag = "type", content = "value", rename_all = "camelCase")]
 pub enum ValveSetting {
     Value(f64),
     /// A GPV's headloss curve.
@@ -272,6 +322,8 @@ pub enum ValveSetting {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub struct Pattern {
     pub id: Id,
     pub comment: Option<String>,
@@ -279,6 +331,8 @@ pub struct Pattern {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub struct Curve {
     pub id: Id,
     pub comment: Option<String>,
@@ -288,6 +342,8 @@ pub struct Curve {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub enum CurveKind {
     Volume,
     Pump,
@@ -299,6 +355,8 @@ pub enum CurveKind {
 
 /// A simple control, kept as its tokens (parsed into meaning by the engine).
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub struct Control {
     pub tokens: Vec<String>,
     pub comment: Option<String>,
@@ -306,12 +364,16 @@ pub struct Control {
 
 /// A rule-based control, kept as the text of its lines.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub struct Rule {
     pub name: String,
     pub lines: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(TS), ts(export_to = "model.ts"))]
+#[serde(rename_all = "camelCase")]
 pub struct Label {
     pub x: f64,
     pub y: f64,

@@ -1,7 +1,14 @@
 //! The WebAssembly boundary. The host copies request bytes into memory obtained from
 //! `ws_alloc`, calls an entry point, and reads the reply from the buffer it returns:
 //! a little-endian u32 status (0 ok, 1 error), a u32 length, then that many bytes of
-//! UTF-8 JSON. The host frees the reply with `ws_free(ptr, 8 + length)`.
+//! UTF-8 JSON (or binary, for runs). The host frees the reply with
+//! `ws_free(ptr, 8 + length)`. On error the body is a UTF-8 message.
+//!
+//! Entry points:
+//! - `ws_read_inp`: .inp text -> `{ model, issues }` (the canonical model as JSON)
+//! - `ws_write_inp`: model JSON -> .inp text
+//! - `ws_run`: model JSON -> binary results (see `ws_study::run::encode`)
+//! - `ws_run_hydraulics_inp`: .inp text -> JSON report (the parity harness's format)
 //!
 //! This is the only crate in the workspace allowed `unsafe`, and only here.
 
@@ -47,6 +54,69 @@ pub unsafe extern "C" fn ws_run_hydraulics_inp(ptr: *const u8, len: usize) -> *m
     let text = String::from_utf8_lossy(bytes);
     let outcome = ws_study::run_hydraulics_inp(&text)
         .and_then(|r| serde_json::to_vec(&r).map_err(|e| e.to_string()));
+    reply(outcome)
+}
+
+/// Read an .inp file into the canonical model.
+///
+/// # Safety
+/// `ptr..ptr+len` must be readable memory the host wrote.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ws_read_inp(ptr: *const u8, len: usize) -> *mut u8 {
+    // SAFETY: guaranteed by the caller.
+    let bytes = unsafe { std::slice::from_raw_parts(ptr, len) };
+    let text = String::from_utf8_lossy(bytes);
+    let read = ws_io::read_inp(&text);
+    let issues: Vec<serde_json::Value> = read
+        .issues
+        .iter()
+        .map(|i| {
+            serde_json::json!({
+                "line": i.line,
+                "section": i.section,
+                "severity": match i.severity {
+                    ws_io::Severity::Error => "error",
+                    ws_io::Severity::Warning => "warning",
+                },
+                "message": i.message,
+            })
+        })
+        .collect();
+    let body = serde_json::json!({ "model": read.model, "issues": issues });
+    reply(serde_json::to_vec(&body).map_err(|e| e.to_string()))
+}
+
+/// Write the canonical model (JSON) as .inp text.
+///
+/// # Safety
+/// `ptr..ptr+len` must be readable memory the host wrote.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ws_write_inp(ptr: *const u8, len: usize) -> *mut u8 {
+    // SAFETY: guaranteed by the caller.
+    let bytes = unsafe { std::slice::from_raw_parts(ptr, len) };
+    let outcome = serde_json::from_slice::<ws_model::Model>(bytes)
+        .map(|m| ws_io::write_inp(&m).into_bytes())
+        .map_err(|e| format!("model: {e}"));
+    reply(outcome)
+}
+
+/// Run a model's hydraulics (model as JSON) and return binary results.
+///
+/// # Safety
+/// `ptr..ptr+len` must be readable memory the host wrote.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ws_run(ptr: *const u8, len: usize) -> *mut u8 {
+    // SAFETY: guaranteed by the caller.
+    let bytes = unsafe { std::slice::from_raw_parts(ptr, len) };
+    let outcome = serde_json::from_slice::<ws_model::Model>(bytes)
+        .map_err(|e| format!("model: {e}"))
+        .and_then(|m| ws_study::run::run_model(&m))
+        .and_then(|r| {
+            ws_study::run::encode(
+                &r,
+                concat!("waterstudio-engine ", env!("CARGO_PKG_VERSION")),
+            )
+        });
     reply(outcome)
 }
 

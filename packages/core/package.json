@@ -1,0 +1,17 @@
+{
+  "name": "@waterstudio/core",
+  "version": "0.0.1",
+  "private": true,
+  "description": "WaterStudio's document model: columnar element tables, transactions with exact undo, the field catalogue, units and the command bus. No DOM.",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5"
+  }
+}

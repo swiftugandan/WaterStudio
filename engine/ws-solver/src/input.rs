@@ -558,8 +558,10 @@ pub fn build(model: &Model) -> Result<Project, SolverError> {
         node_type: NodeType::Junction,
     });
     pr.net.tank.push(Tank::default());
-    for n in &model.nodes {
+    pr.node_order.push(usize::MAX);
+    for (mi, n) in model.nodes.iter().enumerate() {
         if let NodeKind::Junction(j) = &n.kind {
+            pr.node_order.push(mi);
             let mut d = Vec::new();
             for dm in &j.demands {
                 d.push(Demand {
@@ -579,7 +581,7 @@ pub fn build(model: &Model) -> Result<Project, SolverError> {
         }
     }
     pr.net.njuncs = pr.net.node.len() - 1;
-    for n in &model.nodes {
+    for (mi, n) in model.nodes.iter().enumerate() {
         let (el, tank, node_type) = match &n.kind {
             NodeKind::Junction(_) => continue,
             NodeKind::Reservoir(r) => (
@@ -622,6 +624,7 @@ pub fn build(model: &Model) -> Result<Project, SolverError> {
             }
         };
         let i = pr.net.node.len();
+        pr.node_order.push(mi);
         node_index.insert(n.id.as_str(), i);
         pr.net.node.push(Node {
             id: n.id.clone(),

@@ -52,6 +52,8 @@ pub struct Project {
     pub(crate) times: Times,
     pub(crate) units: Units,
     pub(crate) rules: Vec<rules::Rule>,
+    /// For each solver node index (1-based; entry 0 unused), its index in `Model::nodes`.
+    pub(crate) node_order: Vec<usize>,
 }
 
 /// A hydraulic simulation in progress.
@@ -157,6 +159,112 @@ impl Hydraulics {
     /// Link status codes, as EPANET writes them to its output file.
     pub fn statuses(&self) -> Vec<Status> {
         self.pr.hyd.link_status[1..].to_vec()
+    }
+
+    /// For each solver node (in [`Hydraulics::node_ids`] order), its index in the model's
+    /// `nodes`. Links are in model order already.
+    pub fn node_model_index(&self) -> &[usize] {
+        &self.pr.node_order[1..]
+    }
+
+    /// Report start and step, and the simulation duration, in seconds.
+    pub fn report_times(&self) -> (i64, i64, i64) {
+        (self.pr.times.rstart, self.pr.times.rstep, self.pr.times.dur)
+    }
+
+    /// Consumer demand requested but not delivered under pressure-driven analysis
+    /// (`EN_DEMANDDEFICIT`); zero for tanks and reservoirs.
+    pub fn demand_deficits(&self) -> Vec<f64> {
+        let u = self.ucf(Field::Flow);
+        let hyd = &self.pr.hyd;
+        (1..=self.pr.net.nnodes)
+            .map(|i| {
+                if i > self.pr.net.njuncs || hyd.full_demand[i] <= 0.0 {
+                    return 0.0;
+                }
+                ((hyd.full_demand[i] - hyd.demand_flow[i]) * u).max(0.0)
+            })
+            .collect()
+    }
+
+    /// Emitter outflows (`EN_EMITTERFLOW`).
+    pub fn emitter_flows(&self) -> Vec<f64> {
+        let u = self.ucf(Field::Flow);
+        self.pr.hyd.emitter_flow[1..]
+            .iter()
+            .map(|q| q * u)
+            .collect()
+    }
+
+    /// Pipe leakage assigned to each node (`EN_LEAKAGEFLOW`).
+    pub fn node_leakages(&self) -> Vec<f64> {
+        let u = self.ucf(Field::Flow);
+        self.pr.hyd.leakage_flow[1..]
+            .iter()
+            .map(|q| q * u)
+            .collect()
+    }
+
+    /// Flow velocities (`EN_VELOCITY`); zero for pumps and closed links.
+    pub fn velocities(&self) -> Vec<f64> {
+        let u = self.ucf(Field::Velocity);
+        let (net, hyd) = (&self.pr.net, &self.pr.hyd);
+        (1..=net.nlinks)
+            .map(|k| {
+                let l = &net.link[k];
+                if l.link_type == LinkType::Pump || hyd.link_status[k] <= Status::Closed {
+                    0.0
+                } else {
+                    hyd.link_flow[k].abs() / (PI * (l.diam * l.diam) / 4.0) * u
+                }
+            })
+            .collect()
+    }
+
+    /// Head loss as EPANET's map and output file show it: per 1000 length units for
+    /// pipes, total head change for pumps and valves; zero for closed links.
+    pub fn unit_headlosses(&self) -> Vec<f64> {
+        let u = self.ucf(Field::Headloss);
+        let (net, hyd) = (&self.pr.net, &self.pr.hyd);
+        (1..=net.nlinks)
+            .map(|k| {
+                let l = &net.link[k];
+                if hyd.link_status[k] <= Status::Closed {
+                    return 0.0;
+                }
+                let mut h = hyd.node_head[l.n1] - hyd.node_head[l.n2];
+                if l.link_type != LinkType::Pump {
+                    h = h.abs();
+                }
+                if l.link_type <= LinkType::Pipe {
+                    1000.0 * h / l.len
+                } else {
+                    h * u
+                }
+            })
+            .collect()
+    }
+
+    /// Current settings in user units, as EPANET's output file stores them: roughness
+    /// for pipes, relative speed for pumps, the control setting for valves (0 if none).
+    pub fn settings(&self) -> Vec<f64> {
+        let (net, hyd, ucf) = (&self.pr.net, &self.pr.hyd, &self.pr.units.ucf);
+        (1..=net.nlinks)
+            .map(|k| {
+                let s = hyd.link_setting[k];
+                if s == MISSING {
+                    return 0.0;
+                }
+                match net.link[k].link_type {
+                    LinkType::Prv | LinkType::Psv | LinkType::Pbv => {
+                        s * ucf[Field::Pressure as usize]
+                    }
+                    LinkType::Fcv => s * ucf[Field::Flow as usize],
+                    LinkType::Gpv => 0.0,
+                    _ => s,
+                }
+            })
+            .collect()
     }
 
     /// Relative flow change of the last solution and the trials it took.

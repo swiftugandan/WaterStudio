@@ -1,35 +1,51 @@
 /**
- * Types shared by the engine's WebAssembly boundary (`engine/ws-wasm`), the worker and
- * the client. They mirror the Rust structs serialised by serde; keep them in step with
- * `engine/ws-study/src/lib.rs`.
+ * Messages between the app and engine workers. Model types come from the Rust model
+ * through generated declarations (@waterstudio/core), so the two sides cannot drift.
  */
 
-/** Results of a hydraulic run at every report period, in the network's own units. */
+import type { model } from '@waterstudio/core';
+import type { RunResults } from './results.ts';
+
+/** Results of a hydraulic run as JSON (the parity harness's format); see ws-study. */
 export interface HydraulicReport {
   engine: string;
-  /** Seconds from the start of the simulation to the first report period. */
   report_start: number;
-  /** Seconds between report periods. */
   report_step: number;
-  /** Node IDs in engine order: junctions, then tanks and reservoirs. */
   nodes: string[];
-  /** Link IDs in input order. */
   links: string[];
-  /** `[period][node]` hydraulic head. */
   heads: number[][];
-  /** `[period][node]` demand; a tank's or reservoir's is its net inflow. */
   demands: number[][];
-  /** `[period][link]` flow; zero for closed links. */
   flows: number[][];
 }
 
-export type EngineRequest = { id: number; kind: 'run-hydraulics'; inp: string };
+export interface InpIssue {
+  line: number;
+  section: string;
+  severity: 'error' | 'warning';
+  message: string;
+}
+
+export interface ReadResult {
+  model: model.Model;
+  issues: InpIssue[];
+}
+
+export type EngineRequest =
+  | { id: number; kind: 'read-inp'; inp: string }
+  | { id: number; kind: 'write-inp'; model: model.Model }
+  | { id: number; kind: 'run'; model: model.Model }
+  | { id: number; kind: 'run-hydraulics'; inp: string };
+
+export type EngineReply =
+  | { kind: 'read-inp'; value: ReadResult }
+  | { kind: 'write-inp'; value: string }
+  | { kind: 'run'; value: RunResults }
+  | { kind: 'run-hydraulics'; value: HydraulicReport };
 
 export type EngineResponse =
-  | { id: number; ok: true; report: HydraulicReport; solveMs: number }
-  | { id: number; ok: false; error: string };
+  { id: number; ok: true; reply: EngineReply; ms: number } | { id: number; ok: false; error: string };
 
-/** The engine failed or refused the network; `message` is EPANET's error text. */
+/** The engine failed or refused the input; `message` is EPANET's error text. */
 export class EngineError extends Error {
   override name = 'EngineError';
 }

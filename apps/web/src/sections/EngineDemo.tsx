@@ -40,7 +40,7 @@ export function EngineDemo() {
       if (!res.ok) throw new Error(`could not load ${sample} (${res.status})`);
       const inp = await res.text();
       if (!client.current) throw new Error('engine not started');
-      const { report, solveMs } = await client.current.runHydraulics(inp);
+      const { value: report, ms: solveMs } = await client.current.runHydraulicsInp(inp);
       setPeriod(0);
       setState({ kind: 'done', report, solveMs, file: sample });
     } catch (e) {

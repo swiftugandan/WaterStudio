@@ -6,6 +6,8 @@
 //! OWA-EPANET). [`run_hydraulics_reference`] uses the epanet-rs fork (`ws-hyd`), kept
 //! as an independent implementation to benchmark against (ADR 0006).
 
+pub mod run;
+
 use epanet_rs::model::network::Network;
 use epanet_rs::simulation::Simulation;
 use serde::Serialize;
