@@ -9,12 +9,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../app/context.tsx';
 import { saveBinaryFile, saveTextFile } from '../app/files.ts';
 import type { AppState, FilesState } from '../app/state.ts';
+import { CalibrationReport } from './CalibrationReport.tsx';
 
-type Tab = 'status' | 'energy' | 'reaction' | 'full';
+type Tab = 'status' | 'energy' | 'reaction' | 'calibration' | 'full';
 const TABS: [Tab, string][] = [
   ['status', 'Status'],
   ['energy', 'Energy'],
   ['reaction', 'Reaction'],
+  ['calibration', 'Calibration'],
   ['full', 'Full report'],
 ];
 
@@ -36,10 +38,10 @@ function baseName(name: string): string {
   return name.replace(/\.inp$/i, '');
 }
 
-function useFiles(state: AppState, which: 'report' | 'status'): FilesState | undefined {
-  const f = state.files[which];
+function useFiles(state: AppState, which: 'report' | 'status' | null): FilesState | undefined {
+  const f = which ? state.files[which] : undefined;
   useEffect(() => {
-    void state.loadFiles(which);
+    if (which) void state.loadFiles(which);
   }, [state, which, state.store.rev]);
   return f;
 }
@@ -165,7 +167,7 @@ function Reaction({ state, out }: { state: AppState; out: OutFileSummary }) {
 export function ReportPanel() {
   const { state } = useApp();
   const [tab, setTab] = useState<Tab>('status');
-  const which = tab === 'status' ? 'status' : 'report';
+  const which = tab === 'status' ? 'status' : tab === 'calibration' ? null : 'report';
   const f = useFiles(state, which);
   const files = f?.status === 'done' ? f.files : undefined;
   const out = useMemo(() => {
@@ -178,7 +180,8 @@ export function ReportPanel() {
   const name = baseName(state.fileName);
 
   let body;
-  if (!files) body = <Pending f={f} />;
+  if (tab === 'calibration') body = <CalibrationReport state={state} />;
+  else if (!files) body = <Pending f={f} />;
   else if (tab === 'status') {
     const log = statusSection(files.report);
     body = log ? <pre className="report-text">{log}</pre> : <p className="panel-empty">No status log.</p>;
@@ -205,22 +208,26 @@ export function ReportPanel() {
           ))}
         </div>
         <span className="spacer" />
-        <button
-          type="button"
-          className="btn"
-          disabled={!files}
-          onClick={() => files && saveTextFile(files.report, `${name}.rpt`)}
-        >
-          Download .rpt
-        </button>
-        <button
-          type="button"
-          className="btn"
-          disabled={!files}
-          onClick={() => files && saveBinaryFile(files.out, `${name}.out`)}
-        >
-          Download .out
-        </button>
+        {tab !== 'calibration' && (
+          <>
+            <button
+              type="button"
+              className="btn"
+              disabled={!files}
+              onClick={() => files && saveTextFile(files.report, `${name}.rpt`)}
+            >
+              Download .rpt
+            </button>
+            <button
+              type="button"
+              className="btn"
+              disabled={!files}
+              onClick={() => files && saveBinaryFile(files.out, `${name}.out`)}
+            >
+              Download .out
+            </button>
+          </>
+        )}
       </div>
       <div
         className="report-body"

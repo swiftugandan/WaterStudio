@@ -139,6 +139,7 @@ const TABS: Tab[] = [
           { cmd: 'graph.profile', size: 'large', label: 'Profile' },
           { cmd: 'graph.frequency', size: 'large', label: 'Frequency' },
           { cmd: 'graph.flow', size: 'large', label: 'System flow' },
+          { cmd: 'graph.contour', size: 'large', label: 'Contour' },
         ],
       },
       { label: 'Reports', items: [{ cmd: 'view.panel.report', size: 'large', label: 'Reports' }] },

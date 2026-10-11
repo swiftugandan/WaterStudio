@@ -178,6 +178,13 @@ test('graphs results over time, along a path and as a distribution', async ({ pa
   await expect(
     page.locator('.panel.graph figcaption', { hasText: 'Distribution of pressure' }),
   ).toBeVisible();
+  await page.getByRole('button', { name: 'Contour' }).click();
+  const contour = page.locator('.panel.graph').filter({ has: page.locator('figure.contour') });
+  await expect(contour.getByRole('img')).toHaveAttribute('aria-label', /Pressure at 0:00\. .* nodes/);
+  await contour.getByRole('button', { name: 'Table' }).click();
+  // Every node is in one band.
+  const counts = await contour.locator('tbody td').allTextContents();
+  expect(counts.reduce((a, c) => a + Number(c), 0)).toBe(11);
 });
 
 test('shows EPANET reports and offers the files', async ({ page }) => {
@@ -196,6 +203,37 @@ test('shows EPANET reports and offers the files', async ({ page }) => {
   const download = page.waitForEvent('download');
   await report.getByRole('button', { name: 'Download .out' }).click();
   expect((await download).suggestedFilename()).toBe('Net1.out');
+});
+
+test('compares measurements with the simulation in a calibration report', async ({ page }) => {
+  await ready(page);
+  await page.keyboard.press('F5');
+  await expect(page.getByTestId('run-status')).toContainText('Solved');
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Results' }).click();
+  await page.getByRole('button', { name: 'Reports' }).click();
+  const report = page.locator('.panel.report');
+  await report.getByRole('tab', { name: 'Calibration' }).click();
+  await report.getByLabel('Variable').selectOption('pressure');
+  const chooser = page.waitForEvent('filechooser');
+  await report.getByRole('button', { name: 'Load measurements…' }).click();
+  await (
+    await chooser
+  ).setFiles({
+    name: 'pressure.dat',
+    mimeType: 'text/plain',
+    buffer: Buffer.from(';Net1 pressures\n10  0  128\n    6  120\n22  0:00  118\nXX  1  50\n'),
+  });
+  const table = report.locator('.calibration-table');
+  await expect(table.locator('tbody tr')).toHaveCount(2);
+  await expect(table.locator('tfoot')).toContainText('Network3');
+  await expect(report).toContainText('Correlation between means');
+  await expect(report.getByRole('status')).toContainText('No node called XX');
+  await expect(report.locator('.calibration-chart figure')).toBeVisible();
+  const axe = await new AxeBuilder({ page })
+    .include('.panel.report')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  expect(axe.violations.map((v) => v.id)).toEqual([]);
 });
 
 test('puts the network on a street map once it has a coordinate system', async ({ page }) => {
@@ -530,6 +568,8 @@ for (const theme of ['light', 'dark'] as const) {
     await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Results' }).click();
     await page.getByRole('button', { name: 'System flow' }).click();
     await expect(page.locator('.panel.graph figure')).toBeVisible();
+    await page.getByRole('button', { name: 'Contour' }).click();
+    await expect(page.locator('.panel.graph figure.contour')).toBeVisible();
     await page.getByRole('button', { name: 'Reports' }).click();
     await expect(page.locator('.panel.report .report-text')).toBeVisible();
     await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Analysis' }).click();

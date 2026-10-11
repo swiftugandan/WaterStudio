@@ -13,6 +13,8 @@ export interface Series {
   y: ArrayLike<number>;
   /** Mark each point (for measured or entered points, rather than a continuous series). */
   dots?: boolean;
+  /** Join the points with a line (default true). */
+  line?: boolean;
 }
 
 export interface LineChartProps {
@@ -35,7 +37,7 @@ export interface LineChartProps {
 const M = { left: 60, right: 26, top: 10, bottom: 38 };
 const COLOURS = 6;
 
-function useSize(ref: React.RefObject<HTMLElement | null>): [number, number] {
+export function useSize(ref: React.RefObject<HTMLElement | null>): [number, number] {
   const [size, setSize] = useState<[number, number]>([600, 300]);
   useEffect(() => {
     const el = ref.current;
@@ -209,9 +211,15 @@ export function LineChart({
             {marker !== undefined && marker >= xt.min && marker <= xt.max && (
               <line className="chart-marker" x1={sx(marker)} x2={sx(marker)} y1={M.top} y2={M.top + ph} />
             )}
-            {series.map((s, i) => (
-              <path key={s.name} className={`chart-line c${(i % COLOURS) + 1}`} d={pathOf(s, sx, sy, step)} />
-            ))}
+            {series.map((s, i) =>
+              s.line === false ? null : (
+                <path
+                  key={s.name}
+                  className={`chart-line c${(i % COLOURS) + 1}`}
+                  d={pathOf(s, sx, sy, step)}
+                />
+              ),
+            )}
             {series.map(
               (s, i) =>
                 s.dots && (

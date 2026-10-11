@@ -1157,7 +1157,7 @@ button.link {
   background: var(--ws-color-bg-sunken);
   font-weight: var(--ws-font-weight-medium);
   text-align: left;
-  padding: var(--ws-space-0-5) var(--ws-space-1);
+  padding: var(--ws-space-0_5) var(--ws-space-1);
   white-space: nowrap;
 }
 .value-grid tbody th {
@@ -1201,4 +1201,42 @@ button.link {
   font-size: var(--ws-font-size-xs);
   color: var(--ws-color-text-secondary);
   white-space: pre-wrap;
+}
+
+/* Contour plot */
+.contour-line {
+  fill: none;
+  stroke: var(--ws-color-text-primary);
+  stroke-width: 1;
+  stroke-opacity: 0.7;
+  stroke-dasharray: 4 2;
+}
+.contour-pipes {
+  fill: none;
+  stroke: var(--ws-color-bg-surface);
+  stroke-width: 1.5;
+  stroke-opacity: 0.85;
+}
+.contour-legend text {
+  fill: var(--ws-color-text-primary);
+  font-size: var(--ws-font-size-xs);
+}
+
+/* Calibration report */
+.calibration {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+}
+.calibration-table caption {
+  text-align: left;
+  font-weight: var(--ws-font-weight-semibold);
+  padding-bottom: var(--ws-space-1);
+}
+.calibration-chart {
+  height: 300px;
+  display: flex;
+}
+.calibration-chart > * {
+  flex: 1;
 }

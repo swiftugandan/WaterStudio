@@ -450,6 +450,14 @@ export function createCommands(state: AppState): CommandBus<AppState> {
       run: (s) => s.openGraph({ kind: 'flow' }),
     },
     {
+      id: 'graph.contour',
+      title: 'Contour plot',
+      icon: 'layers',
+      category: 'Results',
+      enabled: (s) => s.run.status === 'done',
+      run: (s) => s.openGraph({ kind: 'contour', variable: s.mapTheme.node ?? 'pressure' }),
+    },
+    {
       id: 'results.prev',
       title: 'Previous report time',
       icon: 'step-back',

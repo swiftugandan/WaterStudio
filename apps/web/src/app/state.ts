@@ -4,6 +4,7 @@
  * re-render when it changes; the viewport subscribes directly for speed.
  */
 
+import type { CalibrationData, CalibrationVariable } from './calibration.ts';
 import { loadModel, Store, toModel, unitSystem, type model, type UnitSystem } from '@waterstudio/core';
 import {
   EngineClient,
@@ -72,6 +73,8 @@ export class AppState extends Emitter {
   run: RunState = { status: 'idle' };
   /** EPANET's files, by whether the status log was asked for. */
   files: Partial<Record<'report' | 'status', FilesState>> = {};
+  /** Measurements loaded for the calibration report, by variable. */
+  calibration: Partial<Record<CalibrationVariable, CalibrationData>> = {};
   period = 0;
   mapTheme: MapTheme = { node: 'pressure', link: 'flow', ramp: 'viridis' };
   messages: Message[] = [];
@@ -141,6 +144,15 @@ export class AppState extends Emitter {
     return r;
   }
 
+  setCalibration(variable: CalibrationVariable, data: CalibrationData | null): void {
+    const next: typeof this.calibration = {};
+    for (const [k, v] of Object.entries(this.calibration) as [CalibrationVariable, CalibrationData][])
+      if (k !== variable) next[k] = v;
+    if (data) next[variable] = data;
+    this.calibration = next;
+    this.emit();
+  }
+
   /** Open a panel (if closed) and bring it to the front. */
   showPanel(id: string): void {
     if (!this.panels.has(id)) this.panels = new Set([...this.panels, id]);
@@ -203,6 +215,7 @@ export class AppState extends Emitter {
     this.hover = null;
     this.run = { status: 'idle' };
     this.files = {};
+    this.calibration = {};
     if (this.backdrop) URL.revokeObjectURL(this.backdrop.url);
     this.backdrop = null;
     this.period = 0;

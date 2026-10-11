@@ -8,11 +8,12 @@
 import {
   LINK_VARIABLES,
   NODE_VARIABLES,
+  nodeFrame,
   type LinkVariable,
   type NodeVariable,
 } from '@waterstudio/engine-client';
 import type { IDockviewPanelProps } from 'dockview-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useApp } from '../app/context.tsx';
 import {
   frequencySeries,
@@ -26,7 +27,9 @@ import { LineChart, type Series } from '../charts/LineChart.tsx';
 import { hoursLabel, tickLabel } from '../charts/scale.ts';
 import { variableLabel } from '../shell/Ribbon.tsx';
 import { clock } from '../shell/TimeControl.tsx';
-import { variableUnit } from '../viewport/paint.ts';
+import { legendOf, variableUnit } from '../viewport/paint.ts';
+import { ContourPlot } from '../charts/ContourPlot.tsx';
+import type { AppState } from '../app/state.ts';
 
 export interface GraphParams {
   spec: GraphSpec;
@@ -42,6 +45,8 @@ export function graphTitle(spec: GraphSpec): string {
       return `${variableLabel(spec.variable)} distribution`;
     case 'flow':
       return 'System flow';
+    case 'contour':
+      return `${variableLabel(spec.variable)} contours`;
   }
 }
 
@@ -79,7 +84,7 @@ export function GraphPanel(props: IDockviewPanelProps<GraphParams>) {
           : { ...spec, table: 'link', variable: v as LinkVariable },
       ),
     );
-  } else if (spec.kind === 'profile') {
+  } else if (spec.kind === 'profile' || spec.kind === 'contour') {
     picker = variablePicker('node', spec.variable, (v) => setSpec({ ...spec, variable: v as NodeVariable }));
   }
 
@@ -110,6 +115,19 @@ export function GraphPanel(props: IDockviewPanelProps<GraphParams>) {
     let xFormat: ((x: number) => string) | undefined = hoursLabel;
     let marker: number | undefined;
     let step = false;
+    if (spec.kind === 'contour') {
+      return (
+        <div className="panel graph">
+          <div className="panel-toolbar">
+            {picker}
+            <button type="button" className="btn" aria-pressed={table} onClick={() => setTable((t) => !t)}>
+              Table
+            </button>
+          </div>
+          <Contour state={state} run={run} variable={spec.variable} period={period} at={at} table={table} />
+        </div>
+      );
+    }
     switch (spec.kind) {
       case 'series':
         series = timeSeries(doc, run, spec);
@@ -181,6 +199,67 @@ export function GraphPanel(props: IDockviewPanelProps<GraphParams>) {
       </div>
       {body}
     </div>
+  );
+}
+
+function Contour({
+  state,
+  run,
+  variable,
+  period,
+  at,
+  table,
+}: {
+  state: AppState;
+  run: RunIndex;
+  variable: NodeVariable;
+  period: number;
+  at: string;
+  table: boolean;
+}) {
+  const doc = state.store.doc;
+  const data = useMemo(() => {
+    const frame = nodeFrame(run.results, variable, period);
+    const xs: number[] = [];
+    const ys: number[] = [];
+    const vs: number[] = [];
+    run.nodes.forEach((h, col) => {
+      if (!doc.has(h)) return;
+      const x = doc.num(h, 'x');
+      const y = doc.num(h, 'y');
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      xs.push(x);
+      ys.push(y);
+      vs.push(frame[col]!);
+    });
+    const links: number[][] = [];
+    for (const l of doc.linkHandles()) {
+      const a = doc.get(l, 'from') as number;
+      const b = doc.get(l, 'to') as number;
+      links.push([
+        doc.num(a, 'x'),
+        doc.num(a, 'y'),
+        ...(doc.get(l, 'vertices') as number[]),
+        doc.num(b, 'x'),
+        doc.num(b, 'y'),
+      ]);
+    }
+    return { xs: Float64Array.from(xs), ys: Float64Array.from(ys), values: Float64Array.from(vs), links };
+    // The run's results change with the document's revision.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [run, variable, period, doc, state.store.rev]);
+  const legend = legendOf(run.results, 'node', variable, state.mapTheme.ramp);
+  if (data.xs.length < 3)
+    return <p className="panel-empty">A contour plot needs three or more nodes with coordinates.</p>;
+  return (
+    <ContourPlot
+      title={`${variableLabel(variable)} at ${at}`}
+      unit={variableUnit(variable, state.units)}
+      {...data}
+      breaks={legend.breaks}
+      colors={legend.colors}
+      table={table}
+    />
   );
 }
 

@@ -53,7 +53,8 @@ Gate: every EPANET 2.2 GUI function available; quality within tolerance; WCAG 2.
 - [x] Reports: status log, energy, reaction rates, full report; .rpt and .out downloads
 - [x] Editors (ADR 0012): options and title; patterns and curves with charts; simple controls and rules checked by the
   engine; demand categories, quality sources and tank mixing in the inspector. Each change is one undo step
-- [ ] Contour plot and calibration report
+- [x] Contour plot (Delaunay bands in the map's legend classes) and calibration report (EPANET .dat measurements,
+  per-location and network statistics, correlation of means, computed against observed plot)
 - [x] MapLibre basemap, CRS, backdrop images (ADR 0010)
 - [x] `.out` and `.rpt` writers (ADR 0009): identical to `runepanet`'s on all 64 networks; app results follow the `.out`
 - [x] GeoJSON and DXF import and export (`@waterstudio/gis`); GeoJSON in longitude and latitude is projected to its UTM zone

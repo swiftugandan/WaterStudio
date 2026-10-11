@@ -22,7 +22,8 @@ export type GraphSpec =
   | { kind: 'profile'; variable: NodeVariable; ids: string[] }
   | { kind: 'frequency'; table: 'node'; variable: NodeVariable }
   | { kind: 'frequency'; table: 'link'; variable: LinkVariable }
-  | { kind: 'flow' };
+  | { kind: 'flow' }
+  | { kind: 'contour'; variable: NodeVariable };
 
 export interface RunIndex {
   results: RunResults;

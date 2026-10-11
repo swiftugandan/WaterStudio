@@ -28,6 +28,7 @@ import {
   Settings,
   Sparkles,
   Spline,
+  Layers,
   ListChecks,
   SquareDashedMousePointer,
   StepBack,
@@ -82,6 +83,7 @@ const LUCIDE: Record<string, LucideIcon> = {
   settings: Settings,
   spline: Spline,
   'list-checks': ListChecks,
+  layers: Layers,
 };
 
 const HYDRAULIC = new Set<string>(hydraulicIconNames);
