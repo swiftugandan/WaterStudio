@@ -22,14 +22,20 @@ WaterStudio is a browser-based, open-source successor to EPA EPANET. Read `docs/
   PowerStudio are fine to consult and credit.
 - Colours, spacing and type come from `@waterstudio/ui` tokens (`--ws-*`); never hard-code them in components.
   Run `pnpm --filter @waterstudio/ui build` after editing `tokens.ts`.
+- Accessibility is WCAG 2.2 AA (`docs/ACCESSIBILITY.md`): every new panel gets an axe check in the e2e suite and a
+  keyboard path; update the audit when a change affects a criterion.
+- `packages/core/src/generated/` is written by `cargo test -p ws-model --features ts --test typescript`; never
+  format or edit it by hand (CI compares it byte for byte).
 - Commits end with the `Co-Authored-By` trailer for AI-assisted work.
 
 ## Layout
 
 - `engine/`: Rust workspace (`ws-model` canonical model, `ws-io` .inp reader/writer, `ws-solver` hydraulic engine,
   `ws-study` studies, `ws-wasm` WebAssembly boundary, `ws-parity` harness, `ws-cli` command line, `ws-hyd` benchmark)
-- `packages/`: `ui` (tokens, icons, components), `symbols` (symbol masters), `engine-client` (engine workers)
+- `packages/`: `core` (document store, edits, options, scenarios), `ui` (tokens, icons, components), `symbols`
+  (symbol masters), `render` (WebGPU and Canvas 2D map renderer), `engine-client` (engine workers), `gis`
+  (GeoJSON, shapefile, DXF), `agents` (tool registry, providers, assistant loop)
 - `apps/web`: the app (Vite, React for the shell only)
 - `oracle/`: reference engine build, corpus fetch, comparison and ratchet
 - `scripts/`: build and verification scripts
-- `docs/`: plan, roadmap, ADRs, generated parity report
+- `docs/`: plan, roadmap, ADRs, accessibility audit, generated parity report

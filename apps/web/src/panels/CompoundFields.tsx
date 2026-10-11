@@ -4,7 +4,7 @@
  * through `setField`, so it is one undoable edit and validated like any other.
  */
 
-import { EditError, getfloat, setField, unitLabel, type model } from '@waterstudio/core';
+import { EditError, getfloat, setField, setVertices, unitLabel, type model } from '@waterstudio/core';
 import { useId, useState } from 'react';
 import type { AppState } from '../app/state.ts';
 import { CommitInput, Row } from './fields.tsx';
@@ -270,5 +270,66 @@ export function MixingEditor({ state, handles }: { state: AppState; handles: num
         </Row>
       )}
     </>
+  );
+}
+
+/** A link's interior points as text, one "x y" per line: the typed alternative to dragging them. */
+export function VerticesEditor({ state, handle }: { state: AppState; handle: number }) {
+  const v = state.store.doc.get(handle, 'vertices') as number[];
+  const text = Array.from({ length: v.length / 2 }, (_, i) => `${v[2 * i]} ${v[2 * i + 1]}`).join('\n');
+  const [draft, setDraft] = useState(text);
+  const [seen, setSeen] = useState(text);
+  const [error, setError] = useState<string | null>(null);
+  const id = useId();
+  if (seen !== text) {
+    setSeen(text);
+    setDraft(text);
+  }
+  return (
+    <div className={`field-row vertices${error ? ' invalid' : ''}`}>
+      <label htmlFor={id} title="Interior points of the link, one x y pair per line, from the start node.">
+        Vertices
+      </label>
+      <div className="field-control">
+        <textarea
+          id={id}
+          rows={Math.min(6, Math.max(2, v.length / 2 + 1))}
+          value={draft}
+          placeholder="None (straight)"
+          aria-invalid={error !== null}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => {
+            if (draft === text) return;
+            const flat: number[] = [];
+            for (const [i, line] of draft.split('\n').entries()) {
+              const t = line
+                .trim()
+                .split(/[\s,;]+/)
+                .filter(Boolean);
+              if (t.length === 0) continue;
+              const x = getfloat(t[0]!);
+              const y = getfloat(t[1] ?? '');
+              if (t.length !== 2 || x === undefined || y === undefined) {
+                setError(`Line ${i + 1} needs two numbers, x and y.`);
+                return;
+              }
+              flat.push(x, y);
+            }
+            try {
+              setVertices(state.store, handle, flat, state.lengthOf);
+              setError(null);
+            } catch (e) {
+              if (e instanceof EditError) setError(e.message);
+              else throw e;
+            }
+          }}
+        />
+      </div>
+      {error && (
+        <div className="field-error" role="alert">
+          {error}
+        </div>
+      )}
+    </div>
   );
 }

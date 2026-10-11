@@ -229,6 +229,7 @@ const TABS: Tab[] = [
         items: [
           { cmd: 'view.density.comfortable', label: 'Comfortable' },
           { cmd: 'view.density.compact', label: 'Compact' },
+          { cmd: 'view.singleKeys', label: 'Single-key shortcuts' },
         ],
       },
       {

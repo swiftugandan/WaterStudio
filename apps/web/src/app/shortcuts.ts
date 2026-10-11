@@ -36,13 +36,18 @@ function typing(target: EventTarget | null): boolean {
 }
 
 /** Install global shortcuts; returns a function that removes them. */
-export function installShortcuts<C>(bus: CommandBus<C>): () => void {
+export function installShortcuts<C>(
+  bus: CommandBus<C>,
+  /** Whether single-character shortcuts are on (WCAG 2.1.4 lets the user turn them off). */
+  singleKeys: () => boolean = () => true,
+): () => void {
   const onKey = (e: KeyboardEvent) => {
     const inField = typing(e.target);
     for (const c of bus.all()) {
       if (!c.shortcut || !matches(c.shortcut, e)) continue;
       // Single keys and Delete belong to the field being typed in.
       const plain = !c.shortcut.includes('Mod') && !c.shortcut.includes('Alt') && !c.shortcut.startsWith('F');
+      if (plain && c.shortcut.length === 1 && !singleKeys()) return;
       if (
         inField &&
         (plain || ['Mod+A', 'Mod+Z', 'Mod+Shift+Z', 'Mod+C', 'Mod+V', 'Mod+X'].includes(c.shortcut))

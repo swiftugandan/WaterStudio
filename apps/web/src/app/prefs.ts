@@ -96,6 +96,8 @@ export class Prefs extends Emitter {
   map: MapOptions = readMap();
   /** EPANET's Auto-Length: pipe lengths follow the map as links are drawn and nodes moved. */
   autoLength = read<'on' | 'off'>('ws.autolength', ['on', 'off'], 'off');
+  /** Single-character shortcuts (V, J, P …); they can be turned off (WCAG 2.1.4). */
+  singleKeys = read<'on' | 'off'>('ws.singlekeys', ['on', 'off'], 'on');
   /** Decimal places for each result variable (EPANET's Preferences › Formats). */
   decimals: Record<string, number> = readDecimals();
 
@@ -130,6 +132,12 @@ export class Prefs extends Emitter {
   /** Decimal places for a variable: the preference, or EPANET's defaults (2; status 0). */
   places(variable: string): number {
     return this.decimals[variable] ?? (variable === 'status' ? 0 : 2);
+  }
+
+  setSingleKeys(on: boolean): void {
+    this.singleKeys = on ? 'on' : 'off';
+    write('ws.singlekeys', this.singleKeys);
+    this.emit();
   }
 
   setAutoLength(on: boolean): void {

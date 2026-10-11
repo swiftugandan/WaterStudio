@@ -8,7 +8,7 @@ import { StatusBar } from './StatusBar.tsx';
 
 export function App() {
   const { state, bus } = useApp();
-  useEffect(() => installShortcuts(bus), [bus]);
+  useEffect(() => installShortcuts(bus, () => state.prefs.singleKeys === 'on'), [bus, state]);
   useEffect(() => {
     document.title = `${state.dirty ? '• ' : ''}${state.fileName} — WaterStudio`;
   });

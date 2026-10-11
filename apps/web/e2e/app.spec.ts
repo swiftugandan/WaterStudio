@@ -309,6 +309,11 @@ test('shows a backdrop image where [BACKDROP] places it', async ({ page }) => {
   );
   expect(offset![0]).toBeGreaterThan(0);
   expect(offset![1]).toBeCloseTo(0, 6);
+  // Or without dragging: click a point, then where it belongs.
+  const moved = (await img.boundingBox())!.x;
+  await page.mouse.click(from.x, from.y);
+  await page.mouse.click(from.x + 20, from.y);
+  await expect.poll(async () => (await img.boundingBox())!.x - moved).toBeCloseTo(20, 0);
   await page.getByRole('button', { name: 'Remove backdrop image' }).click();
   await expect(img).toBeHidden();
 });
@@ -702,6 +707,15 @@ test('works without a pointer: lists, adding elements, panning the map', async (
   await page.locator('.map-overlay').focus();
   await page.keyboard.press('ArrowLeft');
   await expect.poll(async () => (await nodeOnScreen(page, '10')).x - before.x).toBeCloseTo(80, 0);
+  // Single-key shortcuts can be turned off (WCAG 2.1.4).
+  await page.keyboard.press('j');
+  expect(await ws(page, (w) => (w.state as unknown as { tool: string }).tool)).toBe('junction');
+  await page.keyboard.press('v');
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'View' }).click();
+  await page.getByRole('button', { name: 'Single-key shortcuts' }).click();
+  await page.locator('.map-overlay').focus();
+  await page.keyboard.press('j');
+  expect(await ws(page, (w) => (w.state as unknown as { tool: string }).tool)).toBe('select');
 });
 
 test('edits link vertices, reverses links, and keeps lengths with auto-length', async ({ page }) => {
@@ -739,6 +753,11 @@ test('edits link vertices, reverses links, and keeps lengths with auto-length', 
   await page.mouse.dblclick(mid.x, mid.y + 40);
   await expect.poll(() => link('vertices').then((v) => (v as number[]).length)).toBe(0);
   expect(await link('length')).toBe(20);
+  // Vertices can also be typed in the inspector.
+  const typed = page.locator('.panel.properties').getByLabel('Vertices');
+  await typed.fill('40 60');
+  await typed.blur();
+  await expect.poll(() => link('vertices')).toEqual([40, 60]);
   const from = await link('from');
   await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Draw' }).click();
   await page.getByRole('button', { name: 'Reverse link direction' }).click();

@@ -43,9 +43,12 @@ budget on both renderers (**met for Canvas 2D in CI; WebGPU measured on real GPU
 - [x] Draw, edit, run and colour the map; legends and time player
 - [x] 50,000-pipe pan benchmark, gated in CI: Canvas 2D ~55 fps on a CPU rasteriser (budget 30)
 
-## Phase 2: EPANET parity beta
+## Phase 2: EPANET parity beta (gate passed 2026-10-11)
 
 Gate: every EPANET 2.2 GUI function available; quality within tolerance; WCAG 2.2 AA audit passes.
+Quality is bit-identical on every quality network; the audit is `docs/ACCESSIBILITY.md` (one exception: dock
+splitters need dragging; panels can be closed, reopened and tabbed instead). EPANET's graph-options dialog
+(titles, axis ranges, series colours) is the one GUI function left for Phase 3.
 
 - [x] Water quality (in `ws-solver`, ADR 0006): chemical, age, trace; bulk and wall reactions of any order; sources;
   four tank mixing models. Bit-identical with OWA-EPANET's `EN_solveQ` on 14 quality networks, native and wasm
@@ -62,10 +65,18 @@ Gate: every EPANET 2.2 GUI function available; quality within tolerance; WCAG 2.
   coordinate system is used when it names one; exports are WGS 84 with a .prj when the model has a CRS
 - [x] Read-only agent tools and the Assistant panel (`@waterstudio/agents`, ADR 0011): Anthropic and
   OpenAI-compatible providers, every tool call shown
+- [x] Map and editing: find, query, group edit; sortable, filterable results table; copy and paste properties;
+  vertex editing, reverse, auto-length; map labels, ID and value labels, flow arrows, sizes, overview map; legend
+  editor; number formats; defaults and project summary; backdrop alignment
+- [x] Files: EPANET scenarios; map export as SVG and PNG, printing; tables and graphs copied to the clipboard
+- [x] WCAG 2.2 AA audit (`docs/ACCESSIBILITY.md`): keyboard paths for selecting, adding, moving and panning;
+  axe checks on every panel in both themes in CI; single-key shortcuts can be turned off
 
 ## Phase 3: Pro 1.0
 
 Gate: MSX examples within tolerance; all performance budgets met; agent evaluation baseline recorded.
+
+- [ ] Graph options: titles, axis ranges, series colours (the last EPANET GUI function)
 
 - [ ] EPANET-MSX (`ws-msx`)
 - [ ] Scenario manager; fire flow, criticality, isolation segments

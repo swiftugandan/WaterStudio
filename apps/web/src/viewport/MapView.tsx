@@ -93,6 +93,8 @@ class MapController {
   overlay: HTMLCanvasElement | null = null;
   annotations: HTMLCanvasElement | null = null;
   overview: HTMLCanvasElement | null = null;
+  /** The first click of a two-click backdrop alignment. */
+  alignAnchor: [number, number] | null = null;
   private overviewCache: {
     key: string;
     image: HTMLCanvasElement;
@@ -1037,8 +1039,22 @@ export function MapView() {
     } else if (g.kind === 'align') {
       c.gesture = { kind: 'none' };
       const cam = c.renderer.camera;
-      const dx = (g.x1 - g.x0) / cam.scale;
-      const dy = -(g.y1 - g.y0) / cam.scale;
+      let sx = g.x1 - g.x0;
+      let sy = g.y1 - g.y0;
+      // Without dragging: click a point of the image, then where it belongs (WCAG 2.5.7).
+      if (Math.hypot(sx, sy) < DRAG_THRESHOLD) {
+        const anchor = c.alignAnchor;
+        if (!anchor) {
+          c.alignAnchor = [g.x0, g.y0];
+          state.log('info', 'Now click where that point of the backdrop belongs.');
+          return;
+        }
+        c.alignAnchor = null;
+        sx = g.x0 - anchor[0];
+        sy = g.y0 - anchor[1];
+      }
+      const dx = sx / cam.scale;
+      const dy = -sy / cam.scale;
       if (dx !== 0 || dy !== 0) {
         const b = state.store.doc.data.backdrop;
         const o = sectionGet(b, ['OFFSET'])?.map(Number) ?? [];

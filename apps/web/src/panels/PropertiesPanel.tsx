@@ -18,7 +18,7 @@ import { useApp } from '../app/context.tsx';
 import type { AppState } from '../app/state.ts';
 import { variableLabel } from '../shell/Ribbon.tsx';
 import { variableUnit } from '../viewport/paint.ts';
-import { DemandsEditor, MixingEditor, SourceEditor } from './CompoundFields.tsx';
+import { DemandsEditor, MixingEditor, SourceEditor, VerticesEditor } from './CompoundFields.tsx';
 
 const MIXED = Symbol('mixed');
 
@@ -252,6 +252,9 @@ export function PropertiesPanel() {
             .map((f) => (
               <FieldEditor key={f.name} spec={f} handles={handles} state={state} />
             ))}
+          {g === 'General' && handles.length === 1 && doc.isLink(handles[0]!) && (
+            <VerticesEditor state={state} handle={handles[0]!} />
+          )}
           {g === 'Hydraulics' && kind === 'junction' && handles.length === 1 && (
             <DemandsEditor state={state} handle={handles[0]!} />
           )}

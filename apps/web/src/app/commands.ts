@@ -378,6 +378,14 @@ export function createCommands(state: AppState): CommandBus<AppState> {
       run: (s) => s.prefs.setAutoLength(s.prefs.autoLength !== 'on'),
     },
     {
+      id: 'view.singleKeys',
+      title: 'Single-key shortcuts',
+      icon: 'command',
+      category: 'View',
+      checked: (s) => s.prefs.singleKeys === 'on',
+      run: (s) => s.prefs.setSingleKeys(s.prefs.singleKeys !== 'on'),
+    },
+    {
       id: 'edit.find',
       title: 'Find node or link',
       icon: 'search',
