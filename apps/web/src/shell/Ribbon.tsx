@@ -107,6 +107,7 @@ const TABS: Tab[] = [
           { cmd: 'tool.valve', size: 'large', label: 'Valve' },
         ],
       },
+      { label: 'Annotate', items: [{ cmd: 'tool.label', size: 'large', label: 'Label' }] },
       { label: 'Edit', items: [{ cmd: 'edit.delete', size: 'large', label: 'Delete' }] },
     ],
   },
@@ -170,6 +171,19 @@ const TABS: Tab[] = [
           { cmd: 'view.panel.patterns', label: 'Patterns' },
           { cmd: 'view.panel.curves', label: 'Curves' },
           { cmd: 'view.panel.controls', label: 'Controls' },
+        ],
+      },
+      {
+        label: 'Annotations',
+        items: [
+          { cmd: 'view.map.nodeIds', label: 'Node IDs' },
+          { cmd: 'view.map.nodeValues', label: 'Node values' },
+          { cmd: 'view.map.linkIds', label: 'Link IDs' },
+          { cmd: 'view.map.linkValues', label: 'Link values' },
+          { cmd: 'view.map.flowArrows', label: 'Flow arrows' },
+          { cmd: 'view.map.mapLabels', label: 'Labels' },
+          { cmd: 'view.map.larger', label: 'Larger' },
+          { cmd: 'view.map.smaller', label: 'Smaller' },
         ],
       },
       {

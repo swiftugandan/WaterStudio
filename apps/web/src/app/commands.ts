@@ -262,6 +262,40 @@ export function createCommands(state: AppState): CommandBus<AppState> {
     tool('pipe', 'Add pipe', 'pipe', 'P'),
     tool('pump', 'Add pump', 'pump', 'U'),
     tool('valve', 'Add valve', 'valve', 'L'),
+    tool('label', 'Add or edit map label', 'type', 'B'),
+    ...(
+      [
+        ['nodeIds', 'Show node IDs'],
+        ['nodeValues', 'Show node values'],
+        ['linkIds', 'Show link IDs'],
+        ['linkValues', 'Show link values'],
+        ['flowArrows', 'Show flow arrows'],
+        ['mapLabels', 'Show map labels'],
+      ] as const
+    ).map(([key, title]): Cmd => ({
+      id: `view.map.${key}`,
+      title,
+      icon: key === 'flowArrows' ? 'arrow-right' : 'type',
+      category: 'View',
+      checked: (s) => s.prefs.map[key],
+      run: (s) => s.prefs.setMap({ [key]: !s.prefs.map[key] }),
+    })),
+    {
+      id: 'view.map.larger',
+      title: 'Larger nodes and links',
+      icon: 'zoom-in',
+      category: 'View',
+      enabled: (s) => s.prefs.map.size < 5,
+      run: (s) => s.prefs.setMap({ size: s.prefs.map.size + 1 }),
+    },
+    {
+      id: 'view.map.smaller',
+      title: 'Smaller nodes and links',
+      icon: 'zoom-out',
+      category: 'View',
+      enabled: (s) => s.prefs.map.size > 1,
+      run: (s) => s.prefs.setMap({ size: s.prefs.map.size - 1 }),
+    },
     {
       id: 'view.fit',
       title: 'Zoom to network',

@@ -125,14 +125,20 @@ select {
   padding: 0 var(--ws-space-2);
   border-right: 1px solid var(--ws-color-border-subtle);
 }
+/* Small buttons stack two to a column; large buttons and custom fields take both rows. */
 .rb-items {
-  display: flex;
-  flex-wrap: wrap;
-  align-content: flex-start;
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(2, minmax(22px, auto));
+  grid-auto-columns: max-content;
+  align-content: start;
   gap: 2px;
   flex: 1;
-  max-height: calc(var(--ws-size-ribbon-large) - 14px);
-  flex-direction: column;
+}
+.rb-items > .rb-btn.large,
+.rb-items > .rb-fields,
+.rb-items > .time-control {
+  grid-row: span 2;
 }
 .rb-label {
   text-align: center;
@@ -510,6 +516,13 @@ input[type='search'] {
 .map-host {
   position: absolute;
   inset: 0;
+}
+.map-annotations {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
 }
 .map-overlay {
   position: absolute;
@@ -924,6 +937,9 @@ input[type='search'] {
 }
 .ws-canvas {
   z-index: 2;
+}
+.map-annotations {
+  z-index: 3;
 }
 .map-overlay {
   z-index: 3;

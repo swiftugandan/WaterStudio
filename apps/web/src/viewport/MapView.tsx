@@ -32,6 +32,8 @@ import { backdropPlacement, modelCrs, type ModelCrs } from '../geo/model.ts';
 import type { AppState } from '../app/state.ts';
 import { variableLabel } from '../shell/Ribbon.tsx';
 import { computePaint, legendOf, VARIABLE_QUANTITY } from './paint.ts';
+import { drawAnnotations, LABEL_FONT, labelBoxes } from './annotations.ts';
+import { drawSizes } from '../app/prefs.ts';
 
 const GEOMETRY_FIELDS = new Set(['x', 'y', 'vertices', 'from', 'to', 'kind', 'pipeStatus', 'valveType']);
 const DRAG_THRESHOLD = 4;
@@ -82,6 +84,9 @@ class MapController {
   private lastPeriod = -1;
   gesture: Gesture = { kind: 'none' };
   overlay: HTMLCanvasElement | null = null;
+  annotations: HTMLCanvasElement | null = null;
+  private annotationFrame = 0;
+  private lastMapOptions: unknown = null;
   cursor: [number, number] | null = null;
   private fitted = false;
   private readonly state: AppState;
@@ -110,6 +115,7 @@ class MapController {
       onCamera: (cam) => {
         this.basemap.follow(cam);
         this.placeBackdrop();
+        this.scheduleAnnotations();
       },
       prefer: state.prefs.renderer,
       onStatus: (s) => {
@@ -123,7 +129,8 @@ class MapController {
         this.frameMs += ms;
       },
     });
-    this.renderer.setOptions({});
+    this.renderer.setOptions(drawSizes(state.prefs.map.size));
+    this.lastMapOptions = state.prefs.map;
     this.updateBasemap(true);
     this.sync();
   }
@@ -177,6 +184,11 @@ class MapController {
     const s = this.state;
     this.updateBasemap();
     this.placeBackdrop();
+    if (s.prefs.map !== this.lastMapOptions) {
+      this.lastMapOptions = s.prefs.map;
+      this.renderer.setOptions(drawSizes(s.prefs.map.size));
+    }
+    this.scheduleAnnotations();
     if (s.generation !== this.generation) {
       this.generation = s.generation;
       this.unsubStore();
@@ -201,6 +213,47 @@ class MapController {
   private onChange(c: Change): void {
     if (c.structural || [...c.fields].some((f) => GEOMETRY_FIELDS.has(f))) this.sceneDirty = true;
     this.schedule();
+    this.scheduleAnnotations();
+  }
+
+  scheduleAnnotations(): void {
+    if (this.annotationFrame) return;
+    this.annotationFrame = requestAnimationFrame(() => {
+      this.annotationFrame = 0;
+      this.drawAnnotations();
+    });
+  }
+
+  /** Labels and flow arrows, on their own canvas under the overlay. */
+  drawAnnotations(): void {
+    const a = this.annotations;
+    const ctx = a?.getContext('2d');
+    if (!a || !ctx) return;
+    const dpr = devicePixelRatio || 1;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, a.width, a.height);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const css = getComputedStyle(a);
+    const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
+    drawAnnotations(ctx, this.renderer.camera, this.state, this.state.prefs.map, {
+      label: v('--ws-color-canvas-label', '#5b6573'),
+      text: v('--ws-color-text-primary', '#171c23'),
+      halo: this.transparent ? v('--ws-color-bg-surface', '#ffffff') : v('--ws-color-canvas-bg', '#fbfcfd'),
+      arrow: v('--ws-color-canvas-node', '#171c23'),
+    });
+  }
+
+  /** The index of the map label under a screen point, if any. */
+  labelAt(x: number, y: number): number {
+    const ctx = this.annotations?.getContext('2d');
+    if (!ctx) return -1;
+    ctx.font = LABEL_FONT;
+    const boxes = labelBoxes(
+      this.state.store.doc.data.labels,
+      this.renderer.camera,
+      (t) => ctx.measureText(t).width,
+    );
+    return boxes.findIndex((b) => x >= b.x - 2 && x <= b.x + b.w && y >= b.y - 2 && y <= b.y + b.h);
   }
 
   private schedule(): void {
@@ -304,14 +357,15 @@ class MapController {
 
   resize(): void {
     this.renderer.resize();
-    const o = this.overlay;
-    if (o) {
+    for (const o of [this.overlay, this.annotations]) {
+      if (!o) continue;
       const dpr = devicePixelRatio || 1;
       const r = o.getBoundingClientRect();
       o.width = Math.max(1, Math.round(r.width * dpr));
       o.height = Math.max(1, Math.round(r.height * dpr));
     }
     this.drawOverlay();
+    this.drawAnnotations();
   }
 
   pick(x: number, y: number): Hit | null {
@@ -404,6 +458,7 @@ class MapController {
 
   destroy(): void {
     cancelAnimationFrame(this.frame);
+    cancelAnimationFrame(this.annotationFrame);
     this.unsubStore();
     this.renderer.destroy();
     this.basemap.destroy();
@@ -491,6 +546,7 @@ export function MapView() {
   const { state } = useAppContext();
   const host = useRef<HTMLDivElement>(null);
   const overlay = useRef<HTMLCanvasElement>(null);
+  const annotations = useRef<HTMLCanvasElement>(null);
   const ctl = useRef<MapController | null>(null);
   const [rendererKey, setRendererKey] = useState(state.prefs.renderer);
 
@@ -499,7 +555,10 @@ export function MapView() {
     () =>
       state.prefs.subscribe(() => {
         if (state.prefs.renderer !== rendererKey) setRendererKey(state.prefs.renderer);
-        else ctl.current?.setTheme();
+        else {
+          ctl.current?.setTheme();
+          ctl.current?.sync();
+        }
       }),
     [state, rendererKey],
   );
@@ -509,6 +568,7 @@ export function MapView() {
     if (!el) return;
     const c = new MapController(el, state);
     c.overlay = overlay.current;
+    c.annotations = annotations.current;
     ctl.current = c;
     state.view = {
       fit: () => c.fit(),
@@ -586,6 +646,29 @@ export function MapView() {
     if (e.button !== 0) return;
     const cam = c.renderer.camera;
     const tool = state.tool;
+    if (tool === 'label') {
+      const labels = state.store.doc.data.labels;
+      const i = c.labelAt(x, y);
+      if (i >= 0) {
+        const next = prompt('Label text (empty to delete):', labels[i]!.text);
+        if (next === null) return;
+        const t = next.trim();
+        state.store.transact(t ? 'Edit label' : 'Delete label', (tx) =>
+          tx.setDoc(
+            'labels',
+            t ? labels.map((l, j) => (j === i ? { ...l, text: t } : l)) : labels.filter((_, j) => j !== i),
+          ),
+        );
+      } else {
+        const t = prompt('Label text:')?.trim();
+        if (!t) return;
+        const [wx, wy] = cam.toWorld(x, y);
+        state.store.transact('Add label', (tx) =>
+          tx.setDoc('labels', [...labels, { x: wx, y: wy, text: t, anchor: null }]),
+        );
+      }
+      return;
+    }
     if (NODE_TOOLS.has(tool)) {
       const [wx, wy] = cam.toWorld(x, y);
       tryEdit(() => {
@@ -736,6 +819,7 @@ export function MapView() {
   return (
     <div className="map-view">
       <div className="map-host" ref={host}>
+        <canvas ref={annotations} className="map-annotations" aria-hidden="true" />
         <canvas
           ref={overlay}
           className={`map-overlay ${cursorClass}`}

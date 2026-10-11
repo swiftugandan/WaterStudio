@@ -24,12 +24,60 @@ function write(key: string, value: string): void {
   }
 }
 
+/** What the map shows besides the network, as EPANET's map options. */
+export interface MapOptions {
+  nodeIds: boolean;
+  nodeValues: boolean;
+  linkIds: boolean;
+  linkValues: boolean;
+  flowArrows: boolean;
+  /** The model's own map labels ([LABELS]). */
+  mapLabels: boolean;
+  /** Node, link and symbol size, 1 (small) to 5 (large). */
+  size: number;
+}
+
+export const DEFAULT_MAP_OPTIONS: MapOptions = {
+  nodeIds: false,
+  nodeValues: false,
+  linkIds: false,
+  linkValues: false,
+  flowArrows: false,
+  mapLabels: true,
+  size: 3,
+};
+
+function readMap(): MapOptions {
+  try {
+    const v = JSON.parse(localStorage.getItem('ws.map') ?? '{}') as Partial<MapOptions>;
+    const out = { ...DEFAULT_MAP_OPTIONS };
+    for (const k of Object.keys(out) as (keyof MapOptions)[]) {
+      if (typeof v[k] === typeof out[k]) (out as Record<string, unknown>)[k] = v[k];
+    }
+    out.size = Math.min(5, Math.max(1, Math.round(out.size)));
+    return out;
+  } catch {
+    return { ...DEFAULT_MAP_OPTIONS };
+  }
+}
+
+/** Renderer sizes for a map size step. */
+export function drawSizes(size: number): { linkWidth: number; nodeRadius: number; symbolSize: number } {
+  const i = Math.min(5, Math.max(1, size)) - 1;
+  return {
+    linkWidth: [1, 1.5, 2, 3, 4][i]!,
+    nodeRadius: [2, 2.5, 3, 4, 5][i]!,
+    symbolSize: [14, 17, 20, 24, 28][i]!,
+  };
+}
+
 export class Prefs extends Emitter {
   theme = read<ThemePref>('ws.theme', ['system', 'light', 'dark'], 'system');
   density = read<DensityPref>('ws.density', ['comfortable', 'compact'], 'comfortable');
   renderer = read<Preference>('ws.renderer', ['auto', 'webgpu', 'canvas2d'], 'auto');
   /** Show the street map under networks with a known coordinate system. */
   basemap = read<BasemapPref>('ws.basemap', ['on', 'off'], 'on');
+  map: MapOptions = readMap();
 
   constructor() {
     super();
@@ -48,6 +96,12 @@ export class Prefs extends Emitter {
     write('ws.density', this.density);
     write('ws.renderer', this.renderer);
     this.apply();
+    this.emit();
+  }
+
+  setMap(p: Partial<MapOptions>): void {
+    this.map = { ...this.map, ...p };
+    write('ws.map', JSON.stringify(this.map));
     this.emit();
   }
 

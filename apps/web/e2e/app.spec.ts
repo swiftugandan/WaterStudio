@@ -585,6 +585,54 @@ test('finds, queries, group-edits, and filters the results table', async ({ page
   await expect(results.locator('.grid-body .grid-row').first()).toContainText('10');
 });
 
+test('labels the map: IDs, values, flow arrows and map labels', async ({ page }) => {
+  await ready(page);
+  const painted = () =>
+    page.evaluate(() => {
+      const c = document.querySelector<HTMLCanvasElement>('.map-annotations')!;
+      const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
+      let n = 0;
+      for (let i = 3; i < d.length; i += 4) if (d[i]) n++;
+      return n;
+    });
+  await expect.poll(painted).toBeGreaterThan(0); // Net1's own labels
+  const base = await painted();
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'View' }).click();
+  await page.getByRole('button', { name: 'Show node IDs' }).click();
+  await expect.poll(painted).toBeGreaterThan(base);
+  const withIds = await painted();
+  await page.keyboard.press('F5');
+  await expect(page.getByTestId('run-status')).toContainText('Solved');
+  await page.getByRole('button', { name: 'Show flow arrows' }).click();
+  await expect.poll(painted).toBeGreaterThan(withIds);
+  // The label tool adds a label where you click, and edits or deletes one you click on.
+  const box = (await page.locator('.map-overlay').boundingBox())!;
+  const at = { x: box.x + 40, y: box.y + 40 };
+  await page.locator('.map-overlay').focus();
+  await page.keyboard.press('b');
+  page.once('dialog', (d) => void d.accept('Pressure zone A'));
+  await page.mouse.click(at.x, at.y);
+  await expect
+    .poll(() =>
+      ws(page, (w) =>
+        (w.state.store.doc.data as unknown as { labels: { text: string }[] }).labels.map((l) => l.text),
+      ),
+    )
+    .toContain('Pressure zone A');
+  page.once('dialog', (d) => {
+    expect(d.defaultValue()).toBe('Pressure zone A');
+    void d.accept('');
+  });
+  await page.mouse.click(at.x + 5, at.y + 6);
+  await expect
+    .poll(() =>
+      ws(page, (w) =>
+        (w.state.store.doc.data as unknown as { labels: { text: string }[] }).labels.map((l) => l.text),
+      ),
+    )
+    .not.toContain('Pressure zone A');
+});
+
 test('the editors have no WCAG 2.2 AA violations', async ({ page }) => {
   await ready(page);
   await ws(page, (w) => {

@@ -30,6 +30,8 @@ import {
   Spline,
   Layers,
   Search,
+  Type,
+  ArrowRight,
   Filter,
   ListChecks,
   SquareDashedMousePointer,
@@ -87,6 +89,8 @@ const LUCIDE: Record<string, LucideIcon> = {
   'list-checks': ListChecks,
   layers: Layers,
   search: Search,
+  type: Type,
+  'arrow-right': ArrowRight,
   filter: Filter,
 };
 
