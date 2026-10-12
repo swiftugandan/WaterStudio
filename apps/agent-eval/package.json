@@ -1,0 +1,24 @@
+{
+  "name": "@waterstudio/agent-eval",
+  "version": "0.0.1",
+  "private": true,
+  "description": "The agent evaluation: design and analysis tasks on the EPANET example networks, run through the assistant loop and graded deterministically against the engine.",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "bin": {
+    "ws-eval": "./src/main.ts"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@waterstudio/agents": "workspace:*",
+    "@waterstudio/core": "workspace:*",
+    "@waterstudio/engine-client": "workspace:*",
+    "@waterstudio/mcp-server": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5"
+  }
+}

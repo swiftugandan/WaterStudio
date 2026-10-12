@@ -5,6 +5,9 @@
   "description": "A Model Context Protocol server over WaterStudio's agent tools and engine: agents query, run, draft and propose changes to a network headlessly.",
   "license": "MIT OR Apache-2.0",
   "type": "module",
+  "exports": {
+    "./host": "./src/host.ts"
+  },
   "bin": {
     "ws-mcp": "./src/main.ts"
   },

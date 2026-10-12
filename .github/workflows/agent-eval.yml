@@ -1,0 +1,60 @@
+name: Agent evaluation
+
+# Nightly, and on demand: the task set through the assistant loop, graded against the
+# engine. The reference and null baselines always run (they check the tasks and graders);
+# a model runs when the repository has the WS_EVAL_API_KEY secret.
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Model ID
+        default: claude-sonnet-5-5
+      repeat:
+        description: Runs per task
+        default: '3'
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-24.04
+    env:
+      MODEL: ${{ inputs.model || 'claude-sonnet-5-5' }}
+      REPEAT: ${{ inputs.repeat || '3' }}
+      WS_EVAL_API_KEY: ${{ secrets.WS_EVAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install the pinned toolchain
+        working-directory: engine
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:engine
+      - name: Baselines
+        run: node apps/agent-eval/src/main.ts --agent reference --agent null --out baselines.json --markdown baselines.md
+      - name: Model
+        if: env.WS_EVAL_API_KEY != ''
+        run: >
+          node apps/agent-eval/src/main.ts --agent anthropic --model "$MODEL" --repeat "$REPEAT"
+          --out model.json --markdown model.md
+      - name: Summary
+        if: always()
+        run: cat baselines.md model.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: agent-eval
+          path: |
+            baselines.*
+            model.*
+          retention-days: 90

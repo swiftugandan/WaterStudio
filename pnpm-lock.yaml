@@ -36,6 +36,25 @@ importers:
         specifier: 5.0.3
         version: 5.0.3(@types/node@22.20.5)(jsdom@29.1.1)(vite@8.3.2(@types/node@22.20.5))
 
+  apps/agent-eval:
+    dependencies:
+      '@waterstudio/agents':
+        specifier: workspace:*
+        version: link:../../packages/agents
+      '@waterstudio/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@waterstudio/engine-client':
+        specifier: workspace:*
+        version: link:../../packages/engine-client
+      '@waterstudio/mcp-server':
+        specifier: workspace:*
+        version: link:../mcp-server
+    devDependencies:
+      '@types/node':
+        specifier: 22.20.5
+        version: 22.20.5
+
   apps/mcp-server:
     dependencies:
       '@sqlite.org/sqlite-wasm':

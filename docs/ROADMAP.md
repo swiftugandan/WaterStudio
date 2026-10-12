@@ -109,6 +109,10 @@ Gate: MSX examples within tolerance; all performance budgets met; agent evaluati
   1,000 hydrants in 16 s on one worker (about 2 s on 8); edit to repaint in 34 ms; 814 MB for 100,000 elements
   with a run. The sparse solver assembles in place (still bit-identical); fire flow reuses a warm solver and
   regula falsi; the overview is rasterised; edits patch the scene
+- [x] Agent evaluation (ADR 0019, `apps/agent-eval`, `docs/evals`): 14 tasks on Net1–Net3 (lookups, results,
+  diagnosis, design, edits, conduct) through the real assistant loop, graded against the engine. Baseline:
+  reference 14/14, null 0/14, wrong work rejected; the nightly workflow adds a model row when the repository has
+  an API key secret (none yet)
 
 ## Phase 4: Agent design 1.1
 
