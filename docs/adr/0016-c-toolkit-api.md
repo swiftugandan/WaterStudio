@@ -109,8 +109,13 @@ holds that same `Project`, field by field.
   the file's results, as in C. The probe saves the first run's file, has a fresh project use it for quality,
   report and output, and compares every file. The `[OPTIONS]` keyword `HYDRAULICS USE/SAVE` in an input file is
   still ignored when reading; `EN_saveinpfile` writes it for a file in use.
+- **Stage 8.** `EN_init` makes an empty project with the given flow units and head loss formula; as in C its
+  report keeps quality as a reported variable (`initreport` runs after `adjustdata`). The probe builds a network
+  from nothing with the editing functions, solves it and saves it, identically to OWA-EPANET. `EN_addrule`
+  crashes the reference in such a project, so the probe leaves rules out there. `EN_open` without a readable
+  input file now writes no report, as `openfiles` opens the input first.
 - Not yet:
-  - `EN_init` and `EN_openX`;
+  - `EN_openX`, which needs EPANET's input error messages and its partly read networks;
   - the legacy single-precision API (`epanet2.h`).
 
   A program calling these fails to link rather than misbehaving. They follow in later stages, under the same

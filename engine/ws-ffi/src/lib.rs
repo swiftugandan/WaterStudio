@@ -177,6 +177,21 @@ pub unsafe extern "C" fn EN_open(
     with!(p, t => t.open_files(&inp.unwrap_or_default(), &rpt.unwrap_or_default(), &outf.unwrap_or_default(), &date))
 }
 
+/// `EN_init`
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_init(
+    p: EnProject,
+    rpt_file: *const c_char,
+    out_file: *const c_char,
+    units_type: c_int,
+    head_loss_type: c_int,
+) -> c_int {
+    // SAFETY: see `arg`.
+    let (rpt, outf) = unsafe { (arg(rpt_file), arg(out_file)) };
+    let date = ctime_now();
+    with!(p, t => t.init(&rpt.unwrap_or_default(), &outf.unwrap_or_default(), units_type, head_loss_type, &date))
+}
+
 /// The current time as C's `ctime` prints it (UTC), without the newline.
 fn ctime_now() -> String {
     let secs = std::time::SystemTime::now()

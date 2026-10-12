@@ -660,6 +660,62 @@ static void concurrent(void) {
   printf("C closeQ %d closeH %d\n", EN_closeQ(ph), EN_closeH(ph));
 }
 
+/* A network built from nothing: EN_init, then the editing functions. */
+static void built(void) {
+  char rpt[600], inp[600];
+  int i, k;
+  printf("init bad %d %d\n", EN_init(ph, "", "", 11, EN_HW), EN_init(ph, "", "", EN_GPM, 3));
+  snprintf(rpt, sizeof rpt, "%s/probe-init.rpt", scratch);
+  printf("init same %d\n", EN_init(ph, rpt, rpt, EN_LPS, EN_DW));
+  printf("init %d\n", EN_init(ph, rpt, "", EN_LPS, EN_DW));
+  counts();
+  statics();
+  double pv[] = {0.8, 1.0, 1.3, 0.9};
+  SET(EN_addpattern(ph, "Day"));
+  SET(EN_setpattern(ph, 1, pv, 4));
+  double cx[] = {0, 40, 80}, cy[] = {60, 50, 25};
+  SET(EN_addcurve(ph, "Pump1"));
+  SET(EN_setcurve(ph, 1, cx, cy, 3));
+  SET(EN_addnode(ph, "R1", EN_RESERVOIR, &i));
+  SET(EN_setnodevalue(ph, i, EN_ELEVATION, 10));
+  SET(EN_addnode(ph, "T1", EN_TANK, &i));
+  SET(EN_settankdata(ph, i, 60, 3, 1, 6, 12, 0, ""));
+  const char *jn[] = {"J1", "J2", "J3", "J4"};
+  for (int n = 0; n < 4; n++) {
+    SET(EN_addnode(ph, jn[n], EN_JUNCTION, &i));
+    SET(EN_setjuncdata(ph, i, 30 - 2 * n, 4 + n, "Day"));
+    SET(EN_setcoord(ph, i, 100.0 * n, 50.0 * (n % 2)));
+  }
+  SET(EN_addlink(ph, "Pu1", EN_PUMP, "R1", "J1", &k));
+  SET(EN_setlinkvalue(ph, k, EN_PUMP_HCURVE, 1));
+  SET(EN_addlink(ph, "P1", EN_PIPE, "J1", "J2", &k));
+  SET(EN_setpipedata(ph, k, 500, 200, 0.1, 0));
+  SET(EN_addlink(ph, "P2", EN_PIPE, "J2", "J3", &k));
+  SET(EN_setpipedata(ph, k, 400, 150, 0.1, 1.5));
+  SET(EN_addlink(ph, "P3", EN_PIPE, "J3", "T1", &k));
+  SET(EN_setpipedata(ph, k, 300, 150, 0.1, 0));
+  SET(EN_addlink(ph, "V1", EN_PRV, "J2", "J4", &k));
+  SET(EN_setlinkvalue(ph, k, EN_DIAMETER, 100));
+  SET(EN_setlinkvalue(ph, k, EN_INITSETTING, 15));
+  SET(EN_settimeparam(ph, EN_DURATION, 6 * 3600));
+  SET(EN_settimeparam(ph, EN_HYDSTEP, 3600));
+  SET(EN_settimeparam(ph, EN_PATTERNSTEP, 3600));
+  SET(EN_setqualtype(ph, EN_AGE, "", "", ""));
+  SET(EN_addcontrol(ph, EN_HILEVEL, 2, 0, 2, 5.5, &k));
+  /* (EN_addrule crashes the reference in a project made by EN_init.) */
+  mutated = 1;
+  counts();
+  statics();
+  hydraulics(EN_SAVE);
+  printf("closeH %d\n", EN_closeH(ph));
+  quality_from_file(0);
+  snprintf(inp, sizeof inp, "%s/probe-init.inp", scratch);
+  SET(EN_saveinpfile(ph, inp));
+  SET(EN_solveQ(ph));
+  SET(EN_report(ph));
+  printf("close %d\n", EN_close(ph));
+}
+
 int main(int argc, char **argv) {
   if (argc < 2) { fprintf(stderr, "usage: probe <net.inp> [scratch-dir]\n"); return 2; }
   if (argc > 2) snprintf(scratch, sizeof scratch, "%s", argv[2]);
@@ -722,6 +778,10 @@ int main(int argc, char **argv) {
 
   printf("close %d\n", EN_close(ph));
   printf("after-close %d\n", EN_getcount(ph, EN_NODECOUNT, &(int){0}));
+  EN_deleteproject(ph);
+
+  EN_createproject(&ph);
+  built();
   EN_deleteproject(ph);
 
   /* Each library reads back the network it saved after the changes: the same text,

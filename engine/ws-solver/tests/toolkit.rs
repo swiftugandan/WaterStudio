@@ -369,3 +369,27 @@ fn saves_and_uses_hydraulics_files() {
     assert_eq!(other.usehydfile(&hyd), 306);
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn builds_a_network_from_nothing() {
+    let mut t = Toolkit::new();
+    assert_eq!(t.init("", "", 11, EN_HW, ""), 251);
+    assert!(!t.is_open());
+    assert_eq!(t.init("", "", EN_LPS, EN_DW, ""), 0);
+    let (mut n, mut units) = (-1, -1);
+    t.getcount(EN_NODECOUNT, &mut n);
+    t.getflowunits(&mut units);
+    assert_eq!((n, units), (0, EN_LPS));
+    let mut i = 0;
+    assert_eq!(t.addnode("R", EN_RESERVOIR, &mut i), 0);
+    t.setnodevalue(i, EN_ELEVATION, 50.0);
+    assert_eq!(t.addnode("J", EN_JUNCTION, &mut i), 0);
+    t.setjuncdata(i, 10.0, 5.0, "");
+    let mut k = 0;
+    assert_eq!(t.addlink("P", EN_PIPE, "R", "J", &mut k), 0);
+    t.setpipedata(k, 100.0, 300.0, 0.1, 0.0);
+    assert_eq!(t.solve_h(), 0);
+    let mut head = 0.0;
+    t.getnodevalue(i, EN_HEAD, &mut head);
+    assert!(head > 10.0 && head < 50.0, "{head}");
+}

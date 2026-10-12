@@ -148,6 +148,36 @@ pub const EN_JUNCTION: i32 = 0;
 pub const EN_RESERVOIR: i32 = 1;
 pub const EN_TANK: i32 = 2;
 
+// EN_LinkType
+pub const EN_CVPIPE: i32 = 0;
+pub const EN_PIPE: i32 = 1;
+pub const EN_PUMP: i32 = 2;
+pub const EN_PRV: i32 = 3;
+pub const EN_PSV: i32 = 4;
+pub const EN_PBV: i32 = 5;
+pub const EN_FCV: i32 = 6;
+pub const EN_TCV: i32 = 7;
+pub const EN_GPV: i32 = 8;
+pub const EN_PCV: i32 = 9;
+
+// EN_FlowUnits
+pub const EN_CFS: i32 = 0;
+pub const EN_GPM: i32 = 1;
+pub const EN_MGD: i32 = 2;
+pub const EN_IMGD: i32 = 3;
+pub const EN_AFD: i32 = 4;
+pub const EN_LPS: i32 = 5;
+pub const EN_LPM: i32 = 6;
+pub const EN_MLD: i32 = 7;
+pub const EN_CMH: i32 = 8;
+pub const EN_CMD: i32 = 9;
+pub const EN_CMS: i32 = 10;
+
+// EN_HeadLossType
+pub const EN_HW: i32 = 0;
+pub const EN_DW: i32 = 1;
+pub const EN_CM: i32 = 2;
+
 // EN_Option
 pub const EN_TRIALS: i32 = 0;
 pub const EN_ACCURACY: i32 = 1;

@@ -39,7 +39,7 @@ trap 'rm -rf "$scratch"' EXIT
 # The probe's reports, output files, saved input files and hydraulics files, kept per
 # library with the report's clock times masked.
 keep() {
-  for f in probe.rpt probe-copy.rpt probe.out probe.inp probe-mutated.inp probe.hyd probe-copy.hyd probe-use.rpt probe-use.out probe-use.inp; do
+  for f in probe.rpt probe-copy.rpt probe.out probe.inp probe-mutated.inp probe.hyd probe-copy.hyd probe-use.rpt probe-use.out probe-use.inp probe-init.rpt probe-init.inp; do
     if [[ -f "$scratch/$f" ]]; then
       if [[ $f == *.rpt ]]; then
         sed -E 's/[A-Z][a-z]{2} [A-Z][a-z]{2} [ 0-9][0-9] [0-9]{2}:[0-9]{2}:[0-9]{2} [0-9]{4}/<date>/' "$scratch/$f" > "$scratch/$1.$f"
@@ -54,7 +54,7 @@ keep() {
   done
 }
 files_match() {
-  for f in probe.rpt probe-copy.rpt probe.out probe.inp probe-mutated.inp probe.hyd probe-copy.hyd probe-use.rpt probe-use.out probe-use.inp; do
+  for f in probe.rpt probe-copy.rpt probe.out probe.inp probe-mutated.inp probe.hyd probe-copy.hyd probe-use.rpt probe-use.out probe-use.inp probe-init.rpt probe-init.inp; do
     if [[ -f "$scratch/ref.$f" || -f "$scratch/ws.$f" ]]; then
       if ! cmp -s "$scratch/ref.$f" "$scratch/ws.$f"; then
         echo "      $f differs"

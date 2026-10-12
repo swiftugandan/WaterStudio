@@ -35,6 +35,35 @@ pub(crate) struct Output {
     pub(super) reduced: bool,
 }
 
+/// `FlowUnitsTxt`, by `EN_FlowUnits` code.
+const FLOW_UNITS_WORDS: [&str; 11] = [
+    "CFS", "GPM", "MGD", "IMGD", "AFD", "LPS", "LPM", "MLD", "CMH", "CMD", "CMS",
+];
+
+/// `openfiles`: the file names must differ (301).
+fn check_files(inp_file: &str, rpt_file: &str, out_file: &str) -> Result<(), i32> {
+    let same = |a: &str, b: &str| a.eq_ignore_ascii_case(b);
+    if !inp_file.is_empty() && (same(inp_file, rpt_file) || same(inp_file, out_file)) {
+        return Err(301);
+    }
+    if !out_file.is_empty() && same(rpt_file, out_file) {
+        return Err(301);
+    }
+    Ok(())
+}
+
+/// `openfiles`: the report file, emptied (303 if it cannot be written), or standard
+/// output for an empty name.
+fn open_report(rpt_file: &str) -> Result<ReportTarget, i32> {
+    if rpt_file.is_empty() {
+        return Ok(ReportTarget::Stdout);
+    }
+    if std::fs::write(rpt_file, "").is_err() {
+        return Err(303);
+    }
+    Ok(ReportTarget::File(rpt_file.to_string()))
+}
+
 /// Report text the caller must deliver.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ReportOutput {
@@ -67,28 +96,19 @@ impl Toolkit {
         date: &str,
     ) -> i32 {
         self.close();
-        let same = |a: &str, b: &str| a.eq_ignore_ascii_case(b);
-        if !inp_file.is_empty() && (same(inp_file, rpt_file) || same(inp_file, out_file)) {
-            return 301;
+        // openfiles: the input file is opened before the report, so without one there
+        // is no report either.
+        if let Err(e) = check_files(inp_file, rpt_file, out_file) {
+            return e;
         }
-        if !out_file.is_empty() && same(rpt_file, out_file) {
-            return 301;
-        }
-        let target = if rpt_file.is_empty() {
-            ReportTarget::Stdout
-        } else {
-            if std::fs::write(rpt_file, "").is_err() {
-                return 303;
-            }
-            ReportTarget::File(rpt_file.to_string())
+        let Ok(bytes) = std::fs::read(inp_file) else {
+            return 302;
         };
-        let text = match std::fs::read(inp_file) {
-            Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
-            Err(_) => {
-                self.failed_open_report(&target, date, 302);
-                return 302;
-            }
+        let target = match open_report(rpt_file) {
+            Ok(t) => t,
+            Err(e) => return e,
         };
+        let text = String::from_utf8_lossy(&bytes).into_owned();
         let r = ws_io::read_inp(&text);
         let code = if r.errors().next().is_some() {
             200
@@ -116,6 +136,55 @@ impl Toolkit {
         };
         self.failed_open_report(&target, date, code);
         code
+    }
+
+    /// `EN_init`: an empty project with the given flow units and head loss formula,
+    /// reporting to `rpt_file` (standard output if empty).
+    pub fn init(
+        &mut self,
+        rpt_file: &str,
+        out_file: &str,
+        units_type: i32,
+        head_loss_type: i32,
+        date: &str,
+    ) -> i32 {
+        self.close();
+        let Some(units) = usize::try_from(units_type)
+            .ok()
+            .and_then(|u| FLOW_UNITS_WORDS.get(u))
+        else {
+            return 251;
+        };
+        let Some(formula) = usize::try_from(head_loss_type)
+            .ok()
+            .and_then(|h| ["H-W", "D-W", "C-M"].get(h))
+        else {
+            return 251;
+        };
+        let target = match check_files("", rpt_file, out_file).and_then(|()| open_report(rpt_file))
+        {
+            Ok(t) => t,
+            Err(e) => return e,
+        };
+        let code = self.open_text(&format!(
+            "[OPTIONS]\n UNITS {units}\n HEADLOSS {formula}\n[END]\n"
+        ));
+        if code != 0 {
+            return code;
+        }
+        if let Some(o) = self.p.as_deref_mut() {
+            o.rpt1 = rpt_file.to_string();
+            o.out_path = out_file.to_string();
+            o.target = target;
+            let pr = &mut o.pr;
+            // EN_init calls initreport after adjustdata, so quality stays a reported
+            // variable even without a quality analysis.
+            pr.rpt.field[crate::types::Field::Quality as usize].enabled = true;
+            pr.rpt.file = Some(ReportFile::default());
+            pr.rpt.date = date.to_string();
+            report::writelogo(pr);
+        }
+        0
     }
 
     /// The report of an `EN_open` that failed: the logo and the error.
