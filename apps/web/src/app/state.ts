@@ -29,7 +29,13 @@ import {
 import type { RampName, RendererStatus } from '@waterstudio/render';
 import { restoreScenarios, type ProjectData } from '@waterstudio/project';
 import { readSettings } from './project.ts';
-import { applyChangeset, type ApplyResult, type Proposal, type ProposalDraft } from '@waterstudio/agents';
+import {
+  applyChangeset,
+  proposalsFromText,
+  type ApplyResult,
+  type Proposal,
+  type ProposalDraft,
+} from '@waterstudio/agents';
 import { Conversation } from './assistant.ts';
 import { Emitter } from './emitter.ts';
 import { ctime } from './time.ts';
@@ -238,6 +244,28 @@ export class AppState extends Emitter {
     );
     this.emit();
     return id;
+  }
+
+  /** Add the proposals in a file a headless agent wrote (the MCP server); returns how many. */
+  loadProposals(text: string, name: string): number {
+    const { network, proposals } = proposalsFromText(text);
+    const taken = new Set(this.proposals.map((p) => p.id));
+    const added = proposals.map((p) => {
+      let id = p.id;
+      for (let n = 2; taken.has(id); n++) id = `${p.id}-${n}`;
+      taken.add(id);
+      return { ...p, id };
+    });
+    this.proposals = [...this.proposals, ...added];
+    this.log(
+      network && network !== this.fileName ? 'warning' : 'info',
+      `Loaded ${added.length} proposals from ${name}` +
+        (network && network !== this.fileName
+          ? `; they were made for ${network}, not ${this.fileName}.`
+          : '.'),
+    );
+    this.emit();
+    return added.length;
   }
 
   /**

@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "@waterstudio/core": "workspace:*",
-    "@waterstudio/engine-client": "workspace:*"
+    "@waterstudio/engine-client": "workspace:*",
+    "@waterstudio/project": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "22.20.5"

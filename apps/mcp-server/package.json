@@ -1,0 +1,25 @@
+{
+  "name": "@waterstudio/mcp-server",
+  "version": "0.0.1",
+  "private": true,
+  "description": "A Model Context Protocol server over WaterStudio's agent tools and engine: agents query, run, draft and propose changes to a network headlessly.",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "bin": {
+    "ws-mcp": "./src/main.ts"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@sqlite.org/sqlite-wasm": "3.53.4-build1",
+    "@waterstudio/agents": "workspace:*",
+    "@waterstudio/core": "workspace:*",
+    "@waterstudio/engine-client": "workspace:*",
+    "@waterstudio/project": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5"
+  }
+}

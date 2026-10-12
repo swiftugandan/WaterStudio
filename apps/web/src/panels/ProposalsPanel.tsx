@@ -9,6 +9,7 @@ import { touchedIds, type ChangeItem, type Kpis, type Proposal } from '@waterstu
 import { linkField, nodeField, unitLabel, type FieldSpec, type UnitSystem } from '@waterstudio/core';
 import { useEffect, useId, useState } from 'react';
 import { useApp } from '../app/context.tsx';
+import { openFilePicker } from '../app/files.ts';
 import type { AppState } from '../app/state.ts';
 
 const STATUS: Record<Proposal['status'], string> = {
@@ -238,6 +239,32 @@ function Detail({ state, p }: { state: AppState; p: Proposal }) {
   );
 }
 
+function OpenFile({ state }: { state: AppState }) {
+  const [error, setError] = useState<string | null>(null);
+  const open = async () => {
+    const f = await openFilePicker('.json,application/json');
+    if (!f) return;
+    try {
+      state.loadProposals(await f.text(), f.name);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+  return (
+    <>
+      <button type="button" className="btn" onClick={() => void open()}>
+        Open proposals file
+      </button>
+      {error && (
+        <p className="field-error" role="alert">
+          {error}
+        </p>
+      )}
+    </>
+  );
+}
+
 export function ProposalsPanel() {
   const { state } = useApp();
   const list = state.proposals;
@@ -252,16 +279,23 @@ export function ProposalsPanel() {
         <p className="muted proposals-empty">
           No proposals yet. In the Assistant, let the agent propose changes: it edits a draft copy of the
           network and its proposals wait here for you to review. Nothing reaches the network until you accept
-          it.
+          it. Proposals an agent made through the MCP server are in a file beside the network.
         </p>
+        <div className="panel-toolbar">
+          <OpenFile state={state} />
+        </div>
       </div>
     );
   }
   return (
     <div className="panel proposals">
-      <p className="muted" aria-live="polite">
-        {pending} to review, {list.length} in all
-      </p>
+      <div className="panel-toolbar">
+        <span className="muted" aria-live="polite">
+          {pending} to review, {list.length} in all
+        </span>
+        <span className="spacer" />
+        <OpenFile state={state} />
+      </div>
       <ul className="proposal-list" aria-label="Proposals">
         {list.map((p) => (
           <li key={p.id}>

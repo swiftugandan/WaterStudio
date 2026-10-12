@@ -520,6 +520,50 @@ test('the assistant proposes a change in a draft, and the engineer reviews and a
   expect(await diameter()).toBe(18);
 });
 
+test('proposals an agent left through the MCP server open for review', async ({ page }) => {
+  await ready(page);
+  const file = {
+    format: 'waterstudio-proposals',
+    version: 1,
+    network: 'Net1.inp',
+    proposals: [
+      {
+        id: 'P1',
+        title: 'Larger pipe 12',
+        rationale: 'Made headlessly.',
+        author: 'MCP agent',
+        created: 0,
+        items: [{ op: 'set', table: 'link', kind: 'pipe', id: '12', field: 'diameter', from: 10, to: 12 }],
+        evidence: { before: null, after: null, errors: [] },
+        status: 'pending',
+      },
+    ],
+  };
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Analysis' }).click();
+  await page.getByRole('button', { name: 'Show proposals' }).click();
+  const panel = page.locator('.panel.proposals');
+  const chooser = page.waitForEvent('filechooser');
+  await panel.getByRole('button', { name: 'Open proposals file' }).click();
+  await (
+    await chooser
+  ).setFiles({
+    name: 'Net1.proposals.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(file)),
+  });
+  await expect(panel.locator('.proposal-items')).toContainText('Diameter: 10 → 12');
+  await panel.getByRole('button', { name: 'Accept all' }).click();
+  await expect(panel.getByRole('status')).toContainText('Applied 1 change');
+  const d = await ws(page, (w) => {
+    const doc = w.state.store.doc as unknown as {
+      findLink(id: string): number;
+      num(h: number, f: string): number;
+    };
+    return doc.num(doc.findLink('12'), 'diameter');
+  });
+  expect(d).toBe(12);
+});
+
 /** The [OPTIONS] line starting with `key`, as text. */
 const option = (page: Page, key: string) =>
   page.evaluate((k) => {

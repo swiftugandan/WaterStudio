@@ -16,6 +16,7 @@ import {
   type NodeKind,
 } from '@waterstudio/core';
 import { linkFrame, nodeFrame, type RunResults } from '@waterstudio/engine-client';
+import { decode, encode } from '@waterstudio/project';
 
 export type ElementTable = 'node' | 'link';
 
@@ -372,3 +373,29 @@ export function kpis(doc: Document, r: RunResults, nodes: Uint32Array, links: Ui
 }
 
 export const ELEMENT_KINDS: readonly string[] = [...NODE_KINDS, ...LINK_KINDS];
+
+/** The format of a proposals file (what a headless agent leaves for a person to review). */
+export const PROPOSALS_FORMAT = 'waterstudio-proposals';
+
+/** Proposals as a file, lossless for every number (NaN marks a missing value). */
+export function proposalsToText(network: string, proposals: readonly Proposal[]): string {
+  return encode({ format: PROPOSALS_FORMAT, version: 1, network, proposals });
+}
+
+/** Read a proposals file; throws if it is not one. */
+export function proposalsFromText(text: string): { network: string; proposals: Proposal[] } {
+  let v: unknown;
+  try {
+    v = decode(text);
+  } catch {
+    throw new Error('This is not a proposals file.');
+  }
+  const o = (typeof v === 'object' && v !== null ? v : {}) as {
+    format?: unknown;
+    network?: unknown;
+    proposals?: unknown;
+  };
+  if (o.format !== PROPOSALS_FORMAT || !Array.isArray(o.proposals))
+    throw new Error('This is not a proposals file.');
+  return { network: typeof o.network === 'string' ? o.network : '', proposals: o.proposals as Proposal[] };
+}

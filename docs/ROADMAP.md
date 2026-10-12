@@ -101,7 +101,9 @@ Gate: MSX examples within tolerance; all performance budgets met; agent evaluati
   network, runs it, and submits a changeset with the engine's before-and-after figures; the Proposals panel shows
   the rationale, the evidence and every change, and the engineer accepts all or some of it as one undoable step,
   rejects it or sends it back with a comment; items whose element changed meanwhile are skipped as conflicts
-- [ ] MCP server over the same tools, drafts and proposals
+- [x] MCP server (`apps/mcp-server`, ADR 0017): `ws-mcp network.inp` serves the same tools, drafts and proposals
+  to MCP clients on stdio (stateless 2026-07-28 revision, `initialize` for earlier clients); proposals land in a
+  file the Proposals panel opens, and only `--accept` lets the agent apply them and save
 
 ## Phase 4: Agent design 1.1
 

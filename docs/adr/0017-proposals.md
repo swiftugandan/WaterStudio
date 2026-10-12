@@ -32,7 +32,11 @@ manager's property overrides (ADR 0013) cannot express, and the engineer keeps w
   deletions, node deletions, document data). An item whose element no longer holds the value it replaces, or
   that would collide or dangle, is skipped and reported; the rest apply.
 - **Hosts.** `AgentHost` (the live document, run and files of any document, a submit function, an author) is all
-  a draft session needs, so the MCP server can host the same tools.
+  a draft session needs. The app is one host; `apps/mcp-server` is the other: a Node CLI over the same registry
+  and the WebAssembly engine, speaking MCP's stateless 2026-07-28 revision on stdio (and `initialize` for earlier
+  clients). Headless proposals go to a file beside the network (lossless JSON, `proposalsToText`) that the
+  Proposals panel opens; only when the server is started with `--accept` may the agent apply proposals itself and
+  save the network to a new file.
 
 ## Consequences
 
