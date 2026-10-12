@@ -1002,6 +1002,53 @@ test('runs a multi-species analysis and shows its species as results', async ({ 
   expect(axe.violations.map((v) => v.id)).toEqual([]);
 });
 
+test('sets elevations from a DEM and allocates demands', async ({ page }) => {
+  await ready(page);
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Project' }).click();
+  await page.getByRole('button', { name: 'Elevations from a DEM or terrain…' }).click();
+  const panel = page.locator('.panel.tools-panel');
+  // A 10 × 10 grid over Net1 whose height grows by 1 per 10 units east: 100 + (x - 5) / 10.
+  const rows = Array.from({ length: 10 }, () => Array.from({ length: 10 }, (_, i) => 100 + i).join(' '));
+  const chooser = page.waitForEvent('filechooser');
+  await panel.getByRole('button', { name: 'Choose DEM…' }).click();
+  await (
+    await chooser
+  ).setFiles({
+    name: 'ground.asc',
+    mimeType: 'text/plain',
+    buffer: Buffer.from(`ncols 10\nnrows 10\nxllcorner 0\nyllcorner 0\ncellsize 10\n${rows.join('\n')}\n`),
+  });
+  await expect(panel.getByText('ground.asc: 10 × 10 cells')).toBeVisible();
+  await panel.getByLabel('The DEM’s heights are in feet').check();
+  await panel.getByRole('button', { name: 'Set elevations' }).click();
+  await expect(panel.locator('p[role=status]')).toContainText(
+    'Set the elevations of 10 nodes from ground.asc',
+  );
+  const elevation = await ws(page, (w) =>
+    w.state.store.doc.num(w.state.store.doc.findNode('10')!, 'elevation'),
+  );
+  expect(elevation).toBe(101.5); // at x = 20
+  // Demands: 90 gpm spread equally over the nine junctions, into a new category.
+  await panel.getByRole('tab', { name: 'Demand allocation' }).click();
+  await panel.getByLabel('Total demand (gpm)').fill('90');
+  await panel.getByRole('combobox', { name: 'Spread' }).selectOption('equal');
+  await panel.getByLabel('Demand category (blank for the first)').fill('Growth');
+  await panel.getByRole('button', { name: 'Allocate demands' }).click();
+  await expect(panel.locator('p[role=status]')).toContainText('Allocated 90 gpm over 9 junctions equally');
+  const growth = await ws(page, (w) => {
+    const d = w.state.store.doc;
+    return (d.get(d.findNode('12')!, 'demands') as { base: number; category: string | null }[]).find(
+      (x) => x.category === 'Growth',
+    )?.base;
+  });
+  expect(growth).toBe(10);
+  const axe = await new AxeBuilder({ page })
+    .include('.panel.tools-panel')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  expect(axe.violations.map((v) => v.id)).toEqual([]);
+});
+
 test('the editors have no WCAG 2.2 AA violations', async ({ page }) => {
   await ready(page);
   await ws(page, (w) => {

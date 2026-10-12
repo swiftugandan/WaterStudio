@@ -39,6 +39,7 @@ const PANEL_ICONS: Record<string, string> = {
   scenarios: 'layers',
   studies: 'flame',
   msx: 'flask',
+  tools: 'mountain',
 };
 
 export const SAMPLES = ['Net1', 'Net2', 'Net3'] as const;
@@ -593,6 +594,7 @@ export function createCommands(state: AppState): CommandBus<AppState> {
         ['scenarios', 'Scenarios'],
         ['studies', 'Studies'],
         ['msx', 'Multi-species'],
+        ['tools', 'Network tools'],
       ] as const
     ).map(([id, title]): Cmd => ({
       id: `view.panel.${id}`,
@@ -708,6 +710,31 @@ export function createCommands(state: AppState): CommandBus<AppState> {
       category: 'Analysis',
       enabled: (s) => s.run.status !== 'running' && s.store.doc.nodes.liveCount > 0,
       run: (s) => s.runHydraulics(),
+    },
+    {
+      id: 'tools.elevations',
+      title: 'Elevations from a DEM or terrain…',
+      description: 'Set junction and tank elevations from a digital elevation model or online terrain tiles.',
+      icon: 'mountain',
+      category: 'Tools',
+      enabled: (s) => s.store.doc.nodes.liveCount > 0,
+      run: (s) => {
+        s.setToolsTab('elevations');
+        s.showPanel('tools');
+      },
+    },
+    {
+      id: 'tools.demands',
+      title: 'Allocate demands…',
+      description:
+        'Spread a total demand over junctions, or assign customer demands at points to the nearest junction or pipe.',
+      icon: 'users',
+      category: 'Tools',
+      enabled: (s) => s.store.doc.nodes.liveCount > 0,
+      run: (s) => {
+        s.setToolsTab('demands');
+        s.showPanel('tools');
+      },
     },
     {
       id: 'analysis.msx',

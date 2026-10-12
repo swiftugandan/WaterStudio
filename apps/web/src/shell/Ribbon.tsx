@@ -152,6 +152,13 @@ const TABS: Tab[] = [
           { cmd: 'view.panel.controls', size: 'large', label: 'Controls' },
         ],
       },
+      {
+        label: 'Tools',
+        items: [
+          { cmd: 'tools.elevations', size: 'large', label: 'Elevations' },
+          { cmd: 'tools.demands', size: 'large', label: 'Demands' },
+        ],
+      },
     ],
   },
   {

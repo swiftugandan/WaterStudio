@@ -50,6 +50,7 @@ import {
   SunMoon,
   Trash2,
   Undo2,
+  Users,
   X,
   ZoomIn,
   ZoomOut,
@@ -58,6 +59,7 @@ import {
 } from 'lucide-react';
 
 const LUCIDE: Record<string, LucideIcon> = {
+  users: Users,
   flask: FlaskConical,
   'file-plus': FilePlus,
   'folder-open': FolderOpen,

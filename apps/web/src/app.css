@@ -1541,3 +1541,50 @@ button.link {
 .msx-empty p {
   margin: 0 0 var(--ws-space-2);
 }
+
+/* Network tools */
+.tools-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-1);
+  overflow: auto;
+}
+.tools-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+}
+.tools-body p {
+  margin: 0;
+}
+.tools-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-1);
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+.tools-fields legend {
+  font-weight: var(--ws-font-weight-medium);
+  margin-bottom: var(--ws-space-1);
+}
+.tools-fields > label:not(.check) {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) minmax(0, 1.4fr);
+  align-items: center;
+  gap: var(--ws-space-2);
+}
+.tools-fields label.check {
+  display: flex;
+  align-items: center;
+  gap: var(--ws-space-1);
+  /* Rows at least the minimum target size apart (WCAG 2.5.8). */
+  min-height: var(--ws-size-control);
+}
+.tools-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ws-space-2);
+}

@@ -31,3 +31,4 @@ export {
   type ShapefileLayer,
 } from './shapefile.ts';
 export { readZip, writeZip, crc32, ZipError } from './zip.ts';
+export { rasterBounds, readAsciiGrid, readDem, readGeoTiff, sample, type Raster } from './dem.ts';

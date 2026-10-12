@@ -88,7 +88,10 @@ Gate: MSX examples within tolerance; all performance budgets met; agent evaluati
 - [x] Fire flow (available flow at a residual and system pressure, warm-started bisection), criticality (each link out
   of service over the whole simulation), isolation segments (valves at pipe ends, N−1 and every-end rules, unintended
   isolation); studies split across the engine pool
-- [ ] DEM elevations, demand allocation; SQLite project file
+- [x] Elevations from a DEM (GeoTIFF or ASCII grid, reprojected when it names another CRS) or online terrain tiles;
+  demand allocation (a total spread equally or by the pipe length each junction serves, or customer demands at
+  points assigned to the nearest junction or split along the nearest pipe) into any demand category
+- [ ] SQLite project file
 - [ ] C toolkit API (`ws-ffi`) and CLI
 - [ ] Proposal and review UI; MCP server
 

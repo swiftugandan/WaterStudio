@@ -104,6 +104,8 @@ export class AppState extends Emitter {
   tool: Tool = 'select';
   run: RunState = { status: 'idle' };
   msxRun: MsxRunState = { status: 'idle' };
+  /** The network tool shown in the tools panel. */
+  toolsTab: 'elevations' | 'demands' = 'elevations';
   /** A separate engine for multi-species runs, which can take minutes and be stopped. */
   private msxEngine: EngineClient | null = null;
   /** EPANET's files, by whether the status log was asked for. */
@@ -362,6 +364,12 @@ export class AppState extends Emitter {
       this.run = { status: 'error', error };
       this.log('error', `Run failed: ${error}`);
     }
+    this.emit();
+  }
+
+  /** Show a network tool. */
+  setToolsTab(tab: 'elevations' | 'demands'): void {
+    this.toolsTab = tab;
     this.emit();
   }
 

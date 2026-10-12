@@ -9,7 +9,7 @@ kept current: a change that affects a criterion below updates this file in the s
   `wcag2a`, `wcag2aa`, `wcag21aa` and `wcag22aa` rules (`apps/web/e2e/app.spec.ts`) on the whole app with a graph,
   the reports and the assistant open, in both themes, and on every editor in turn: the inspector, each options
   tab, patterns, curves, controls, query and group edit, add element, the legend editor, the calibration report,
-  the studies and the multi-species panel.
+  the studies, the multi-species and the network tools panels.
   Token contrast is unit-tested (`packages/ui/src/tokens/tokens.test.ts`).
 
 ## Result
