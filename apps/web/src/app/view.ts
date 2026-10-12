@@ -11,7 +11,7 @@ export interface ViewApi {
    * Frames the renderer has drawn and the time spent drawing them (worker CPU ms), and
    * how often results were painted onto the scene and the main-thread time that took.
    */
-  frameStats(): { frames: number; ms: number; paints: number; paintMs: number };
+  frameStats(): { frames: number; ms: number; paints: number; paintMs: number; lastFrameAt: number };
   /** The map as on screen, as a standalone SVG with its size in CSS pixels. */
   exportSvg(): { svg: string; width: number; height: number };
 }

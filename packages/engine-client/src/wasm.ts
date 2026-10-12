@@ -46,6 +46,8 @@ export interface Engine {
   study(req: StudyRequest): FireFlowResult[] | CriticalityResult[];
   /** Hydraulics and an EPANET-MSX analysis: the run's results with the species added. */
   msx(req: MsxRequest): RunResults;
+  /** Size of the instance's linear memory, which grows to a run's peak and never shrinks. */
+  memoryBytes(): number;
 }
 
 export async function instantiateEngine(source: BufferSource | WebAssembly.Module): Promise<Engine> {
@@ -91,6 +93,7 @@ export async function instantiateEngine(source: BufferSource | WebAssembly.Modul
     msx: (req) => decodeResults(call(x.ws_msx, json(req))),
     study: (req) =>
       JSON.parse(decoder.decode(call(x.ws_study, json(req)))) as FireFlowResult[] | CriticalityResult[],
+    memoryBytes: () => x.memory.buffer.byteLength,
     check: (m) => {
       try {
         call(x.ws_check, json(m));

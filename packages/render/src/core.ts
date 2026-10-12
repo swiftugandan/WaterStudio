@@ -27,7 +27,7 @@ export type ToRenderer =
 export type FromRenderer =
   | { t: 'ready'; backend: BackendName; note?: string }
   | { t: 'lost'; reason: string }
-  | { t: 'frame'; ms: number; time: number }
+  | { t: 'frame'; ms: number; time: number; at: number }
   | { t: 'error'; message: string };
 
 export async function createBackend(
@@ -116,6 +116,8 @@ export class RenderCore {
       this.emit({ t: 'error', message: e instanceof Error ? e.message : String(e) });
       return;
     }
-    this.emit({ t: 'frame', ms: performance.now() - t0, time: t0 });
+    const end = performance.now();
+    // `at` is on the absolute clock, comparable across the worker and the page.
+    this.emit({ t: 'frame', ms: end - t0, time: t0, at: performance.timeOrigin + end });
   }
 }

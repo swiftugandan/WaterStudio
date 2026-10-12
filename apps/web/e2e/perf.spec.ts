@@ -23,7 +23,7 @@ interface Bench {
       fit(): void;
       zoom(f: number): void;
       panBy(dx: number, dy: number): void;
-      frameStats(): { frames: number; ms: number; paints: number; paintMs: number };
+      frameStats(): { frames: number; ms: number; paints: number; paintMs: number; lastFrameAt: number };
     } | null;
   };
   gridModel(n: number): unknown;
@@ -34,6 +34,13 @@ interface Bench {
     studyPool(): { size: number };
   };
 }
+
+// Garbage collection on demand, so memory is measured after a collection as
+// performance.measureUserAgentSpecificMemory (PLAN.md) does.
+const chromium = process.env['PW_CHROMIUM'];
+test.use({
+  launchOptions: { args: ['--js-flags=--expose-gc'], ...(chromium ? { executablePath: chromium } : {}) },
+});
 
 function report(line: string): void {
   test.info().annotations.push({ type: 'performance', description: line });
@@ -255,7 +262,8 @@ test('an edit repaints in under 50 ms without a long task', async ({ page }) => 
         const wait = () => (view.frameStats().frames > before ? done() : requestAnimationFrame(wait));
         requestAnimationFrame(wait);
       });
-      times.push(performance.now() - t0);
+      // Until the render worker finished drawing the frame with the change.
+      times.push(view.frameStats().lastFrameAt - t0);
     }
     await new Promise((r) => setTimeout(r, 100));
     obs.disconnect();
@@ -304,17 +312,28 @@ test('a 100,000-element network with a simulation loaded stays under 1 GB', asyn
     await w.state.runHydraulics();
   });
   const cdp = await browser.newBrowserCDPSession();
-  const { processInfo } = (await cdp.send('SystemInfo.getProcessInfo')) as {
-    processInfo: { type: string; id: number }[];
-  };
   // The tab's renderer process holds the page, its engine and rendering workers.
-  const rss = processInfo
-    .filter((p) => p.type === 'renderer')
-    .map((p) => {
-      const m = /VmRSS:\s+(\d+) kB/.exec(readFileSync(`/proc/${p.id}/status`, 'utf8'));
-      return m ? Number(m[1]) * 1024 : 0;
-    });
-  const mb = Math.max(...rss) / 2 ** 20;
-  report(`100,102 elements with a 24-hour simulation: ${mb.toFixed(0)} MB resident in the tab`);
+  const resident = async () => {
+    const { processInfo } = (await cdp.send('SystemInfo.getProcessInfo')) as {
+      processInfo: { type: string; id: number }[];
+    };
+    const rss = processInfo
+      .filter((p) => p.type === 'renderer')
+      .map((p) => {
+        const m = /VmRSS:\s+(\d+) kB/.exec(readFileSync(`/proc/${p.id}/status`, 'utf8'));
+        return m ? Number(m[1]) * 1024 : 0;
+      });
+    return Math.max(...rss) / 2 ** 20;
+  };
+  const before = await resident();
+  const gc = () => (globalThis as unknown as { gc(): void }).gc();
+  for (const w of page.workers()) await w.evaluate(gc);
+  await page.evaluate(gc);
+  await page.waitForTimeout(500);
+  const mb = await resident();
+  report(
+    `100,102 elements with a 24-hour simulation: ${mb.toFixed(0)} MB resident in the tab ` +
+      `(${before.toFixed(0)} MB before garbage collection)`,
+  );
   expect(mb).toBeLessThan(1024);
 });

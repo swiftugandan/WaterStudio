@@ -295,11 +295,11 @@ Every claim the app makes is backed by a test that runs in CI: numerics against 
 | --- | --- | --- | --- |
 | Open and draw a 10,000-pipe .inp | under 1.5 s | Playwright, production build | 0.2 s |
 | Pan and zoom, 200,000 links | 60 fps WebGPU; 30 fps or better on Canvas 2D with LOD | Frames the render worker reports | 54 fps (50,000 pipes: 50–58 fps) |
-| Step or scrub one time step, 100,000 elements | under 16 ms | Paint plus the worker's draw | 5 ms average, 10 ms worst |
+| Step or scrub one time step, 100,000 elements | under 16 ms | Paint plus the worker's draw | 4 ms average, 7 ms worst |
 | 24-hour EPS, 10,000 nodes, 1-hour steps | under 2 s in one WASM worker | Engine worker, realistic network | 0.3 s (full grid: 1.0 s) |
 | Fire flow at 1,000 hydrants, 10,000-node network | under 10 s on 8 workers | Study pool; budget scaled to its size | 16 s on 1 worker (budget 80 s) |
-| Edit to repaint | under 50 ms; no main-thread task over 50 ms | Transaction to drawn frame, long-task observer | 34 ms, no long tasks |
-| Memory, 100,000-element project with one EPS loaded | under 1 GB per tab | Resident size of the tab's renderer processes | 814 MB |
+| Edit to repaint | under 50 ms; no main-thread task over 50 ms | Transaction to the worker's drawn frame, long-task observer | 20 ms, no long tasks |
+| Memory, 100,000-element project with one EPS loaded | under 1 GB per tab | Resident size of the tab, after garbage collection | 449 MB (828 MB before collection) |
 
 **Test layers.** Rust unit and oracle tests; native versus WASM comparison; Vitest for the core and store; Playwright in four projects (Chromium with WebGPU, Chromium without it to force Canvas 2D, Firefox, WebKit) covering drawing, snapping, import, runs, undo, docking and the agent review flow; screenshot pixel checks per backend; nightly agent evaluations.
 

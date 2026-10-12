@@ -1350,3 +1350,46 @@ for (const theme of ['light', 'dark'] as const) {
     ).toEqual([]);
   });
 }
+
+test('recolours the overview at a time step exactly as a full redraw draws it', async ({ page }) => {
+  test.setTimeout(90_000);
+  await ready(page);
+  type Bench = {
+    state: {
+      openModel(m: unknown, name: string): void;
+      runHydraulics(): Promise<void>;
+      setPeriod(p: number): void;
+      view: { zoom(f: number): void; frameStats(): { frames: number } } | null;
+    };
+    bench: { epsModel(n: number, hours: number): unknown };
+  };
+  // Waits for the frame the render worker draws after `fn`.
+  const step = (fn: string, arg: number) =>
+    page.evaluate(
+      async ([fn, arg]) => {
+        const w = (globalThis as unknown as { waterstudio: Bench }).waterstudio;
+        const view = w.state.view!;
+        const n = view.frameStats().frames;
+        if (fn === 'open') w.state.openModel(w.bench.epsModel(arg, 6), 'grid.inp');
+        else if (fn === 'run') await w.state.runHydraulics();
+        else if (fn === 'period') w.state.setPeriod(arg);
+        else view.zoom(arg);
+        await new Promise<void>((done) => {
+          const wait = () => (view.frameStats().frames > n ? done() : requestAnimationFrame(wait));
+          requestAnimationFrame(wait);
+        });
+        await new Promise((r) => setTimeout(r, 200));
+      },
+      [fn, arg] as const,
+    );
+  const map = page.locator('.map-host');
+  await step('open', 100); // 10,000 junctions: links a few pixels long, drawn as pixels
+  await step('run', 0);
+  const first = await map.screenshot();
+  await step('period', 5); // repaints only the links whose colour changed
+  const changed = await map.screenshot();
+  expect(changed.equals(first)).toBe(false);
+  await step('zoom', 0.5); // a new layout, then back: every pixel drawn again
+  await step('zoom', 2);
+  expect((await map.screenshot()).equals(changed)).toBe(true);
+});

@@ -24,7 +24,8 @@ export interface RendererOptions {
   /** Draw in a worker (default) or on the main thread. */
   worker?: boolean;
   onStatus?: (s: RendererStatus) => void;
-  onFrame?: (ms: number) => void;
+  /** A frame was drawn in `ms`, finishing at `at` (milliseconds on the absolute clock). */
+  onFrame?: (ms: number, at: number) => void;
   /** Called whenever the view changes, with the camera about to be drawn. */
   onCamera?: (camera: Camera) => void;
 }
@@ -106,7 +107,7 @@ export class Renderer {
         this.options.onStatus?.(this.status);
         break;
       case 'frame':
-        this.options.onFrame?.(m.ms);
+        this.options.onFrame?.(m.ms, m.at);
         break;
     }
   }

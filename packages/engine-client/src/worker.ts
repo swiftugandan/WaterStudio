@@ -7,15 +7,24 @@ import { instantiateEngine, type Engine } from './wasm.ts';
 
 declare const self: DedicatedWorkerGlobalScope;
 
+let module: Promise<WebAssembly.Module> | undefined;
 let engine: Promise<Engine> | undefined;
 
+/**
+ * WebAssembly memory grows to a run's peak and never shrinks, so after a request that
+ * took more than this the instance is dropped (its memory goes with it) and the next
+ * request gets a fresh one from the compiled module, which takes about a millisecond.
+ */
+const RECYCLE_BYTES = 64 * 2 ** 20;
+
 function load(): Promise<Engine> {
-  engine ??= fetch(new URL('../wasm/ws_wasm.wasm', import.meta.url))
+  module ??= fetch(new URL('../wasm/ws_wasm.wasm', import.meta.url))
     .then((r) => {
       if (!r.ok) throw new Error(`could not load the engine (${r.status})`);
       return r.arrayBuffer();
     })
-    .then((bytes) => instantiateEngine(bytes));
+    .then((bytes) => WebAssembly.compile(bytes));
+  engine ??= module.then((m) => instantiateEngine(m));
   return engine;
 }
 
@@ -55,4 +64,6 @@ self.onmessage = async (event: MessageEvent<EngineRequest>) => {
     reply = { id: req.id, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
   self.postMessage(reply, transfer);
+  const e = await engine?.catch(() => undefined);
+  if (!e || e.memoryBytes() > RECYCLE_BYTES) engine = undefined;
 };

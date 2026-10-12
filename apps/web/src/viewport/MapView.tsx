@@ -115,6 +115,8 @@ class MapController {
   private readonly state: AppState;
   frames = 0;
   frameMs = 0;
+  /** When the last frame finished drawing, on this page's performance clock. */
+  lastFrameAt = 0;
   /** Results painted onto the scene and the main-thread time it took (a time step's buffer write). */
   paints = 0;
   paintMs = 0;
@@ -151,9 +153,10 @@ class MapController {
         if (s.error) state.log('error', `Renderer: ${s.error}`);
         state.emit();
       },
-      onFrame: (ms) => {
+      onFrame: (ms, at) => {
         this.frames++;
         this.frameMs += ms;
+        this.lastFrameAt = at - performance.timeOrigin;
       },
     });
     this.renderer.setOptions(drawSizes(state.prefs.map.size));
@@ -827,7 +830,13 @@ export function MapView() {
         c.renderer.camera.panBy(dx, dy);
         c.renderer.redraw();
       },
-      frameStats: () => ({ frames: c.frames, ms: c.frameMs, paints: c.paints, paintMs: c.paintMs }),
+      frameStats: () => ({
+        frames: c.frames,
+        ms: c.frameMs,
+        paints: c.paints,
+        paintMs: c.paintMs,
+        lastFrameAt: c.lastFrameAt,
+      }),
       exportSvg: () => {
         const css = getComputedStyle(el);
         const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;

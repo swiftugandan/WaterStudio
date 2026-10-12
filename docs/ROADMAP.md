@@ -105,10 +105,11 @@ Gate: MSX examples within tolerance; all performance budgets met; agent evaluati
   to MCP clients on stdio (stateless 2026-07-28 revision, `initialize` for earlier clients); proposals land in a
   file the Proposals panel opens, and only `--accept` lets the agent apply them and save
 - [x] Performance budgets (ADR 0018), gated in the e2e suite on Canvas 2D: open 10,000 pipes in 0.2 s; 200,000
-  links pan at 54 fps; a time step of 100,000 elements in 5 ms; 24-hour EPS of 10,000 nodes in 0.3 s; fire flow at
-  1,000 hydrants in 16 s on one worker (about 2 s on 8); edit to repaint in 34 ms; 814 MB for 100,000 elements
+  links pan at 54 fps; a time step of 100,000 elements in 4 ms; 24-hour EPS of 10,000 nodes in 0.3 s; fire flow at
+  1,000 hydrants in 16 s on one worker (about 2 s on 8); edit to repaint in 20 ms; 449 MB for 100,000 elements
   with a run. The sparse solver assembles in place (still bit-identical); fire flow reuses a warm solver and
-  regula falsi; the overview is rasterised; edits patch the scene
+  regula falsi; the overview is rasterised and recolours only changed links; edits patch the scene; the
+  engine worker returns WebAssembly memory after large runs
 - [x] Agent evaluation (ADR 0019, `apps/agent-eval`, `docs/evals`): 14 tasks on Net1–Net3 (lookups, results,
   diagnosis, design, edits, conduct) through the real assistant loop, graded against the engine. Baseline:
   reference 14/14, null 0/14, wrong work rejected; the nightly workflow adds a model row when the repository has

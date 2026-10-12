@@ -52,6 +52,8 @@ export class Canvas2DBackend implements Backend {
   private paint: Paint | null = null;
   private nodeFlags: Uint8Array = new Uint8Array(0);
   private linkFlags: Uint8Array = new Uint8Array(0);
+  /** The overview's pixel colour of each link (index + 1; 0 is the background), reused across frames. */
+  private linkColor = new Uint32Array(0);
   private theme: Theme | null = null;
   private atlas: Atlas | null = null;
   private options: DrawOptions = defaultDrawOptions;
@@ -69,6 +71,19 @@ export class Canvas2DBackend implements Backend {
    */
   private ids: Uint32Array | null = null;
   private idsValid = false;
+  /**
+   * `ids` grouped by link (a counting sort): link index + 1's pixels are
+   * `pixels[pixStart[l] .. pixStart[l + 1])`. Built when a time step first needs it.
+   */
+  private pixels: Uint32Array | null = null;
+  private pixStart: Uint32Array | null = null;
+  private pixValid = false;
+  /**
+   * The colour each link (index + 1; 0 is the background) has in `raster` now, so a new
+   * time step repaints only the links whose colour class changed.
+   */
+  private shown = new Uint32Array(0);
+  private shownValid = false;
   /** Scene rectangle that moved elements left or entered since the cache was drawn. */
   private dirty: Rect | null = null;
 
@@ -261,7 +276,9 @@ export class Canvas2DBackend implements Backend {
     }
     const ids = this.ids!;
     const box: PixelRect = clip ?? [0, 0, w, h];
-    if (clip || !this.idsValid) {
+    const relaid = clip !== null || !this.idsValid;
+    if (relaid) {
+      this.pixValid = false;
       if (clip) for (let y = box[1]; y < box[3]; y++) ids.fill(0, y * w + box[0], y * w + box[2]);
       else ids.fill(0);
       const k = scale * dpr;
@@ -285,21 +302,83 @@ export class Canvas2DBackend implements Backend {
       });
       if (!clip) this.idsValid = true;
     }
-    // Colour every pixel by its link's class.
-    const linkColor = new Uint32Array(s.linkCount + 1);
+    const n = s.linkCount + 1;
+    if (this.linkColor.length < n) this.linkColor = new Uint32Array(n);
+    const linkColor = this.linkColor;
     linkColor[0] = bg;
     for (let li = 0; li < s.linkCount; li++) {
       const c = classes?.[li] ?? 0;
       linkColor[li + 1] = colors[c < colors.length ? c : 0]!;
     }
     const buf = new Uint32Array(img.data.buffer);
+    if (!relaid && this.shownValid && this.shown.length >= n && this.shown[0] === bg) {
+      this.recolour(ctx, img, buf, ids, w, n);
+      return true;
+    }
+    // Colour every pixel by its link's class.
     for (let y = box[1]; y < box[3]; y++) {
       const end = y * w + box[2];
       for (let p = y * w + box[0]; p < end; p++) buf[p] = linkColor[ids[p]!]!;
     }
-    if (clip) ctx.putImageData(img, 0, 0, box[0], box[1], box[2] - box[0], box[3] - box[1]);
-    else ctx.putImageData(img, 0, 0);
+    if (clip) {
+      ctx.putImageData(img, 0, 0, box[0], box[1], box[2] - box[0], box[3] - box[1]);
+      // Pixels outside the box keep the colours they had: still right only if no link's changed.
+      for (let l = 0; this.shownValid && l < n; l++)
+        if (this.shown[l] !== linkColor[l]) this.shownValid = false;
+    } else {
+      ctx.putImageData(img, 0, 0);
+      if (this.shown.length < n) this.shown = new Uint32Array(n);
+      this.shown.set(linkColor.subarray(0, n));
+      this.shownValid = true;
+    }
     return true;
+  }
+
+  /** Repaint the pixels of links whose colour changed, and put back only the area they span. */
+  private recolour(ctx: Ctx, img: ImageData, buf: Uint32Array, ids: Uint32Array, w: number, n: number): void {
+    const linkColor = this.linkColor;
+    const shown = this.shown;
+    if (!this.pixValid || !this.pixels || !this.pixStart || this.pixStart.length < n + 1) {
+      // Counting sort of the pixels by link.
+      const start = (this.pixStart =
+        this.pixStart && this.pixStart.length >= n + 1 ? this.pixStart : new Uint32Array(n + 1));
+      start.fill(0);
+      for (let p = 0; p < ids.length; p++) start[ids[p]!]!++;
+      let sum = 0;
+      for (let l = 0; l <= n; l++) {
+        const c = start[l]!;
+        start[l] = sum;
+        sum += c;
+      }
+      const pixels = (this.pixels =
+        this.pixels && this.pixels.length >= ids.length ? this.pixels : new Uint32Array(ids.length));
+      const at = start.slice();
+      for (let p = 0; p < ids.length; p++) pixels[at[ids[p]!]!++] = p;
+      this.pixValid = true;
+    }
+    const pixels = this.pixels;
+    const start = this.pixStart;
+    let x0 = w;
+    let y0 = Infinity;
+    let x1 = -1;
+    let y1 = -1;
+    for (let l = 1; l < n; l++) {
+      const c = linkColor[l]!;
+      if (c === shown[l]) continue;
+      shown[l] = c;
+      const end = start[l + 1]!;
+      for (let k = start[l]!; k < end; k++) {
+        const p = pixels[k]!;
+        buf[p] = c;
+        const y = (p / w) | 0;
+        const x = p - y * w;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+    if (x1 >= 0) ctx.putImageData(img, 0, 0, x0, y0, x1 - x0 + 1, y1 - y0 + 1);
   }
 
   /** Draw again only the part of the cache that moved elements touched. */
@@ -321,6 +400,8 @@ export class Canvas2DBackend implements Backend {
     const overview = s.typicalLength * c.scale < this.options.junctionMinSpacing;
     if (overview && this.rasterNetwork(c.ctx, s, t, c.scale, c.dpr, c.rect, w, h, region, px)) return;
     const ctx = c.ctx;
+    this.idsValid = false;
+    this.shownValid = false;
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.beginPath();
@@ -412,10 +493,6 @@ export class Canvas2DBackend implements Backend {
       if (!next) return null;
       ctx = next;
     }
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    paintBackground(ctx, t.background, w, h);
-    // Scene coordinates to cache pixels: the cache's top left is (rect[0], rect[3]).
-    ctx.setTransform(scale * dpr, 0, 0, -scale * dpr, -rect[0] * scale * dpr, rect[3] * scale * dpr);
     const b = s.bounds;
     const covers =
       rect[0] <= b.minX - s.originX &&
@@ -425,8 +502,15 @@ export class Canvas2DBackend implements Backend {
     // Pad the query by a link width so strokes crossing the edge are drawn.
     const pad = (this.options.linkWidth + this.options.nodeRadius) / scale;
     const region: Rect | null = covers ? null : [rect[0] - pad, rect[1] - pad, rect[2] + pad, rect[3] + pad];
-    // Overview (links a few pixels long, junctions hidden): write the pixels directly.
+    // Overview (links a few pixels long, junctions hidden): write every pixel directly.
     if (!overview || !this.rasterNetwork(ctx, s, t, scale, dpr, rect, w, h, region)) {
+      // The cache is drawn as vectors: the overview's pixels no longer describe it.
+      this.idsValid = false;
+      this.shownValid = false;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      paintBackground(ctx, t.background, w, h);
+      // Scene coordinates to cache pixels: the cache's top left is (rect[0], rect[3]).
+      ctx.setTransform(scale * dpr, 0, 0, -scale * dpr, -rect[0] * scale * dpr, rect[3] * scale * dpr);
       this.drawNetwork(ctx, s, t, scale, region);
     }
     this.cache = { canvas, ctx, rect, scale, dpr };
