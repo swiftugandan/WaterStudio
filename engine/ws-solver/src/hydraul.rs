@@ -169,7 +169,8 @@ pub fn nexthyd(pr: &mut Project) -> i64 {
     updateflowbalance(pr, hydstep);
     if pr.times.htime < pr.times.dur {
         pr.times.htime += hydstep;
-        if pr.times.htime >= pr.times.rtime {
+        // A concurrent quality run advances the report time itself.
+        if !pr.qual.open_q && pr.times.htime >= pr.times.rtime {
             pr.times.rtime += pr.times.rstep;
         }
     } else {
@@ -178,6 +179,9 @@ pub fn nexthyd(pr: &mut Project) -> i64 {
             report::writeflowbalance(pr);
         }
         pr.times.htime += 1;
+        if pr.qual.open_q {
+            pr.times.qtime += 1;
+        }
     }
     hydstep
 }

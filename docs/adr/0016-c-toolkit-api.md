@@ -52,16 +52,31 @@ holds that same `Project`, field by field.
 
 ## Consequences
 
-- The first stage implements the project, analysis and reporting-statistic functions and every getter: nodes,
-  links, demands, patterns, curves, simple controls, options, times, quality settings, comments, tags,
-  coordinates, vertices. `EN_runproject` writes EPANET's report and output file as `ws run` does.
-- 64 of 64 networks give identical toolkit results; two fixtures are identical except for the zero-diameter tank's
-  four inert properties.
+- **Stage 1.** Project, analysis and reporting-statistic functions, plus every getter: nodes, links, demands,
+  patterns, curves, simple controls, options, times, quality settings, comments, tags, coordinates, vertices.
+  `EN_runproject` writes EPANET's report and output file as `ws run` does.
+- **Stage 2.** Every setter of those, plus adding and deleting demands, patterns, curves and simple controls:
+  element properties (including tank geometry and volume curves), junction, tank and pipe data, IDs, titles,
+  comments, tags, coordinates, vertices, demand categories, pump curves, valve types, options (including emitter
+  exponent, specific gravity and pressure units, which rescale stored values), flow units (which convert curves
+  and rules), time parameters, demand model and quality type.
+- Setters reach solver state the whole-run path never touches. It now follows C there too:
+  - Node qualities persist between quality runs (`NodeQual` is allocated at open).
+  - With quality open concurrently, the hydraulic step leaves the report time to the quality solver.
+  - The toolkit's `Meta` (comments, tags, coordinates, vertices, demand names, titles) lives in solver order beside
+    the `Project`, as C keeps it in `Snode` and `Slink`.
+- The probe's mutation scenario applies every kind of setter to each network, valid calls and invalid ones (return
+  codes printed), then reads everything and solves again: 64 of 64 networks give identical output.
+- The probe avoids two things that are undefined in OWA-EPANET. `EN_SOURCEMASS` on a source `EN_setnodevalue` has
+  just made reads uninitialised memory. `EN_gettitle` leaves a 79-character title unterminated, so the probe zeroes
+  its buffers.
 - Not yet:
-  - setters and network editing (`EN_set*`, `EN_add*`, `EN_delete*`);
+  - network structure (`EN_addnode`, `EN_addlink`, `EN_deletenode`, `EN_deletelink`, `EN_setlinknodes`,
+    `EN_setlinktype`);
   - rule-based control access;
-  - `EN_report`, and the report and output files from `EN_open`;
+  - `EN_report`, `EN_saveinpfile`, and the report and output files from `EN_open`;
   - external hydraulics files (`EN_savehydfile`, `EN_usehydfile`);
+  - `EN_init`;
   - the legacy single-precision API (`epanet2.h`).
 
   A program calling these fails to link rather than misbehaving. They follow in later stages, under the same

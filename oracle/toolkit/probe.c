@@ -25,6 +25,9 @@ static void hbytes(Hash *x, const void *p, size_t n) {
 static void hval(Hash *x, int err, double v) { hbytes(x, &err, sizeof err); hbytes(x, &v, sizeof v); }
 
 static int nnodes, nlinks, npats, ncurves, ncontrols, nrules;
+/* A source made by EN_setnodevalue has no mass until a quality run sets it: OWA-EPANET
+   leaves the field uninitialised, so EN_SOURCEMASS is not read after the setters. */
+static int mutated;
 
 static void nodeprop(const char *tag, int prop) {
   Hash x; hinit(&x);
@@ -105,6 +108,8 @@ static void statics(void) {
   printf("counts %d %d %d %d %d %d\n", nnodes, nlinks, npats, ncurves, ncontrols, nrules);
   int tanks; EN_getcount(ph, EN_TANKCOUNT, &tanks);
   printf("tanks %d badcount %d\n", tanks, EN_getcount(ph, 99, &v));
+  /* EN_gettitle copies a 79-character title without a terminator: zero the buffers. */
+  memset(s1, 0, sizeof s1); memset(s2, 0, sizeof s2); memset(s3, 0, sizeof s3);
   e = EN_gettitle(ph, s1, s2, s3);
   printf("title %d [%s] [%s] [%s]\n", e, s1, s2, s3);
   e = EN_getflowunits(ph, &v); printf("flowunits %d %d\n", e, v);
@@ -146,7 +151,7 @@ static void statics(void) {
   for (int p = 0; p <= EN_FULLDEMAND; p++) {
     int dyn = 0;
     for (size_t i = 0; i < sizeof DYN_NODE / sizeof *DYN_NODE; i++) dyn |= DYN_NODE[i] == p;
-    if (!dyn) nodeprop("static", p);
+    if (!dyn && !(mutated && p == EN_SOURCEMASS)) nodeprop("static", p);
   }
 
   hinit(&x);
@@ -213,6 +218,193 @@ static void statics(void) {
                EN_getcurvevalue(ph, ncurves + 1, 1, &(double){0}, &(double){0})};
   for (size_t i = 0; i < sizeof bad / sizeof *bad; i++) printf(" %d", bad[i]);
   printf("\n");
+}
+
+
+static void counts(void) {
+  EN_getcount(ph, EN_NODECOUNT, &nnodes);
+  EN_getcount(ph, EN_LINKCOUNT, &nlinks);
+  EN_getcount(ph, EN_PATCOUNT, &npats);
+  EN_getcount(ph, EN_CURVECOUNT, &ncurves);
+  EN_getcount(ph, EN_CONTROLCOUNT, &ncontrols);
+  EN_getcount(ph, EN_RULECOUNT, &nrules);
+}
+
+#define SET(call) printf("set %s = %d\n", #call, (call))
+
+/* Change every kind of property through the setters, printing each return code. */
+static void mutate(void) {
+  int us = 0, units = 0, tank = 0, pump = 0, pipe = 0, valve = 0, pat = 0, crv = 0, ci = 0;
+  double v, vx[3] = {1, 2, 3}, vy[3] = {4, 5, 6};
+  EN_getflowunits(ph, &units);
+  us = units <= EN_AFD;
+
+  SET(EN_settitle(ph, "Mutated", "by the probe",
+                  "a third line long enough to be cut at seventy-nine characters ...................."));
+  SET(EN_setcomment(ph, EN_NODE, 1, "a comment"));
+  SET(EN_setcomment(ph, EN_LINK, 1, ""));
+  SET(EN_setcomment(ph, EN_NODE, nnodes + 1, "x"));
+  SET(EN_settag(ph, EN_NODE, 1, "tagged"));
+  SET(EN_settag(ph, EN_LINK, 1, "tag2"));
+  SET(EN_setcoord(ph, 1, 12.5, -3.25));
+  SET(EN_setvertices(ph, 1, vx, vy, 3));
+  SET(EN_setvertex(ph, 1, 2, 7, 8));
+  SET(EN_setvertex(ph, 1, 9, 0, 0));
+  SET(EN_setnodeid(ph, 1, "N1x"));
+  SET(EN_setnodeid(ph, 2, "N1x"));
+  SET(EN_setnodeid(ph, 2, "bad id"));
+  SET(EN_setlinkid(ph, 1, "L1x"));
+  SET(EN_setlinkid(ph, nlinks + 1, "L2x"));
+
+  /* Options, valid and not. */
+  int opts[] = {EN_TRIALS, EN_ACCURACY, EN_TOLERANCE, EN_DEMANDMULT, EN_HEADERROR, EN_FLOWCHANGE,
+                EN_GLOBALEFFIC, EN_GLOBALPRICE, EN_DEMANDCHARGE, EN_SP_VISCOS, EN_CHECKFREQ, EN_MAXCHECK,
+                EN_DAMPLIMIT, EN_SP_DIFFUS, EN_BULKORDER, EN_WALLORDER, EN_TANKORDER, EN_CONCENLIMIT,
+                EN_EMITBACKFLOW, EN_UNBALANCED, EN_SP_GRAVITY, EN_EMITEXPON, EN_ACCURACY, EN_TRIALS,
+                EN_WALLORDER, EN_GLOBALEFFIC, EN_STATUS_REPORT};
+  double vals[] = {60, 0.0005, 0.02, 1.1, 0, 0, 80, 0.1, 1, 1.05, 3, 12, 0, 1.1, 1, 1, 1, 0, 1, 10, 1.02,
+                   0.55, 2, 0, 0.5, 0.5, 0};
+  for (size_t i = 0; i < sizeof opts / sizeof *opts; i++)
+    printf("set option %d %g = %d\n", opts[i], vals[i], EN_setoption(ph, opts[i], vals[i]));
+  EN_getoption(ph, EN_HEADLOSSFORM, &v);
+  SET(EN_setoption(ph, EN_HEADLOSSFORM, v));
+  SET(EN_setoption(ph, 99, 1));
+
+  /* Times. */
+  long dur = 0, hstep = 0;
+  EN_gettimeparam(ph, EN_DURATION, &dur);
+  EN_gettimeparam(ph, EN_HYDSTEP, &hstep);
+  SET(EN_settimeparam(ph, EN_DURATION, dur > 0 ? dur / 2 : 0));
+  SET(EN_settimeparam(ph, EN_QUALSTEP, 120));
+  SET(EN_settimeparam(ph, EN_PATTERNSTART, 3600));
+  SET(EN_settimeparam(ph, EN_REPORTSTART, 0));
+  SET(EN_settimeparam(ph, EN_RULESTEP, 60));
+  SET(EN_settimeparam(ph, EN_STARTTIME, 3600));
+  SET(EN_settimeparam(ph, EN_HYDSTEP, 0));
+  SET(EN_settimeparam(ph, EN_HYDSTEP, hstep));
+  SET(EN_settimeparam(ph, EN_STATISTIC, 9));
+
+  /* A pattern and a curve. */
+  double pv[5] = {0.5, 1.0, 1.5, 1.2, 0.8};
+  SET(EN_addpattern(ph, "PX"));
+  SET(EN_addpattern(ph, "PX"));
+  SET(EN_getpatternindex(ph, "PX", &pat));
+  SET(EN_setpattern(ph, pat, pv, 5));
+  SET(EN_setpatternvalue(ph, pat, 2, 1.1));
+  SET(EN_setpatternvalue(ph, pat, 6, 1.1));
+  SET(EN_setpatternid(ph, pat, "PY"));
+  SET(EN_setcomment(ph, EN_TIMEPAT, pat, "added"));
+  double cx[3] = {0, 100, 200}, cy[3] = {100, 80, 50};
+  SET(EN_addcurve(ph, "CX"));
+  SET(EN_getcurveindex(ph, "CX", &crv));
+  SET(EN_setcurve(ph, crv, cx, cy, 3));
+  SET(EN_setcurvevalue(ph, crv, 2, 110, 79));
+  SET(EN_setcurvevalue(ph, crv, 4, 300, 20));
+  SET(EN_setcurvevalue(ph, crv, 2, 500, 0));
+  SET(EN_setcurvetype(ph, crv, EN_PUMP_CURVE));
+  SET(EN_setcurveid(ph, crv, "CY"));
+  counts();
+
+  /* Nodes. */
+  for (int i = 1; i <= nnodes; i++) {
+    int t; EN_getnodetype(ph, i, &t);
+    if (t == EN_JUNCTION) {
+      if (i % 5 == 0) { EN_getnodevalue(ph, i, EN_ELEVATION, &v); printf("n%d el %d\n", i, EN_setnodevalue(ph, i, EN_ELEVATION, v + 1)); }
+      if (i % 3 == 0) { EN_getnodevalue(ph, i, EN_BASEDEMAND, &v); printf("n%d bd %d\n", i, EN_setnodevalue(ph, i, EN_BASEDEMAND, v * 1.2)); }
+      if (i % 9 == 0) printf("n%d em %d\n", i, EN_setnodevalue(ph, i, EN_EMITTER, 0.2));
+      if (i % 7 == 0) printf("n%d ad %d\n", i, EN_adddemand(ph, i, 1.5, "PY", "extra"));
+      if (i % 8 == 0) printf("n%d dn %d %d\n", i, EN_setdemandname(ph, i, 1, "main"), EN_setdemandpattern(ph, i, 1, pat));
+      if (i % 11 == 0) printf("n%d dd %d\n", i, EN_deletedemand(ph, i, 1));
+      if (i % 13 == 0) printf("n%d sb %d\n", i, EN_setbasedemand(ph, i, 1, 2.5));
+      if (i % 17 == 0) printf("n%d jd %d\n", i, EN_setjuncdata(ph, i, 50, 3, "PY"));
+      if (i % 4 == 0) printf("n%d iq %d\n", i, EN_setnodevalue(ph, i, EN_INITQUAL, 0.3));
+      if (i == 1) printf("n%d tl %d\n", i, EN_setnodevalue(ph, i, EN_TANKLEVEL, 1));
+    } else if (t == EN_TANK) {
+      double lo, hi, d;
+      tank = tank ? tank : i;
+      EN_getnodevalue(ph, i, EN_MINLEVEL, &lo); EN_getnodevalue(ph, i, EN_MAXLEVEL, &hi);
+      EN_getnodevalue(ph, i, EN_TANKDIAM, &d);
+      printf("t%d %d %d %d %d %d %d\n", i, EN_setnodevalue(ph, i, EN_TANKLEVEL, (lo + hi) / 2),
+             EN_setnodevalue(ph, i, EN_MIXMODEL, 1), EN_setnodevalue(ph, i, EN_MIXFRACTION, 0.6),
+             EN_setnodevalue(ph, i, EN_TANK_KBULK, -0.3), EN_setnodevalue(ph, i, EN_CANOVERFLOW, 1),
+             EN_setnodevalue(ph, i, EN_MAXLEVEL, hi + 0.5));
+      if (i % 2 == 0) printf("t%d d %d %d\n", i, EN_setnodevalue(ph, i, EN_TANKDIAM, d * 1.1), EN_setnodevalue(ph, i, EN_MINVOLUME, 0));
+      else printf("t%d ml %d\n", i, EN_setnodevalue(ph, i, EN_MINLEVEL, lo + 0.1));
+    } else {
+      EN_getnodevalue(ph, i, EN_ELEVATION, &v);
+      printf("r%d %d %d\n", i, EN_setnodevalue(ph, i, EN_TANKLEVEL, v + 0.5), EN_setnodevalue(ph, i, EN_PATTERN, 0));
+      printf("r%d mix %d\n", i, EN_setnodevalue(ph, i, EN_MIXMODEL, 2));
+    }
+  }
+  SET(EN_setnodevalue(ph, 1, EN_SOURCEQUAL, 1.5));
+  SET(EN_setnodevalue(ph, 1, EN_SOURCETYPE, EN_SETPOINT));
+  SET(EN_setnodevalue(ph, 1, EN_SOURCEPAT, pat));
+  SET(EN_setnodevalue(ph, 1, EN_SOURCEPAT, npats + 5));
+  SET(EN_setnodevalue(ph, 1, 99, 0));
+
+  /* Links. */
+  for (int k = 1; k <= nlinks; k++) {
+    int t; EN_getlinktype(ph, k, &t);
+    if (t <= EN_PIPE) {
+      if (t == EN_PIPE && !pipe) pipe = k;
+      if (k % 3 == 0) {
+        double d, r, l;
+        EN_getlinkvalue(ph, k, EN_DIAMETER, &d); EN_getlinkvalue(ph, k, EN_ROUGHNESS, &r); EN_getlinkvalue(ph, k, EN_LENGTH, &l);
+        printf("p%d %d %d %d %d %d %d\n", k, EN_setlinkvalue(ph, k, EN_DIAMETER, d * 1.05),
+               EN_setlinkvalue(ph, k, EN_ROUGHNESS, r * 0.95), EN_setlinkvalue(ph, k, EN_MINORLOSS, 0.3),
+               EN_setlinkvalue(ph, k, EN_LENGTH, l * 1.02), EN_setlinkvalue(ph, k, EN_KBULK, -0.4),
+               EN_setlinkvalue(ph, k, EN_KWALL, -0.1));
+      }
+      if (k % 13 == 0) printf("p%d leak %d %d\n", k, EN_setlinkvalue(ph, k, EN_LEAK_AREA, 0.5), EN_setlinkvalue(ph, k, EN_LEAK_EXPAN, 0.1));
+      if (k % 17 == 0) printf("p%d st %d\n", k, EN_setlinkvalue(ph, k, EN_INITSTATUS, 0));
+      if (k % 19 == 0) { EN_getlinkvalue(ph, k, EN_ROUGHNESS, &v); printf("p%d is %d\n", k, EN_setlinkvalue(ph, k, EN_INITSETTING, v * 1.1)); }
+    } else if (t == EN_PUMP) {
+      pump = pump ? pump : k;
+      printf("u%d %d %d %d %d\n", k, EN_setlinkvalue(ph, k, EN_INITSETTING, 0.95), EN_setlinkvalue(ph, k, EN_PUMP_ECOST, 0.05),
+             EN_setlinkvalue(ph, k, EN_LINKPATTERN, 0), EN_setlinkvalue(ph, k, EN_PUMP_EPAT, pat));
+    } else {
+      valve = valve ? valve : k;
+      EN_getlinkvalue(ph, k, EN_INITSETTING, &v);
+      printf("v%d %d %d\n", k, EN_setlinkvalue(ph, k, EN_INITSETTING, v * 1.1), EN_setlinkvalue(ph, k, EN_MINORLOSS, 0.2));
+      if (t == EN_TCV) printf("v%d type %d\n", k, EN_setlinkvalue(ph, k, EN_VALVE_TYPE, EN_PCV));
+      if (t == EN_PSV) printf("v%d type %d\n", k, EN_setlinkvalue(ph, k, EN_VALVE_TYPE, EN_PRV));
+    }
+  }
+  if (pipe) {
+    double l, d, r;
+    EN_getlinkvalue(ph, pipe, EN_LENGTH, &l); EN_getlinkvalue(ph, pipe, EN_DIAMETER, &d); EN_getlinkvalue(ph, pipe, EN_ROUGHNESS, &r);
+    SET(EN_setpipedata(ph, pipe, l * 1.1, d, r, 0.5));
+    SET(EN_setlinkvalue(ph, pipe, EN_DIAMETER, -1));
+  }
+  if (pump) {
+    SET(EN_setheadcurveindex(ph, pump, crv));
+    SET(EN_setlinkvalue(ph, pump, EN_PUMP_ECURVE, ncurves + 3));
+  }
+  SET(EN_setlinkvalue(ph, 1, 99, 0));
+
+  /* Controls. */
+  if (pipe) {
+    SET(EN_addcontrol(ph, EN_TIMER, pipe, 0, 0, 7200, &ci));
+    SET(EN_setcontrol(ph, ci, EN_TIMER, pipe, EN_SET_OPEN, 0, 10800));
+    if (tank) SET(EN_addcontrol(ph, EN_LOWLEVEL, pipe, EN_SET_CLOSED, tank, 0.5, &ci));
+    SET(EN_addcontrol(ph, 7, pipe, 0, 0, 0, &ci));
+    if (valve) SET(EN_addcontrol(ph, EN_TIMEOFDAY, valve, 12, 0, 3600 * 5, &ci));
+  }
+  counts();
+  if (ncontrols >= 1) SET(EN_setcontrolenabled(ph, 1, 0));
+  SET(EN_setcontrolenabled(ph, 1, 2));
+  if (ncontrols >= 2) SET(EN_deletecontrol(ph, ncontrols));
+  SET(EN_deletecontrol(ph, 0));
+
+  /* Demand model, quality and, last, flow units. */
+  SET(EN_setdemandmodel(ph, EN_PDA, 0, 20, 0.5));
+  SET(EN_setdemandmodel(ph, EN_PDA, 10, 5, 0.5));
+  SET(EN_setqualtype(ph, EN_TRACE, "", "", "no such node"));
+  SET(EN_setqualtype(ph, EN_AGE, "", "", ""));
+  SET(EN_setqualtype(ph, EN_CHEM, "Chlorine", "mg/L", ""));
+  SET(EN_setflowunits(ph, us ? EN_LPS : EN_GPM));
+  SET(EN_setoption(ph, EN_PRESS_UNITS, us ? EN_METERS : EN_PSI));
+  counts();
 }
 
 static void hydraulics(int initflag) {
@@ -303,12 +495,7 @@ int main(int argc, char **argv) {
   int e = EN_open(ph, argv[1], rpt, out);
   printf("open %d\n", e);
   if (e > 100) { EN_deleteproject(ph); return 0; }
-  EN_getcount(ph, EN_NODECOUNT, &nnodes);
-  EN_getcount(ph, EN_LINKCOUNT, &nlinks);
-  EN_getcount(ph, EN_PATCOUNT, &npats);
-  EN_getcount(ph, EN_CURVECOUNT, &ncurves);
-  EN_getcount(ph, EN_CONTROLCOUNT, &ncontrols);
-  EN_getcount(ph, EN_RULECOUNT, &nrules);
+  counts();
   statics();
   printf("runQ-before %d\n", EN_runQ(ph, &(long){0}));
 
@@ -321,6 +508,14 @@ int main(int argc, char **argv) {
   hydraulics(EN_INITFLOW);
   printf("openQ-unsaved %d\n", EN_openQ(ph));
   printf("closeH %d\n", EN_closeH(ph));
+
+  /* Change everything the setters reach, then read and solve again. */
+  mutate();
+  mutated = 1;
+  statics();
+  hydraulics(EN_SAVE);
+  printf("closeH %d\n", EN_closeH(ph));
+  quality_from_file(0);
 
   printf("close %d\n", EN_close(ph));
   printf("after-close %d\n", EN_getcount(ph, EN_NODECOUNT, &(int){0}));

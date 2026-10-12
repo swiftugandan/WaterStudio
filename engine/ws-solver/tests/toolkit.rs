@@ -153,3 +153,72 @@ fn describes_errors_as_epanet_does() {
     getversion(&mut v);
     assert_eq!(v, 20305);
 }
+
+#[test]
+fn setters_change_what_the_solver_sees() {
+    let mut t = open();
+    let mut k = 0;
+    t.getlinkindex("P2", &mut k);
+    let head_at_j2 = |t: &mut Toolkit| {
+        assert_eq!(t.solve_h(), 0);
+        let mut h = 0.0;
+        t.getnodevalue(2, EN_HEAD, &mut h);
+        h
+    };
+    let before = head_at_j2(&mut t);
+    assert_eq!(t.setlinkvalue(k, EN_DIAMETER, 16.0), 0);
+    let mut d = 0.0;
+    t.getlinkvalue(k, EN_DIAMETER, &mut d);
+    assert_eq!(d, 16.0);
+    assert!(head_at_j2(&mut t) > before, "a wider pipe loses less head");
+    assert_eq!(t.setlinkvalue(k, EN_DIAMETER, -1.0), 211);
+    assert_eq!(t.setnodevalue(1, EN_TANKLEVEL, 1.0), 263);
+    assert_eq!(t.setnodevalue(4, EN_TANKLEVEL, 99.0), 225); // above the tank's maximum
+    // A pattern, assigned to a new demand category.
+    assert_eq!(t.addpattern("Peak"), 0);
+    assert_eq!(t.addpattern("Peak"), 215);
+    assert_eq!(t.addpattern("bad id"), 252);
+    let mut p = 0;
+    t.getpatternindex("Peak", &mut p);
+    assert_eq!(t.setpattern(p, &[1.0, 2.0]), 0);
+    assert_eq!(t.adddemand(1, 5.0, "Peak", "fire"), 0);
+    let (mut n, mut idx) = (0, 0);
+    t.getnumdemands(1, &mut n);
+    t.getdemandindex(1, "fire", &mut idx);
+    assert_eq!((n, idx), (2, 2));
+    assert_eq!(t.deletedemand(1, 2), 0);
+    t.getnumdemands(1, &mut n);
+    assert_eq!(n, 1);
+    // A timer control closing P2 at one hour.
+    let mut c = 0;
+    assert_eq!(t.addcontrol(2, k, 0.0, 0, 3600.0, &mut c), 0);
+    assert_eq!(c, 1);
+    let (mut ty, mut link, mut s, mut node, mut lvl) = (0, 0, 0.0, 0, 0.0);
+    t.getcontrol(c, &mut ty, &mut link, &mut s, &mut node, &mut lvl);
+    assert_eq!((ty, link, s, node, lvl), (2, k, 0.0, 0, 3600.0));
+    assert_eq!(t.setcontrolenabled(c, 2), 202);
+    // Options and times.
+    assert_eq!(t.setoption(EN_TRIALS, 0.0), 213);
+    assert_eq!(t.setoption(EN_DEMANDMULT, 1.5), 0);
+    let mut v = 0.0;
+    t.getoption(EN_DEMANDMULT, &mut v);
+    assert_eq!(v, 1.5);
+    assert_eq!(t.settimeparam(EN_HYDSTEP, 0), 213);
+    // Flow units convert what the getters report.
+    let mut q = 0.0;
+    t.getnodevalue(1, EN_BASEDEMAND, &mut q);
+    assert_eq!(t.setflowunits(5), 0); // L/s
+    let mut q_si = 0.0;
+    t.getnodevalue(1, EN_BASEDEMAND, &mut q_si);
+    assert!(
+        (q_si - q / 448.831 * 28.317).abs() < 1e-9,
+        "{q} gpm is {q_si} L/s"
+    );
+    // Comments and IDs.
+    assert_eq!(t.setcomment(EN_NODE, 1, "renamed"), 0);
+    assert_eq!(t.setnodeid(1, "J1b"), 0);
+    let mut id = String::new();
+    t.getnodeid(1, &mut id);
+    assert_eq!(id, "J1b");
+    assert_eq!(t.setnodeid(2, "J1b"), 215);
+}

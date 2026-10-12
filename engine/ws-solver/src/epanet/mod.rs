@@ -199,39 +199,114 @@ macro_rules! errcode {
     };
 }
 
+/// What EPANET keeps of each element that the solver does not need, in solver order
+/// (1-based; entry 0 unused): `Comment`, `Tag`, `X`/`Y`, `Vertices`, demand `Name`s.
+#[derive(Clone, Debug, Default)]
+pub(super) struct Meta {
+    pub(super) title: [String; 3],
+    pub(super) node_comment: Vec<Option<String>>,
+    pub(super) node_tag: Vec<Option<String>>,
+    pub(super) node_xy: Vec<Option<(f64, f64)>>,
+    pub(super) link_comment: Vec<Option<String>>,
+    pub(super) link_tag: Vec<Option<String>>,
+    pub(super) link_vertices: Vec<Vec<(f64, f64)>>,
+    pub(super) pattern_comment: Vec<Option<String>>,
+    pub(super) curve_comment: Vec<Option<String>>,
+    /// For each node, the name of each of its demand categories (parallel to `Node::d`).
+    pub(super) demand_name: Vec<Vec<Option<String>>>,
+}
+
+/// `xstrcpy`: a copy of at most `n` bytes, or None for an empty string.
+pub(super) fn xstrcpy(s: &str, n: usize) -> Option<String> {
+    let mut s = s.to_string();
+    truncate_bytes(&mut s, n);
+    if s.is_empty() { None } else { Some(s) }
+}
+
+impl Meta {
+    fn from_model(pr: &Project, model: &Model) -> Self {
+        let cut = |c: &Option<String>| c.as_deref().and_then(|c| xstrcpy(c, MAXMSG));
+        let nodes = || pr.node_order[1..].iter().map(|&mi| &model.nodes[mi]);
+        let title = |k: usize| {
+            let mut s = model.title.get(k).cloned().unwrap_or_default();
+            truncate_bytes(&mut s, TITLELEN);
+            s
+        };
+        Meta {
+            title: [title(0), title(1), title(2)],
+            node_comment: std::iter::once(None)
+                .chain(nodes().map(|n| cut(&n.comment)))
+                .collect(),
+            node_tag: std::iter::once(None)
+                .chain(nodes().map(|n| cut(&n.tag)))
+                .collect(),
+            node_xy: std::iter::once(None)
+                .chain(nodes().map(|n| n.coordinates))
+                .collect(),
+            link_comment: std::iter::once(None)
+                .chain(model.links.iter().map(|l| cut(&l.comment)))
+                .collect(),
+            link_tag: std::iter::once(None)
+                .chain(model.links.iter().map(|l| cut(&l.tag)))
+                .collect(),
+            link_vertices: std::iter::once(Vec::new())
+                .chain(model.links.iter().map(|l| l.vertices.clone()))
+                .collect(),
+            pattern_comment: std::iter::once(None)
+                .chain(model.patterns.iter().map(|p| cut(&p.comment)))
+                .collect(),
+            curve_comment: std::iter::once(None)
+                .chain(model.curves.iter().map(|c| cut(&c.comment)))
+                .collect(),
+            demand_name: std::iter::once(Vec::new())
+                .chain(nodes().map(|n| {
+                    match &n.kind {
+                        ws_model::NodeKind::Junction(j) => j
+                            .demands
+                            .iter()
+                            .map(|d| d.category.as_deref().and_then(|c| xstrcpy(c, MAXID)))
+                            .collect(),
+                        _ => Vec::new(),
+                    }
+                }))
+                .collect(),
+        }
+    }
+}
+
 /// An open project: everything EPANET's `Project` holds while `Openflag` is set.
 #[derive(Clone, Debug)]
-struct Open {
-    pr: Project,
-    model: Model,
+pub(super) struct Open {
+    pub(super) pr: Project,
+    pub(super) meta: Meta,
     /// `Curve[i].Type` for each curve (1-based; entry 0 unused).
-    curve_type: Vec<i32>,
+    pub(super) curve_type: Vec<i32>,
     /// `hydraul.OpenHflag`, `quality.OpenQflag`.
-    open_h: bool,
-    open_q: bool,
+    pub(super) open_h: bool,
+    pub(super) open_q: bool,
     /// `outfile.SaveHflag`: a complete hydraulic run is in the hydraulics file.
-    save_h: bool,
+    pub(super) save_h: bool,
     /// `outfile.SaveQflag`: a complete quality run has been saved.
-    save_q: bool,
+    pub(super) save_q: bool,
     /// `outfile.Saveflag`: results are being saved (to the hydraulics file during a
     /// hydraulic run, to the output file during a quality run).
-    saveflag: bool,
+    pub(super) saveflag: bool,
     /// The hydraulics file and the position `readhyd` reads from next.
-    hydfile: Vec<HydRecord>,
-    hyd_next: usize,
+    pub(super) hydfile: Vec<HydRecord>,
+    pub(super) hyd_next: usize,
     /// Whether `inithyd` has numbered the elements' results (`ResultIndex`).
-    result_index: bool,
-    /// Whether `validateproject` has run (in `EN_openH`), which types pump curves.
-    validated: bool,
+    pub(super) result_index: bool,
     /// `report.Nperiods`.
-    nperiods: i64,
+    pub(super) nperiods: i64,
 }
 
 /// An EPANET project (`EN_Project`).
 #[derive(Clone, Debug, Default)]
 pub struct Toolkit {
-    p: Option<Box<Open>>,
+    pub(super) p: Option<Box<Open>>,
 }
+
+mod set;
 
 /// `EN_geterror`'s text for each error code (`errors.dat`); "" for unknown codes.
 pub fn errmsg_text(code: i32) -> &'static str {
@@ -354,10 +429,10 @@ pub fn truncate_bytes(s: &mut String, n: usize) {
     }
 }
 
-/// The curve types EPANET leaves: a type keyword on the curve's lines, overridden by
-/// the uses `tankdata`, `valvedata` and `energydata` find, then, once the hydraulic
-/// solver has opened, pump head curves (`pumpcurvepump`).
-fn curve_types(pr: &Project, model: &Model, validated: bool) -> Vec<i32> {
+/// The curve types EPANET's input stage leaves: a type keyword on the curve's lines,
+/// overridden by the uses `tankdata`, `valvedata` and `energydata` find. Pump head
+/// curves become pump curves when the hydraulic solver opens (`pumpcurvepump`).
+fn curve_types(pr: &Project, model: &Model) -> Vec<i32> {
     let net = &pr.net;
     let mut t: Vec<i32> = std::iter::once(EN_GENERIC_CURVE)
         .chain(model.curves.iter().map(|c| match c.kind {
@@ -388,12 +463,22 @@ fn curve_types(pr: &Project, model: &Model, validated: bool) -> Vec<i32> {
     for i in 1..=net.npumps {
         set(net.pump[i].ecurve, EN_EFFIC_CURVE);
     }
-    if validated {
-        for i in 1..=net.npumps {
-            set(net.pump[i].hcurve, EN_PUMP_CURVE);
+    t
+}
+
+impl Open {
+    /// The comment of an object, or None when there is no such object.
+    pub(super) fn comment_slot(&self, object: i32, index: i32) -> Option<&Option<String>> {
+        let net = &self.pr.net;
+        let i = usize::try_from(index).ok().filter(|&i| i >= 1)?;
+        match object {
+            EN_NODE if i <= net.nnodes => self.meta.node_comment.get(i),
+            EN_LINK if i <= net.nlinks => self.meta.link_comment.get(i),
+            EN_TIMEPAT if i < net.pattern.len() => self.meta.pattern_comment.get(i),
+            EN_CURVE if i < net.curve.len() => self.meta.curve_comment.get(i),
+            _ => None,
         }
     }
-    t
 }
 
 impl Toolkit {
@@ -429,10 +514,11 @@ impl Toolkit {
             Ok(pr) => pr,
             Err(e) => return e.code,
         };
-        let curve_type = curve_types(&pr, &model, false);
+        let curve_type = curve_types(&pr, &model);
+        let meta = Meta::from_model(&pr, &model);
         self.p = Some(Box::new(Open {
             pr,
-            model,
+            meta,
             curve_type,
             open_h: false,
             open_q: false,
@@ -442,7 +528,6 @@ impl Toolkit {
             hydfile: Vec::new(),
             hyd_next: 0,
             result_index: false,
-            validated: false,
             nperiods: 0,
         }));
         0
@@ -470,14 +555,9 @@ impl Toolkit {
     /// `EN_gettitle`
     pub fn gettitle(&self, line1: &mut String, line2: &mut String, line3: &mut String) -> i32 {
         let Some(o) = self.o() else { return 102 };
-        let line = |k: usize| {
-            let mut s = o.model.title.get(k).cloned().unwrap_or_default();
-            truncate_bytes(&mut s, TITLELEN);
-            s
-        };
-        *line1 = line(0);
-        *line2 = line(1);
-        *line3 = line(2);
+        *line1 = o.meta.title[0].clone();
+        *line2 = o.meta.title[1].clone();
+        *line3 = o.meta.title[2].clone();
         0
     }
 
@@ -489,38 +569,10 @@ impl Toolkit {
             // project has no objects.
             return 251;
         };
-        let net = &o.pr.net;
-        let i = index as usize;
-        let c = match object {
-            EN_NODE => {
-                if index < 1 || i > net.nnodes {
-                    return 251;
-                }
-                o.model.nodes[o.pr.node_order[i]].comment.as_deref()
-            }
-            EN_LINK => {
-                if index < 1 || i > net.nlinks {
-                    return 251;
-                }
-                o.model.links[i - 1].comment.as_deref()
-            }
-            EN_TIMEPAT => {
-                if index < 1 || i > net.pattern.len() - 1 {
-                    return 251;
-                }
-                o.model.patterns[i - 1].comment.as_deref()
-            }
-            EN_CURVE => {
-                if index < 1 || i > net.curve.len() - 1 {
-                    return 251;
-                }
-                o.model.curves[i - 1].comment.as_deref()
-            }
-            _ => return 251,
-        };
-        if let Some(c) = c {
-            comment.push_str(c);
-            truncate_bytes(comment, MAXMSG);
+        match o.comment_slot(object, index) {
+            Some(Some(c)) => comment.push_str(c),
+            Some(None) => {}
+            None => return 251,
         }
         0
     }
@@ -532,23 +584,12 @@ impl Toolkit {
         let net = &o.pr.net;
         let i = index as usize;
         let t = match object {
-            EN_NODE => {
-                if index < 1 || i > net.nnodes {
-                    return 251;
-                }
-                o.model.nodes[o.pr.node_order[i]].tag.as_deref()
-            }
-            EN_LINK => {
-                if index < 1 || i > net.nlinks {
-                    return 251;
-                }
-                o.model.links[i - 1].tag.as_deref()
-            }
+            EN_NODE if index >= 1 && i <= net.nnodes => &o.meta.node_tag[i],
+            EN_LINK if index >= 1 && i <= net.nlinks => &o.meta.link_tag[i],
             _ => return 251,
         };
         if let Some(t) = t {
             tag.push_str(t);
-            truncate_bytes(tag, MAXMSG);
         }
         0
     }
@@ -602,17 +643,22 @@ impl Toolkit {
         };
         o.open_h = false;
         o.save_h = false;
-        // openhyd validates first: 223 and 224 as such, anything else as 110.
+        // openhyd validates first: 223 and 224 as such, anything else as 110. Pump
+        // head curves are typed as validatepumps processes them.
+        if o.pr.net.nnodes >= 2 && o.pr.net.ntanks > 0 {
+            for i in 1..=o.pr.net.npumps {
+                let c = o.pr.net.pump[i].hcurve;
+                if c > 0 && c < o.curve_type.len() {
+                    o.curve_type[c] = EN_PUMP_CURVE;
+                }
+            }
+        }
         if let Err(e) = crate::input::validateproject(&mut o.pr) {
             return if e.code == 223 || e.code == 224 {
                 e.code
             } else {
                 110
             };
-        }
-        if !o.validated {
-            o.validated = true;
-            o.curve_type = curve_types(&o.pr, &o.model, true);
         }
         match hydraul::openhyd(&mut o.pr) {
             Ok(()) => {
@@ -673,8 +719,6 @@ impl Toolkit {
         if !o.open_h {
             return 103;
         }
-        // At the end nexthyd forces completion of a concurrent quality analysis too.
-        let ending = o.pr.hyd.haltflag || o.pr.times.htime >= o.pr.times.dur;
         if o.saveflag {
             // nexthyd saves the solution before it moves on, then the step.
             let mut r = quality::savehyd(&o.pr, o.pr.times.htime);
@@ -683,9 +727,6 @@ impl Toolkit {
             o.hydfile.push(r);
         } else {
             *t_step = hydraul::nexthyd(&mut o.pr);
-        }
-        if ending && o.open_q {
-            o.pr.times.qtime += 1;
         }
         if o.saveflag && *t_step == 0 {
             o.save_h = true;
@@ -731,6 +772,7 @@ impl Toolkit {
             return 102;
         };
         o.open_q = false;
+        o.pr.qual.open_q = false;
         o.save_q = false;
         if !o.open_h && !o.save_h {
             return 104;
@@ -738,6 +780,7 @@ impl Toolkit {
         match quality::openqual(&mut o.pr) {
             Ok(()) => {
                 o.open_q = true;
+                o.pr.qual.open_q = true;
                 0
             }
             Err(c) => c,
@@ -873,6 +916,7 @@ impl Toolkit {
         };
         quality::closequal(&mut o.pr);
         o.open_q = false;
+        o.pr.qual.open_q = false;
         0
     }
 
@@ -1005,17 +1049,11 @@ impl Toolkit {
             EN_HALTFLAG => {}
             EN_NEXTEVENT => {
                 *value = t.hstep;
-                if o.open_h {
-                    hydraul::tanktimestep(&o.pr, value);
-                }
+                hydraul::tanktimestep(&o.pr, value);
             }
             EN_NEXTEVENTTANK => {
                 *value = t.hstep;
-                if o.open_h {
-                    *value = hydraul::tanktimestep(&o.pr, value) as i64;
-                } else {
-                    *value = 0;
-                }
+                *value = hydraul::tanktimestep(&o.pr, value) as i64;
             }
             _ => return 251,
         }
@@ -1038,14 +1076,8 @@ impl Toolkit {
         let hyd_step = o.pr.times.hstep;
         let mut tank_step = hyd_step;
         let mut control_step = hyd_step;
-        let (i_tank, i_control) = if o.open_h {
-            (
-                hydraul::tanktimestep(&o.pr, &mut tank_step),
-                hydraul::controltimestep(&o.pr, &mut control_step),
-            )
-        } else {
-            (0, 0)
-        };
+        let i_tank = hydraul::tanktimestep(&o.pr, &mut tank_step);
+        let i_control = hydraul::controltimestep(&o.pr, &mut control_step);
         if control_step < tank_step {
             *event_type = EN_STEP_CONTROLEVENT;
             *duration = control_step;
@@ -1361,7 +1393,7 @@ impl Toolkit {
         if index < 1 || index as usize > o.pr.net.nnodes {
             return 203;
         }
-        match o.model.nodes[o.pr.node_order[index as usize]].coordinates {
+        match o.meta.node_xy[index as usize] {
             Some((cx, cy)) => {
                 *x = cx;
                 *y = cy;
@@ -1389,14 +1421,6 @@ impl Toolkit {
         *preq = pr.hyd.preq * ucf;
         *pexp = pr.hyd.pexp;
         0
-    }
-
-    /// The model's demand categories of a solver node, as EPANET's demand list holds them.
-    fn demands_of(o: &Open, i: usize) -> &[ws_model::Demand] {
-        match &o.model.nodes[o.pr.node_order[i]].kind {
-            ws_model::NodeKind::Junction(j) => &j.demands,
-            _ => &[],
-        }
     }
 
     /// `EN_getnumdemands`
@@ -1441,12 +1465,8 @@ impl Toolkit {
         if demand_index < 1 || demand_index as usize > d.len() {
             return 253;
         }
-        if let Some(name) = Self::demands_of(o, i)
-            .get(demand_index as usize - 1)
-            .and_then(|d| d.category.as_deref())
-        {
+        if let Some(Some(name)) = o.meta.demand_name[i].get(demand_index as usize - 1) {
             demand_name.push_str(name);
-            truncate_bytes(demand_name, MAXID);
         }
         0
     }
@@ -1479,18 +1499,10 @@ impl Toolkit {
             return 203;
         }
         let i = node_index as usize;
-        let names = Self::demands_of(o, i);
+        let names = &o.meta.demand_name[i];
         let empty = demand_name.is_empty();
         for n in 1..=o.pr.net.node[i].d.len() {
-            let name = names
-                .get(n - 1)
-                .and_then(|d| d.category.as_deref())
-                .map(|s| {
-                    let mut s = s.to_string();
-                    truncate_bytes(&mut s, MAXID);
-                    s
-                });
-            let found = match name {
+            let found = match names.get(n - 1).and_then(Option::as_deref) {
                 None => empty,
                 Some(s) => s == demand_name,
             };
@@ -1795,7 +1807,7 @@ impl Toolkit {
         if index <= 0 || index as usize > o.pr.net.nlinks {
             return 204;
         }
-        *count = o.model.links[index as usize - 1].vertices.len() as i32;
+        *count = o.meta.link_vertices[index as usize].len() as i32;
         0
     }
 
@@ -1807,7 +1819,7 @@ impl Toolkit {
         if index <= 0 || index as usize > o.pr.net.nlinks {
             return 204;
         }
-        let v = &o.model.links[index as usize - 1].vertices;
+        let v = &o.meta.link_vertices[index as usize];
         if vertex <= 0 || vertex as usize > v.len() {
             return 255;
         }

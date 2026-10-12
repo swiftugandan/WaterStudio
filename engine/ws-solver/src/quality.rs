@@ -100,12 +100,15 @@ pub struct Quality {
     pub wwall: f64,
     pub wtank: f64,
     pub wsource: f64,
+    /// `OpenQflag`: the toolkit's quality solver is open (only the toolkit sets it).
+    pub open_q: bool,
 }
 
 impl Default for Quality {
     /// `setdefaults` (input1.c).
     fn default() -> Self {
         Quality {
+            open_q: false,
             qualflag: QualType::None,
             trace_node: 0,
             chem_name: "Chemical".into(),
@@ -263,7 +266,11 @@ pub fn openqual(pr: &mut Project) -> Result<(), i32> {
     q.first = vec![NIL; n];
     q.last = vec![NIL; n];
     q.sorted = vec![0; n];
-    q.node_qual = vec![0.0; net.nnodes + 1];
+    // NodeQual lives from EN_open on (allocdata); a second run keeps the first's values
+    // until initqual sets them.
+    if q.node_qual.len() != net.nnodes + 1 {
+        q.node_qual = vec![0.0; net.nnodes + 1];
+    }
     Ok(())
 }
 

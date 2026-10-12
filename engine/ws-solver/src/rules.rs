@@ -106,6 +106,44 @@ pub struct Rule {
     pub is_enabled: bool,
 }
 
+/// `updateruleunits` (rules.c): rescale premise values and action settings when the
+/// demand, pressure, head or flow units change.
+pub(crate) fn updateruleunits(pr: &mut Project, dcf: f64, pcf: f64, hcf: f64, qcf: f64) {
+    let types: Vec<LinkType> = pr.net.link.iter().map(|l| l.link_type).collect();
+    let setting_cf = |k: usize| match types.get(k) {
+        Some(LinkType::Prv | LinkType::Psv | LinkType::Pbv) => pcf,
+        Some(LinkType::Fcv) => qcf,
+        _ => 1.0,
+    };
+    for r in &mut pr.rules {
+        for p in &mut r.premises {
+            match p.variable {
+                Var::Demand => p.value *= dcf,
+                Var::Head | Var::Grade | Var::Level => p.value *= hcf,
+                Var::Pressure => p.value *= pcf,
+                Var::Flow => p.value *= qcf,
+                Var::Setting => {
+                    if p.object == Object::Link {
+                        let f = setting_cf(p.index);
+                        if f != 1.0 {
+                            p.value *= f;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        for a in r.then_actions.iter_mut().chain(r.else_actions.iter_mut()) {
+            if a.setting != MISSING {
+                let f = setting_cf(a.link);
+                if f != 1.0 {
+                    a.setting *= f;
+                }
+            }
+        }
+    }
+}
+
 impl Rule {
     /// Whether the rule names a node (in a premise) or a link (in a premise or an
     /// action), as `incontrols` (project.c) checks.

@@ -1307,6 +1307,21 @@ fn writelinktable(pr: &mut Project, cols: &Columns, p: usize, nl: usize) {
 }
 
 /// `initunits`: the units each reported field is labelled with.
+/// The quality fields' units after `EN_setqualtype` changes the analysis.
+pub fn setqualityunits(pr: &mut Project) {
+    let q = &pr.qual;
+    let (qu, rr) = match q.qualflag {
+        QualType::Chem => (q.chem_units.clone(), Some(format!("{}/day", q.chem_units))),
+        QualType::Trace => ("% from".to_string(), None),
+        QualType::Age => ("hrs".to_string(), None),
+        QualType::None => return,
+    };
+    pr.rpt.field[Field::Quality as usize].units = qu;
+    if let Some(rr) = rr {
+        pr.rpt.field[Field::ReactRate as usize].units = rr;
+    }
+}
+
 pub fn setfieldunits(pr: &mut Project) {
     let u = &pr.units;
     let si = u.unitsflag == UnitsType::Si;

@@ -1211,7 +1211,7 @@ fn inittanks(pr: &mut Project) {
 }
 
 /// `initunits` (input1.c): unit conversion factors.
-fn initunits(pr: &mut Project) {
+pub(crate) fn initunits(pr: &mut Project) {
     let u = &mut pr.units;
     let (dcf, mut qcf, hcf, wcf);
     if u.unitsflag == UnitsType::Si {

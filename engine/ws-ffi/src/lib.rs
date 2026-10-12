@@ -866,3 +866,435 @@ pub unsafe extern "C" fn EN_getcontrol(
 }
 
 int_of!(EN_getcontrolenabled, getcontrolenabled, keep);
+
+// ---- Setters ---------------------------------------------------------------------------
+
+/// A C string argument, or "" for a null pointer.
+unsafe fn text(s: *const c_char) -> String {
+    // SAFETY: see `arg`.
+    unsafe { arg(s) }.unwrap_or_default()
+}
+
+/// A caller's array of `n` doubles (empty for a null pointer or n <= 0).
+unsafe fn doubles<'a>(v: *const c_double, n: c_int) -> &'a [c_double] {
+    if v.is_null() || n <= 0 {
+        return &[];
+    }
+    // SAFETY: the caller's array holds n values.
+    unsafe { std::slice::from_raw_parts(v, n as usize) }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_settitle(
+    p: EnProject,
+    line1: *const c_char,
+    line2: *const c_char,
+    line3: *const c_char,
+) -> c_int {
+    // SAFETY: see `text`.
+    let (a, b, c) = unsafe { (text(line1), text(line2), text(line3)) };
+    with!(p, t => t.settitle(&a, &b, &c))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setcomment(
+    p: EnProject,
+    object: c_int,
+    index: c_int,
+    comment: *const c_char,
+) -> c_int {
+    // SAFETY: see `text`.
+    let s = unsafe { text(comment) };
+    with!(p, t => t.setcomment(object, index, &s))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_settag(
+    p: EnProject,
+    object: c_int,
+    index: c_int,
+    tag: *const c_char,
+) -> c_int {
+    // SAFETY: see `text`.
+    let s = unsafe { text(tag) };
+    with!(p, t => t.settag(object, index, &s))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setoption(p: EnProject, option: c_int, value: c_double) -> c_int {
+    with!(p, t => t.setoption(option, value))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setflowunits(p: EnProject, units: c_int) -> c_int {
+    with!(p, t => t.setflowunits(units))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_settimeparam(p: EnProject, param: c_int, value: c_long) -> c_int {
+    // c_long is 32 bits on Windows.
+    #[allow(clippy::useless_conversion)]
+    let value = i64::from(value);
+    with!(p, t => t.settimeparam(param, value))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setqualtype(
+    p: EnProject,
+    qual_type: c_int,
+    chem_name: *const c_char,
+    chem_units: *const c_char,
+    trace_node: *const c_char,
+) -> c_int {
+    // SAFETY: see `text`.
+    let (a, b, c) = unsafe { (text(chem_name), text(chem_units), text(trace_node)) };
+    with!(p, t => t.setqualtype(qual_type, &a, &b, &c))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setnodeid(p: EnProject, index: c_int, new_id: *const c_char) -> c_int {
+    // SAFETY: see `text`.
+    let s = unsafe { text(new_id) };
+    with!(p, t => t.setnodeid(index, &s))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setnodevalue(
+    p: EnProject,
+    index: c_int,
+    property: c_int,
+    value: c_double,
+) -> c_int {
+    with!(p, t => t.setnodevalue(index, property, value))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setjuncdata(
+    p: EnProject,
+    index: c_int,
+    elev: c_double,
+    dmnd: c_double,
+    dmndpat: *const c_char,
+) -> c_int {
+    // SAFETY: see `text`.
+    let s = unsafe { text(dmndpat) };
+    with!(p, t => t.setjuncdata(index, elev, dmnd, &s))
+}
+
+#[unsafe(no_mangle)]
+#[allow(clippy::too_many_arguments)]
+pub unsafe extern "C" fn EN_settankdata(
+    p: EnProject,
+    index: c_int,
+    elev: c_double,
+    initlvl: c_double,
+    minlvl: c_double,
+    maxlvl: c_double,
+    diam: c_double,
+    minvol: c_double,
+    volcurve: *const c_char,
+) -> c_int {
+    // SAFETY: see `text`.
+    let s = unsafe { text(volcurve) };
+    with!(p, t => t.settankdata(index, elev, initlvl, minlvl, maxlvl, diam, minvol, &s))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setcoord(
+    p: EnProject,
+    index: c_int,
+    x: c_double,
+    y: c_double,
+) -> c_int {
+    with!(p, t => t.setcoord(index, x, y))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setdemandmodel(
+    p: EnProject,
+    model: c_int,
+    pmin: c_double,
+    preq: c_double,
+    pexp: c_double,
+) -> c_int {
+    with!(p, t => t.setdemandmodel(model, pmin, preq, pexp))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_adddemand(
+    p: EnProject,
+    node_index: c_int,
+    base_demand: c_double,
+    demand_pattern: *const c_char,
+    demand_name: *const c_char,
+) -> c_int {
+    // SAFETY: see `text`.
+    let (a, b) = unsafe { (text(demand_pattern), text(demand_name)) };
+    with!(p, t => t.adddemand(node_index, base_demand, &a, &b))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_deletedemand(
+    p: EnProject,
+    node_index: c_int,
+    demand_index: c_int,
+) -> c_int {
+    with!(p, t => t.deletedemand(node_index, demand_index))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setbasedemand(
+    p: EnProject,
+    node_index: c_int,
+    demand_index: c_int,
+    base_demand: c_double,
+) -> c_int {
+    with!(p, t => t.setbasedemand(node_index, demand_index, base_demand))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setdemandname(
+    p: EnProject,
+    node_index: c_int,
+    demand_index: c_int,
+    demand_name: *const c_char,
+) -> c_int {
+    // SAFETY: see `text`.
+    let s = unsafe { text(demand_name) };
+    with!(p, t => t.setdemandname(node_index, demand_index, &s))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setdemandpattern(
+    p: EnProject,
+    node_index: c_int,
+    demand_index: c_int,
+    pat_index: c_int,
+) -> c_int {
+    with!(p, t => t.setdemandpattern(node_index, demand_index, pat_index))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setlinkid(p: EnProject, index: c_int, new_id: *const c_char) -> c_int {
+    // SAFETY: see `text`.
+    let s = unsafe { text(new_id) };
+    with!(p, t => t.setlinkid(index, &s))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setlinkvalue(
+    p: EnProject,
+    index: c_int,
+    property: c_int,
+    value: c_double,
+) -> c_int {
+    with!(p, t => t.setlinkvalue(index, property, value))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setpipedata(
+    p: EnProject,
+    index: c_int,
+    length: c_double,
+    diam: c_double,
+    rough: c_double,
+    mloss: c_double,
+) -> c_int {
+    with!(p, t => t.setpipedata(index, length, diam, rough, mloss))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setvertex(
+    p: EnProject,
+    index: c_int,
+    vertex: c_int,
+    x: c_double,
+    y: c_double,
+) -> c_int {
+    with!(p, t => t.setvertex(index, vertex, x, y))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setvertices(
+    p: EnProject,
+    index: c_int,
+    x: *const c_double,
+    y: *const c_double,
+    count: c_int,
+) -> c_int {
+    // SAFETY: see `doubles`.
+    let (xs, ys) = unsafe { (doubles(x, count), doubles(y, count)) };
+    with!(p, t => t.setvertices(index, xs, ys))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setheadcurveindex(
+    p: EnProject,
+    link_index: c_int,
+    curve_index: c_int,
+) -> c_int {
+    with!(p, t => t.setheadcurveindex(link_index, curve_index))
+}
+
+/// Calls taking one ID: `EN_addpattern`, `EN_addcurve`.
+macro_rules! with_id {
+    ($name:ident, $method:ident) => {
+        #[unsafe(no_mangle)]
+        pub unsafe extern "C" fn $name(p: EnProject, id: *const c_char) -> c_int {
+            // SAFETY: see `text`.
+            let s = unsafe { text(id) };
+            with!(p, t => t.$method(&s))
+        }
+    };
+}
+
+/// Calls taking an index and an ID: `EN_setpatternid`, `EN_setcurveid`.
+macro_rules! index_id {
+    ($name:ident, $method:ident) => {
+        #[unsafe(no_mangle)]
+        pub unsafe extern "C" fn $name(p: EnProject, index: c_int, id: *const c_char) -> c_int {
+            // SAFETY: see `text`.
+            let s = unsafe { text(id) };
+            with!(p, t => t.$method(index, &s))
+        }
+    };
+}
+
+/// Calls taking an index: `EN_deletepattern`, `EN_deletecurve`, `EN_deletecontrol`.
+macro_rules! by_index {
+    ($name:ident, $method:ident) => {
+        #[unsafe(no_mangle)]
+        pub unsafe extern "C" fn $name(p: EnProject, index: c_int) -> c_int {
+            with!(p, t => t.$method(index))
+        }
+    };
+}
+
+with_id!(EN_addpattern, addpattern);
+by_index!(EN_deletepattern, deletepattern);
+index_id!(EN_setpatternid, setpatternid);
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setpatternvalue(
+    p: EnProject,
+    index: c_int,
+    period: c_int,
+    value: c_double,
+) -> c_int {
+    with!(p, t => t.setpatternvalue(index, period, value))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setpattern(
+    p: EnProject,
+    index: c_int,
+    values: *const c_double,
+    len: c_int,
+) -> c_int {
+    with!(p, t => {
+        if values.is_null() {
+            return if t.is_open() { 205 } else { 102 };
+        }
+        // SAFETY: see `doubles`.
+        let v = unsafe { doubles(values, len) };
+        t.setpattern(index, v)
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_loadpatternfile(
+    p: EnProject,
+    filename: *const c_char,
+    id: *const c_char,
+) -> c_int {
+    // SAFETY: see `text`.
+    let (f, i) = unsafe { (text(filename), text(id)) };
+    with!(p, t => t.loadpatternfile(&f, &i))
+}
+
+with_id!(EN_addcurve, addcurve);
+by_index!(EN_deletecurve, deletecurve);
+index_id!(EN_setcurveid, setcurveid);
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setcurvetype(p: EnProject, index: c_int, kind: c_int) -> c_int {
+    with!(p, t => t.setcurvetype(index, kind))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setcurvevalue(
+    p: EnProject,
+    curve_index: c_int,
+    point_index: c_int,
+    x: c_double,
+    y: c_double,
+) -> c_int {
+    with!(p, t => t.setcurvevalue(curve_index, point_index, x, y))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setcurve(
+    p: EnProject,
+    index: c_int,
+    x_values: *const c_double,
+    y_values: *const c_double,
+    n_points: c_int,
+) -> c_int {
+    with!(p, t => {
+        if !t.is_open() {
+            return 102;
+        }
+        let mut n = 0;
+        t.getcount(epanet::EN_CURVECOUNT, &mut n);
+        if index <= 0 || index > n || x_values.is_null() || y_values.is_null() {
+            return 206;
+        }
+        if n_points <= 0 {
+            return 202;
+        }
+        // SAFETY: see `doubles`.
+        let (xs, ys) = unsafe { (doubles(x_values, n_points), doubles(y_values, n_points)) };
+        t.setcurve(index, xs, ys)
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_addcontrol(
+    p: EnProject,
+    kind: c_int,
+    link_index: c_int,
+    setting: c_double,
+    node_index: c_int,
+    level: c_double,
+    index: *mut c_int,
+) -> c_int {
+    with!(p, t => {
+        let mut v = 0;
+        let e = t.addcontrol(kind, link_index, setting, node_index, level, &mut v);
+        if e == 0 {
+            // SAFETY: see `out`.
+            unsafe { out(index, v) };
+        }
+        e
+    })
+}
+
+by_index!(EN_deletecontrol, deletecontrol);
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setcontrol(
+    p: EnProject,
+    index: c_int,
+    kind: c_int,
+    link_index: c_int,
+    setting: c_double,
+    node_index: c_int,
+    level: c_double,
+) -> c_int {
+    with!(p, t => t.setcontrol(index, kind, link_index, setting, node_index, level))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setcontrolenabled(p: EnProject, index: c_int, enabled: c_int) -> c_int {
+    with!(p, t => t.setcontrolenabled(index, enabled))
+}
