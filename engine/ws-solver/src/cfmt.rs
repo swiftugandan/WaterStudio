@@ -34,14 +34,18 @@ fn nonfinite(v: f64) -> String {
     }
 }
 
-/// Right-justify in a field of `w` characters (`%{w}s`).
+/// Right-justify in a field of `w` bytes (`%{w}s`).
 pub fn r(s: &str, w: usize) -> String {
-    format!("{s:>w$}")
+    let mut o = " ".repeat(w.saturating_sub(s.len()));
+    o.push_str(s);
+    o
 }
 
-/// Left-justify in a field of `w` characters (`%-{w}s`).
+/// Left-justify in a field of `w` bytes (`%-{w}s`).
 pub fn l(s: &str, w: usize) -> String {
-    format!("{s:<w$}")
+    let mut o = s.to_string();
+    o.push_str(&" ".repeat(w.saturating_sub(s.len())));
+    o
 }
 
 /// `%.{n}s`: at most `n` bytes (EPANET's text is ASCII).
@@ -68,6 +72,8 @@ mod tests {
         assert_eq!(f(f64::NAN, 2), "nan");
         assert_eq!(r("ab", 5), "   ab");
         assert_eq!(l("ab", 5), "ab   ");
+        // C pads by bytes, not characters.
+        assert_eq!(l("é", 3), "é ");
         assert_eq!(trunc("abcdef", 3), "abc");
     }
 }

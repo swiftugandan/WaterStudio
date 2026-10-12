@@ -97,10 +97,20 @@ holds that same `Project`, field by field.
 - Two more places where the probe avoids undefined behaviour in OWA-EPANET:
   - `EN_NEXTEVENT` and `EN_NEXTEVENTTANK` read uninitialised tank state before any solve.
   - After a failed `EN_solveH`, `EN_saveH` and `EN_solveQ` corrupt the heap (the reference aborts in `closequal`).
+- **Stage 6.** `EN_saveinpfile` ports `inpfile.c` and `writerule`: the project as the toolkit holds it now,
+  in EPANET's layout and number formats, with `[LABELS]` and `[BACKDROP]` copied from the input file read again
+  from disk, as C does. The probe saves each network before and after its changes, `toolkit.sh` requires both
+  files identical to OWA-EPANET's, and each library then reads back the changed network it saved and solves it
+  again, with identical results on all 64 networks. Field padding now counts bytes, as `printf` does.
+- **Stage 7.** External hydraulics files. `EN_savehydfile` writes the last saved hydraulic run in EPANET's
+  binary layout (header, f32 records, steps, and the `EOFMARK` byte after the last step), or copies the file in
+  use. `EN_usehydfile` reads one back after checking it was saved for this network (306 otherwise); quality runs
+  then read their hydraulics from it, the hydraulic solver refuses to open (107), and trying to open it forgets
+  the file's results, as in C. The probe saves the first run's file, has a fresh project use it for quality,
+  report and output, and compares every file. The `[OPTIONS]` keyword `HYDRAULICS USE/SAVE` in an input file is
+  still ignored when reading; `EN_saveinpfile` writes it for a file in use.
 - Not yet:
-  - `EN_saveinpfile`;
-  - external hydraulics files (`EN_savehydfile`, `EN_usehydfile`);
-  - `EN_init`;
+  - `EN_init` and `EN_openX`;
   - the legacy single-precision API (`epanet2.h`).
 
   A program calling these fails to link rather than misbehaving. They follow in later stages, under the same

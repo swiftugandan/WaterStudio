@@ -293,6 +293,119 @@ pub(crate) fn addrule(
     if err == 201 { 250 } else { err }
 }
 
+/// `writerule`: rule `i` (0-based) as `EN_saveinpfile` writes it, after its `RULE` line.
+pub(crate) fn writerule(pr: &Project, f: &mut String, i: usize) {
+    let Some(rule) = pr.rules.get(i) else { return };
+    f.push_str("\nIF   ");
+    for (k, p) in rule.premises.iter().enumerate() {
+        if k > 0 {
+            let word = match p.logop {
+                LogOp::And => "AND",
+                LogOp::Or => "OR",
+            };
+            f.push_str(&format!("\n{word:<5}"));
+        }
+        writepremise(pr, p, f);
+    }
+    for (first, actions) in [
+        ("\nTHEN ", &rule.then_actions),
+        ("\nELSE ", &rule.else_actions),
+    ] {
+        for (k, a) in actions.iter().enumerate() {
+            f.push_str(if k == 0 { first } else { "\nAND  " });
+            writeaction(pr, a, f);
+        }
+    }
+    if rule.priority > 0.0 {
+        f.push_str(&format!("\nPRIORITY {}", crate::cfmt::f(rule.priority, 6)));
+    }
+}
+
+/// `Value` (rules.c): the text of a status value.
+fn value_txt(status: i32) -> &'static str {
+    match status {
+        IS_OPEN => "OPEN",
+        IS_CLOSED => "CLOSED",
+        IS_ACTIVE => "ACTIVE",
+        _ => "XXXX",
+    }
+}
+
+/// `getobjtxt`
+fn link_obj_txt(t: LinkType) -> &'static str {
+    match t {
+        LinkType::CvPipe | LinkType::Pipe => "PIPE",
+        LinkType::Pump => "PUMP",
+        _ => "VALVE",
+    }
+}
+
+/// `writepremise`
+fn writepremise(pr: &Project, p: &Premise, f: &mut String) {
+    let net = &pr.net;
+    let (obj, id) = match p.object {
+        Object::Node => {
+            let n = &net.node[p.index];
+            let obj = match n.node_type {
+                NodeType::Junction => "JUNCTION",
+                NodeType::Reservoir => "RESERVOIR",
+                NodeType::Tank => "TANK",
+            };
+            (obj, n.id.as_str())
+        }
+        Object::Link => (
+            link_obj_txt(net.link[p.index].link_type),
+            net.link[p.index].id.as_str(),
+        ),
+        Object::System => ("SYSTEM", ""),
+    };
+    let value = if p.value == MISSING {
+        value_txt(p.status).to_string()
+    } else {
+        match p.variable {
+            Var::ClockTime | Var::DrainTime | Var::FillTime | Var::Time => gettimetxt(p.value),
+            _ => crate::cfmt::f(p.value, 4),
+        }
+    };
+    let var = VARWORDS[VARS.iter().position(|v| *v == p.variable).unwrap_or(0)].0;
+    let relop = match p.relop {
+        RelOp::Eq => "=",
+        RelOp::Ne => "<>",
+        RelOp::Le => "<=",
+        RelOp::Ge => ">=",
+        RelOp::Lt => "<",
+        RelOp::Gt => ">",
+    };
+    f.push_str(&format!("{obj} {id} {var} {relop} {value}"));
+}
+
+/// `writeaction`
+fn writeaction(pr: &Project, a: &Action, f: &mut String) {
+    let link = &pr.net.link[a.link];
+    let (var, value) = if a.setting == MISSING {
+        ("STATUS", value_txt(a.status).to_string())
+    } else {
+        ("SETTING", crate::cfmt::f(a.setting, 4))
+    };
+    f.push_str(&format!(
+        "{} {} {var} = {value}",
+        link_obj_txt(link.link_type),
+        link.id
+    ));
+}
+
+/// `gettimetxt`: seconds as hours:minutes:seconds (decimal hours beyond a week).
+fn gettimetxt(secs: f64) -> String {
+    let hours = (secs as i32) / 3600;
+    if hours > 24 * 7 {
+        crate::cfmt::f(secs / 3600.0, 4)
+    } else {
+        let minutes = ((secs - f64::from(3600 * hours)) / 60.0) as i32;
+        let seconds = (secs - f64::from(3600 * hours) - f64::from(minutes * 60)) as i32;
+        format!("{hours}:{minutes:02}:{seconds:02}")
+    }
+}
+
 fn logop_code(l: LogOp) -> i32 {
     match l {
         LogOp::And => 2,

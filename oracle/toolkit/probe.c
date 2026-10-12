@@ -681,11 +681,18 @@ int main(int argc, char **argv) {
   if (e > 100) { EN_deleteproject(ph); return 0; }
   counts();
   statics();
+  char inp[600];
+  snprintf(inp, sizeof inp, "%s/probe.inp", scratch);
+  SET(EN_saveinpfile(ph, inp));
+  char hyd[600];
+  snprintf(hyd, sizeof hyd, "%s/probe.hyd", scratch);
+  SET(EN_savehydfile(ph, hyd));
   reports("first");
   printf("runQ-before %d\n", EN_runQ(ph, &(long){0}));
 
   hydraulics(EN_SAVE);
   printf("closeH %d\n", EN_closeH(ph));
+  SET(EN_savehydfile(ph, hyd));
   quality_from_file(0);
   quality_from_file(1);
   concurrent();
@@ -700,6 +707,9 @@ int main(int argc, char **argv) {
   ruleplay();
   mutated = 1;
   statics();
+  char inp2[600];
+  snprintf(inp2, sizeof inp2, "%s/probe-mutated.inp", scratch);
+  SET(EN_saveinpfile(ph, inp2));
   hydraulics(EN_SAVE);
   printf("closeH %d\n", EN_closeH(ph));
   quality_from_file(0);
@@ -712,6 +722,49 @@ int main(int argc, char **argv) {
 
   printf("close %d\n", EN_close(ph));
   printf("after-close %d\n", EN_getcount(ph, EN_NODECOUNT, &(int){0}));
+  EN_deleteproject(ph);
+
+  /* Each library reads back the network it saved after the changes: the same text,
+     so the same network and the same solution. */
+  EN_createproject(&ph);
+  snprintf(rpt, sizeof rpt, "%s/probe-reread.rpt", scratch);
+  e = EN_open(ph, inp2, rpt, "");
+  printf("reread open %d\n", e);
+  if (e <= 100) {
+    counts();
+    statics();
+    SET(EN_usehydfile(ph, hyd));
+    hydraulics(EN_NOSAVE);
+  }
+  EN_deleteproject(ph);
+
+  /* The hydraulics file saved by the first run, used by a fresh project. */
+  EN_createproject(&ph);
+  snprintf(rpt, sizeof rpt, "%s/probe-use.rpt", scratch);
+  snprintf(out, sizeof out, "%s/probe-use.out", scratch);
+  e = EN_open(ph, argv[1], rpt, out);
+  printf("use open %d\n", e);
+  if (e <= 100) {
+    mutated = 0;
+    counts();
+    SET(EN_usehydfile(ph, "no-such-file.hyd"));
+    printf("use openQ %d\n", EN_openQ(ph));
+    SET(EN_usehydfile(ph, hyd));
+    /* (quality_from_file closes the solver: closing it again crashes the reference.) */
+    quality_from_file(0);
+    SET(EN_solveQ(ph));
+    SET(EN_report(ph));
+    char hyd2[600], inp3[600];
+    snprintf(hyd2, sizeof hyd2, "%s/probe-copy.hyd", scratch);
+    SET(EN_savehydfile(ph, hyd2));
+    snprintf(inp3, sizeof inp3, "%s/probe-use.inp", scratch);
+    SET(EN_saveinpfile(ph, inp3));
+    /* With a hydraulics file in use the solver stays shut, and trying it forgets the
+       file's results. */
+    SET(EN_openH(ph));
+    SET(EN_solveH(ph));
+    printf("use openQ %d\n", EN_openQ(ph));
+  }
   EN_deleteproject(ph);
   return 0;
 }

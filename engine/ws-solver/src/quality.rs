@@ -146,8 +146,7 @@ impl Default for Quality {
 }
 
 /// One hydraulic solution as EPANET's hydraulics file stores it, with the file's
-/// f32 precision. Settings are left out: neither quality routing nor EPANET-MSX reads
-/// them.
+/// f32 precision, and the time step that followed it.
 #[derive(Clone, Debug)]
 pub struct HydRecord {
     pub htime: i64,
@@ -223,6 +222,99 @@ pub fn readhyd(pr: &mut Project, r: &HydRecord) {
     for (k, v) in r.setting.iter().enumerate() {
         hyd.link_setting[k + 1] = f64::from(*v);
     }
+}
+
+/// `MAGICNUMBER` and `ENGINE_VERSION` (types.h), which open a hydraulics file.
+const MAGICNUMBER: i32 = 516_114_521;
+const ENGINE_VERSION: i32 = 201;
+const EOFMARK: u8 = 0x1A;
+
+/// The sizes a hydraulics file records (`openhydfile`): nodes, links, tanks, pumps,
+/// valves and the duration.
+pub fn hydfile_sizes(pr: &Project) -> [i32; 6] {
+    let n = &pr.net;
+    [
+        n.nnodes as i32,
+        n.nlinks as i32,
+        n.ntanks as i32,
+        n.npumps as i32,
+        n.nvalves as i32,
+        pr.times.dur as i32,
+    ]
+}
+
+/// EPANET's binary hydraulics file (`openhydfile`, `savehyd`, `savehydstep`).
+pub fn hydfile_bytes(sizes: &[i32; 6], records: &[HydRecord]) -> Vec<u8> {
+    let mut b = Vec::new();
+    for v in [MAGICNUMBER, ENGINE_VERSION].iter().chain(sizes) {
+        b.extend_from_slice(&v.to_le_bytes());
+    }
+    for r in records {
+        b.extend_from_slice(&(r.htime as i32).to_le_bytes());
+        for x in r.demand.iter().chain(&r.head).chain(&r.flow) {
+            b.extend_from_slice(&x.to_le_bytes());
+        }
+        for s in &r.status {
+            b.extend_from_slice(&f32::from(*s).to_le_bytes());
+        }
+        for x in &r.setting {
+            b.extend_from_slice(&x.to_le_bytes());
+        }
+        b.extend_from_slice(&(r.hydstep as i32).to_le_bytes());
+        // `savehydstep` marks the end of a run with EOFMARK, which `readhyd` does
+        // not skip.
+        if r.hydstep as i32 == 0 {
+            b.push(EOFMARK);
+        }
+    }
+    b
+}
+
+/// Read a hydraulics file for this network (`openhydfile` with `USE`, then `readhyd`
+/// and `readhydstep` for each solution): 306 if it was saved for another network. A
+/// solution cut short ends the records, as reading it fails in EPANET.
+pub fn read_hydfile(pr: &Project, bytes: &[u8]) -> Result<Vec<HydRecord>, i32> {
+    let mut at = 0usize;
+    let mut word = || -> Option<[u8; 4]> {
+        let w = bytes.get(at..at + 4)?.try_into().ok()?;
+        at += 4;
+        Some(w)
+    };
+    let int = |w: [u8; 4]| i32::from_le_bytes(w);
+    if word().map(int) != Some(MAGICNUMBER) || word().map(int) != Some(ENGINE_VERSION) {
+        return Err(306);
+    }
+    let mut sizes = [0i32; 6];
+    for s in &mut sizes {
+        *s = word().map(int).ok_or(306)?;
+    }
+    if sizes != hydfile_sizes(pr) {
+        return Err(306);
+    }
+    let (nn, nl) = (pr.net.nnodes, pr.net.nlinks);
+    let mut records = Vec::new();
+    while let Some(t) = word() {
+        let mut floats = |n: usize| -> Option<Vec<f32>> {
+            (0..n).map(|_| word().map(f32::from_le_bytes)).collect()
+        };
+        let (Some(demand), Some(head), Some(flow), Some(status), Some(setting)) =
+            (floats(nn), floats(nn), floats(nl), floats(nl), floats(nl))
+        else {
+            break;
+        };
+        let Some(step) = word() else { break };
+        records.push(HydRecord {
+            htime: i64::from(int(t)),
+            hydstep: i64::from(int(step)),
+            demand,
+            head,
+            flow,
+            // `(char)x[i]`
+            status: status.iter().map(|&s| s as i8 as u8).collect(),
+            setting,
+        });
+    }
+    Ok(records)
 }
 
 fn q_stagnant() -> f64 {

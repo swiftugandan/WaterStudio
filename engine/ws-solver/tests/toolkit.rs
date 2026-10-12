@@ -298,3 +298,74 @@ fn writes_the_same_files_as_the_whole_run() {
     assert_eq!(std::fs::read(&out).unwrap(), run.out_file());
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn saves_an_input_file_that_reads_back_the_same() {
+    let dir = std::env::temp_dir().join(format!("ws-toolkit-inp-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let saved = dir.join("saved.inp").to_string_lossy().into_owned();
+    let mut t = open();
+    assert_eq!(t.setnodevalue(1, EN_ELEVATION, 105.0), 0);
+    assert_eq!(
+        t.addrule("RULE R1\nIF TANK T LEVEL ABOVE 15\nTHEN PIPE P3 STATUS IS CLOSED\nPRIORITY 2"),
+        0
+    );
+    assert_eq!(t.saveinpfile(&saved), 0);
+    let text = std::fs::read_to_string(&saved).unwrap();
+    assert!(text.starts_with("[TITLE]\n") && text.contains("Two junctions and a tank"));
+    assert!(text.contains(
+        "\nRULE R1\nIF   TANK T LEVEL > 15.0000\nTHEN PIPE P3 STATUS = CLOSED\nPRIORITY 2.000000\n"
+    ));
+    assert!(text.ends_with("\n[END]\n"));
+
+    let mut back = Toolkit::new();
+    assert_eq!(back.open(&saved), 0);
+    for tk in [&mut t, &mut back] {
+        assert_eq!(tk.solve_h(), 0);
+    }
+    let (mut a, mut b) = (0.0, 0.0);
+    for i in 1..=4 {
+        t.getnodevalue(i, EN_HEAD, &mut a);
+        back.getnodevalue(i, EN_HEAD, &mut b);
+        assert!((a - b).abs() < 1e-3, "node {i}: {a} vs {b}");
+    }
+    assert_eq!(Toolkit::new().saveinpfile(&saved), 102);
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn saves_and_uses_hydraulics_files() {
+    let dir = std::env::temp_dir().join(format!("ws-toolkit-hyd-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let hyd = dir.join("net.hyd").to_string_lossy().into_owned();
+    let mut t = open();
+    assert_eq!(t.savehydfile(&hyd), 104);
+    assert_eq!(t.solve_h(), 0);
+    assert_eq!(t.savehydfile(&hyd), 0);
+    assert_eq!(t.solve_q(), 0);
+    let mut expect = 0.0;
+    t.getnodevalue(2, EN_QUALITY, &mut expect);
+
+    let mut u = open();
+    assert_eq!(
+        u.usehydfile(&dir.join("missing.hyd").to_string_lossy()),
+        305
+    );
+    assert_eq!(u.usehydfile(&hyd), 0);
+    assert_eq!(u.solve_q(), 0);
+    let mut got = 0.0;
+    u.getnodevalue(2, EN_QUALITY, &mut got);
+    assert_eq!(got.to_bits(), expect.to_bits());
+    // The solver stays shut while a file is in use, and trying forgets the file.
+    assert_eq!(u.open_h(), 107);
+    assert_eq!(u.open_q(), 104);
+
+    // A file saved for another network is refused.
+    let mut other = Toolkit::new();
+    assert_eq!(
+        other.open_text(&NET.replace("Duration 6:00", "Duration 7:00")),
+        0
+    );
+    assert_eq!(other.usehydfile(&hyd), 306);
+    std::fs::remove_dir_all(&dir).unwrap();
+}

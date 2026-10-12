@@ -300,6 +300,13 @@ pub(super) struct Open {
     /// The hydraulics file and the position `readhyd` reads from next.
     pub(super) hydfile: Vec<HydRecord>,
     pub(super) hyd_next: usize,
+    /// The sizes in the hydraulics file's header, as `openhydfile` wrote them.
+    pub(super) hyd_sizes: [i32; 6],
+    /// `outfile.Hydflag == USE`: the hydraulics come from `hyd_fname`
+    /// (`EN_usehydfile`), whose bytes `hyd_raw` keeps.
+    pub(super) hyd_use: bool,
+    pub(super) hyd_fname: String,
+    pub(super) hyd_raw: Option<Vec<u8>>,
     /// `report.Nperiods`.
     pub(super) nperiods: i64,
     /// The input, report and output file names given to `EN_open`.
@@ -320,6 +327,8 @@ pub struct Toolkit {
 }
 
 mod edit;
+mod hydfile;
+mod inpfile;
 mod report;
 mod rules;
 mod set;
@@ -545,6 +554,10 @@ impl Toolkit {
             saveflag: false,
             hydfile: Vec::new(),
             hyd_next: 0,
+            hyd_sizes: [0; 6],
+            hyd_use: false,
+            hyd_fname: String::new(),
+            hyd_raw: None,
             nperiods: 0,
             inp_name: String::new(),
             rpt1: String::new(),
@@ -558,10 +571,14 @@ impl Toolkit {
     /// `EN_open`: read an input file.
     pub fn open(&mut self, inp_file: &str) -> i32 {
         self.p = None;
-        match std::fs::read(inp_file) {
+        let code = match std::fs::read(inp_file) {
             Ok(bytes) => self.open_text(&String::from_utf8_lossy(&bytes)),
             Err(_) => 302,
+        };
+        if let Some(o) = self.p.as_deref_mut() {
+            o.inp_name = inp_file.to_string();
         }
+        code
     }
 
     /// `EN_close`
@@ -665,6 +682,9 @@ impl Toolkit {
         };
         o.open_h = false;
         o.save_h = false;
+        if o.hyd_use {
+            return 107;
+        }
         // openhyd validates first: 223 and 224 as such, anything else as 110. Pump
         // head curves are typed as validatepumps processes them.
         if o.pr.net.nnodes >= 2 && o.pr.net.ntanks > 0 {
@@ -716,6 +736,8 @@ impl Toolkit {
             // openhydfile: a fresh scratch file.
             o.hydfile.clear();
             o.hyd_next = 0;
+            o.hyd_sizes = quality::hydfile_sizes(&o.pr);
+            o.hyd_raw = None;
             o.saveflag = true;
         }
         leakage::openleakage(&mut o.pr);

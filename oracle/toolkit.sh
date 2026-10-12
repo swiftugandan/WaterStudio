@@ -36,23 +36,25 @@ fi
 tunables="glibc.cpu.hwcaps=-AVX2_Usable,-FMA_Usable,-AVX2,-FMA"
 scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
-# The probe's report, its copy and the output file, kept per library with the
-# report's clock times masked.
+# The probe's reports, output files, saved input files and hydraulics files, kept per
+# library with the report's clock times masked.
 keep() {
-  for f in probe.rpt probe-copy.rpt probe.out; do
+  for f in probe.rpt probe-copy.rpt probe.out probe.inp probe-mutated.inp probe.hyd probe-copy.hyd probe-use.rpt probe-use.out probe-use.inp; do
     if [[ -f "$scratch/$f" ]]; then
       if [[ $f == *.rpt ]]; then
         sed -E 's/[A-Z][a-z]{2} [A-Z][a-z]{2} [ 0-9][0-9] [0-9]{2}:[0-9]{2}:[0-9]{2} [0-9]{4}/<date>/' "$scratch/$f" > "$scratch/$1.$f"
-      else
+      elif [[ $f == *.out ]]; then
         cp "$scratch/$f" "$scratch/$1.$f"
         python3 -I "$here/toolkit/outnorm.py" "$scratch/$1.$f"
+      else
+        cp "$scratch/$f" "$scratch/$1.$f"
       fi
       rm -f "$scratch/$f"
     fi
   done
 }
 files_match() {
-  for f in probe.rpt probe-copy.rpt probe.out; do
+  for f in probe.rpt probe-copy.rpt probe.out probe.inp probe-mutated.inp probe.hyd probe-copy.hyd probe-use.rpt probe-use.out probe-use.inp; do
     if [[ -f "$scratch/ref.$f" || -f "$scratch/ws.$f" ]]; then
       if ! cmp -s "$scratch/ref.$f" "$scratch/ws.$f"; then
         echo "      $f differs"
@@ -75,7 +77,7 @@ fail=0
 for net in "${networks[@]}"; do
   inp="$here/.corpus/$net"
   # In the scratch directory: OWA-EPANET makes its temporary files in the current one.
-  rm -f "$scratch"/probe*.rpt "$scratch"/probe*.out "$scratch"/{ref,ws}.*.{rpt,out}
+  rm -f "$scratch"/probe*.{rpt,out,inp,hyd} "$scratch"/{ref,ws}.*.{rpt,out,inp,hyd}
   (cd "$scratch" && GLIBC_TUNABLES="$tunables" timeout 600 "$build/probe-ref" "$inp" "$scratch" > ref.txt 2>&1) || true
   keep ref
   (cd "$scratch" && timeout 600 "$build/probe-ws" "$inp" "$scratch" > ws.txt 2>&1) || true

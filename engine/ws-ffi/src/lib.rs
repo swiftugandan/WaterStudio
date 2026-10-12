@@ -1638,6 +1638,30 @@ pub unsafe extern "C" fn EN_copyreport(p: EnProject, filename: *const c_char) ->
     with!(p, t => t.copyreport(&s))
 }
 
+/// `EN_savehydfile`
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_savehydfile(p: EnProject, filename: *const c_char) -> c_int {
+    // SAFETY: see `text`.
+    let s = unsafe { text(filename) };
+    with!(p, t => t.savehydfile(&s))
+}
+
+/// `EN_usehydfile`
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_usehydfile(p: EnProject, filename: *const c_char) -> c_int {
+    // SAFETY: see `text`.
+    let s = unsafe { text(filename) };
+    with!(p, t => t.usehydfile(&s))
+}
+
+/// `EN_saveinpfile`
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_saveinpfile(p: EnProject, filename: *const c_char) -> c_int {
+    // SAFETY: see `text`.
+    let s = unsafe { text(filename) };
+    with!(p, t => t.saveinpfile(&s))
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn EN_setreportcallback(
     p: EnProject,
