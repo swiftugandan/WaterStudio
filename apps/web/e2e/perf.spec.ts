@@ -25,6 +25,8 @@ test('a 50,000-pipe network opens fast and pans within budget', async ({ page })
   test.setTimeout(120_000);
   await page.goto(`/${process.env['PERF_N'] ? `?n=${process.env['PERF_N']}` : ''}`);
   await expect(page.getByTestId('renderer')).not.toHaveText('Starting renderer…');
+  // The start-up sample must have loaded, or it would replace the grid.
+  await expect(page.locator('.statusbar')).toContainText('11 nodes · 13 links');
   const open = await page.evaluate(async () => {
     const w = (globalThis as unknown as { waterstudio: Bench }).waterstudio;
     const t0 = performance.now();

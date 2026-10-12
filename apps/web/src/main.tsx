@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@waterstudio/ui/tokens.css';
 import './app.css';
+import { noticeAutosave, startAutosave } from './app/autosave.ts';
 import { gridModel } from './app/bench.ts';
 import { createCommands } from './app/commands.ts';
 import { AppContext } from './app/context.tsx';
@@ -27,4 +28,7 @@ createRoot(root).render(
 );
 
 // Start with a sample so the map is never empty on first visit.
-void bus.execute('file.sample.Net1');
+void Promise.resolve(bus.execute('file.sample.Net1')).then(() => {
+  noticeAutosave(state);
+  startAutosave(state);
+});

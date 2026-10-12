@@ -1,0 +1,21 @@
+{
+  "name": "@waterstudio/project",
+  "version": "0.0.1",
+  "private": true,
+  "description": "The WaterStudio project file (.wsproj): a SQLite database holding a network, its scenarios and everything EPANET files have no place for. No DOM.",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@sqlite.org/sqlite-wasm": "3.53.4-build1",
+    "@waterstudio/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5"
+  }
+}

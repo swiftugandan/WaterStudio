@@ -2,6 +2,7 @@
 
 import { HydraulicIcon, hydraulicIconNames, type HydraulicIconName } from '@waterstudio/ui';
 import {
+  Archive,
   ArrowLeftRight,
   ChartColumn,
   ChartLine,
@@ -17,6 +18,7 @@ import {
   FilePlus,
   FolderOpen,
   Hand,
+  History,
   Monitor,
   Moon,
   MousePointer2,
@@ -88,6 +90,8 @@ const LUCIDE: Record<string, LucideIcon> = {
   'chart-line': ChartLine,
   'chart-column': ChartColumn,
   mountain: Mountain,
+  archive: Archive,
+  history: History,
   'arrow-left-right': ArrowLeftRight,
   'file-text': FileText,
   'file-input': FileInput,

@@ -37,7 +37,9 @@ const TABS: Tab[] = [
         items: [
           { cmd: 'file.open', size: 'large', label: 'Open' },
           { cmd: 'file.save', size: 'large', label: 'Save' },
+          { cmd: 'file.save.project', size: 'large', label: 'Project' },
           { cmd: 'file.new', label: 'New' },
+          { cmd: 'file.recover', label: 'Recover' },
           { cmd: 'file.print', label: 'Print' },
           { cmd: 'file.sample.Net1', label: 'Net1' },
           { cmd: 'file.sample.Net2', label: 'Net2' },

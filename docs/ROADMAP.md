@@ -91,7 +91,9 @@ Gate: MSX examples within tolerance; all performance budgets met; agent evaluati
 - [x] Elevations from a DEM (GeoTIFF or ASCII grid, reprojected when it names another CRS) or online terrain tiles;
   demand allocation (a total spread equally or by the pipe length each junction serves, or customer demands at
   points assigned to the nearest junction or split along the nearest pipe) into any demand category
-- [ ] SQLite project file
+- [x] SQLite project file (ADR 0015): .wsproj holds the network, scenarios, isolation valves, the MSX input and view
+  settings, with `nodes` and `links` views for SQL tools; autosaved to the browser's private file system and
+  recoverable after a crash or a closed tab
 - [ ] C toolkit API (`ws-ffi`) and CLI
 - [ ] Proposal and review UI; MCP server
 

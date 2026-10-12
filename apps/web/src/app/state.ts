@@ -8,11 +8,12 @@ import { readDefaults, saveDefaults, type Defaults } from './defaults.ts';
 import { planLengthOf } from './geometry.ts';
 import type { CalibrationData, CalibrationVariable } from './calibration.ts';
 import {
-  loadModel,
+  fillFromModel,
   Scenarios,
   Store,
   toModel,
   unitSystem,
+  type DocData,
   type model,
   type PropertyClip,
   type UnitSystem,
@@ -26,6 +27,8 @@ import {
   type RunResults,
 } from '@waterstudio/engine-client';
 import type { RampName, RendererStatus } from '@waterstudio/render';
+import { restoreScenarios, type ProjectData } from '@waterstudio/project';
+import { readSettings } from './project.ts';
 import { Conversation } from './assistant.ts';
 import { Emitter } from './emitter.ts';
 import { ctime } from './time.ts';
@@ -98,6 +101,8 @@ export class AppState extends Emitter {
   /** Bumped when the store is replaced (new file), so views rebind. */
   generation = 0;
   fileName = 'Untitled.inp';
+  /** The project file the network was opened from or last saved to, if any. */
+  projectName: string | null = null;
   savedRev = 0;
   selection = new Set<number>();
   hover: number | null = null;
@@ -268,14 +273,21 @@ export class AppState extends Emitter {
     this.emit();
   }
 
-  /** Replace the document with a model (opening a file or a sample). */
-  openModel(m: model.Model, name: string, issues: InpIssue[] = []): void {
+  /**
+   * Replace the document with a model (opening a file or a sample). `extra` sets document
+   * data EPANET files have no place for, as part of opening rather than as an edit.
+   */
+  openModel(m: model.Model, name: string, issues: InpIssue[] = [], extra: Partial<DocData> = {}): void {
     const store = new Store();
-    loadModel(store, m);
+    store.load((tx) => {
+      fillFromModel(tx, m);
+      for (const [k, v] of Object.entries(extra)) tx.setDoc(k as keyof DocData, v);
+    });
     this.store = store;
     this.generation++;
     this.bindStore();
     this.fileName = name;
+    this.projectName = null;
     this.savedRev = store.rev;
     this.selection = new Set();
     this.hover = null;
@@ -299,6 +311,35 @@ export class AppState extends Emitter {
     for (const i of issues.slice(0, 50)) {
       this.log(i.severity === 'error' ? 'error' : 'warning', `Line ${i.line} [${i.section}]: ${i.message}`);
     }
+    this.emit();
+  }
+
+  /** Open a project: the network, its scenarios and extras, and how it was being viewed. */
+  openProject(p: ProjectData, name: string): void {
+    this.openModel(p.model, p.fileName || name.replace(/\.wsproj$/i, '.inp'), [], {
+      isolationValves: p.isolationValves,
+      msx: p.msx,
+    });
+    this.projectName = name;
+    if (p.scenarios) this.scenarios.load(restoreScenarios(this.store.doc, p.scenarios));
+    const settings = readSettings(p.settings);
+    if (settings.mapTheme) this.mapTheme = settings.mapTheme;
+    if (settings.panels) this.panels = new Set(settings.panels);
+    const n = this.scenarios.scenarios.length;
+    if (n > 0) {
+      const active = this.scenarios.active;
+      this.log(
+        'info',
+        `The project has ${n} scenario${n === 1 ? '' : 's'}; showing ${active === null ? 'the base network' : (this.scenarios.get(active)?.name ?? active)}.`,
+      );
+    }
+    this.emit();
+  }
+
+  /** Record that the project was saved to a file. */
+  markSaved(projectName?: string): void {
+    this.savedRev = this.store.rev;
+    if (projectName !== undefined) this.projectName = projectName;
     this.emit();
   }
 

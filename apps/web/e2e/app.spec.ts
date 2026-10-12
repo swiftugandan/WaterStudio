@@ -1049,6 +1049,106 @@ test('sets elevations from a DEM and allocates demands', async ({ page }) => {
   expect(axe.violations.map((v) => v.id)).toEqual([]);
 });
 
+test('saves a project with its scenarios and extras, and recovers autosaved work', async ({ page }) => {
+  await ready(page);
+  interface Live {
+    store: {
+      rev: number;
+      doc: {
+        findLink(id: string): number;
+        num(h: number, f: string): number;
+        data: { isolationValves: unknown[]; msx: { name: string } | null };
+      };
+      transact(
+        label: string,
+        fn: (tx: {
+          set(h: number, f: string, v: unknown): void;
+          setDoc(k: string, v: unknown): void;
+        }) => void,
+      ): void;
+    };
+    scenarios: { create(name: string): string; scenarios: { name: string }[]; active: string | null };
+    activateScenario(id: string | null): void;
+    setMsx(input: { name: string; text: string }): void;
+    mapTheme: { link: string };
+    setMapTheme(t: { link: string }): void;
+    dirty: boolean;
+  }
+  // A scenario with a bigger pipe 10, an isolation valve, an MSX input, a map theme.
+  await ws(page, (w) => {
+    const s = w.state as unknown as Live;
+    s.store.transact('Add isolation valve', (tx) =>
+      tx.setDoc('isolationValves', [{ link: '10', node: '10' }]),
+    );
+    s.setMsx({ name: 'chlorine.msx', text: '[SPECIES]\nBULK CL MG\n' });
+    s.setMapTheme({ link: 'velocity' });
+    const id = s.scenarios.create('Bigger mains');
+    s.activateScenario(id);
+    const h = s.store.doc.findLink('10');
+    s.store.transact('Diameter', (tx) => tx.set(h, 'diameter', 24));
+  });
+
+  const download = page.waitForEvent('download');
+  await page.keyboard.press('Control+Shift+S');
+  const file = await download;
+  expect(file.suggestedFilename()).toBe('Net1.wsproj');
+  const bytes = await readFile(await file.path());
+  expect(bytes.subarray(0, 15).toString()).toBe('SQLite format 3');
+  const said = (text: string) =>
+    expect.poll(() => ws(page, (w) => w.state.messages.map((m) => m.text).join('\n'))).toContain(text);
+  await said('Saved the project Net1.wsproj');
+
+  // Open another network, then the project.
+  await page.getByRole('button', { name: 'Open sample Net2' }).click();
+  await expect(page.locator('.statusbar')).not.toContainText('11 nodes · 13 links');
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Open network or project…' }).click();
+  await (
+    await chooser
+  ).setFiles({ name: 'Net1.wsproj', mimeType: 'application/octet-stream', buffer: bytes });
+  await expect(page.locator('.statusbar')).toContainText('11 nodes · 13 links');
+  await expect(page.locator('.statusbar')).toContainText('Scenario: Bigger mains');
+  const state = () =>
+    ws(page, (w) => {
+      const s = w.state as unknown as Live;
+      const d = s.store.doc;
+      return {
+        diameter: d.num(d.findLink('10'), 'diameter'),
+        valves: d.data.isolationValves.length,
+        msx: d.data.msx?.name ?? null,
+        scenarios: s.scenarios.scenarios.map((x) => x.name),
+        theme: s.mapTheme.link,
+        dirty: s.dirty,
+      };
+    });
+  expect(await state()).toEqual({
+    diameter: 24,
+    valves: 1,
+    msx: 'chlorine.msx',
+    scenarios: ['Bigger mains'],
+    theme: 'velocity',
+    dirty: false,
+  });
+  await ws(page, (w) => (w.state as unknown as Live).activateScenario(null));
+  expect((await state()).diameter).toBe(18);
+
+  // An edit is autosaved; after a reload the app offers it back.
+  await ws(page, (w) => {
+    const s = w.state as unknown as Live;
+    const h = s.store.doc.findLink('10');
+    s.store.transact('Diameter', (tx) => tx.set(h, 'diameter', 30));
+  });
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem('ws.autosave')), { timeout: 15_000 })
+    .toContain('"clean":false');
+  await ready(page);
+  await said('were autosaved');
+  page.once('dialog', (d) => void d.accept());
+  await page.getByRole('button', { name: 'Recover autosaved project' }).click();
+  await expect.poll(async () => (await state()).diameter).toBe(30);
+  expect(await state()).toMatchObject({ scenarios: ['Bigger mains'], valves: 1, dirty: true });
+});
+
 test('the editors have no WCAG 2.2 AA violations', async ({ page }) => {
   await ready(page);
   await ws(page, (w) => {

@@ -22,6 +22,9 @@ import { importGis, importShapefiles, shapefileFiles } from './gisio.ts';
 import { resolveCrs } from '../geo/crs.ts';
 import { backdropPlacement, crsText, modelCrs, withBackdropLine, withCrs } from '../geo/model.ts';
 import { openFilePicker, openFilesPicker, saveBinaryFile, saveBlob, saveTextFile } from './files.ts';
+import { isSqlite } from '@waterstudio/project';
+import { captureProject, projectFileName } from './project.ts';
+import { autosaveInfo, decodeProject, encodeProject, markAutosaveClean, readAutosave } from './projectio.ts';
 import { svgToPng } from '../viewport/svg.ts';
 import type { AppState, Tool } from './state.ts';
 
@@ -85,16 +88,19 @@ export function createCommands(state: AppState): CommandBus<AppState> {
     },
     {
       id: 'file.open',
-      title: 'Open .inp file…',
+      title: 'Open network or project…',
       icon: 'folder-open',
       shortcut: 'Mod+O',
       category: 'File',
       run: (s) =>
         guarded(s, 'Open failed', async () => {
           if (!confirmDiscard(s)) return;
-          const file = await openFilePicker('.inp,.INP,text/plain');
+          const file = await openFilePicker('.inp,.INP,.wsproj,text/plain');
           if (!file) return;
-          await s.openInp(await file.text(), file.name);
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          if (isSqlite(bytes)) s.openProject(await decodeProject(bytes), file.name);
+          else await s.openInp(new TextDecoder().decode(bytes), file.name);
+          markAutosaveClean();
           s.view?.fit();
         }),
     },
@@ -109,6 +115,7 @@ export function createCommands(state: AppState): CommandBus<AppState> {
           const res = await fetch(`/samples/${n}.inp`);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           await s.openInp(await res.text(), `${n}.inp`);
+          markAutosaveClean();
           s.view?.fit();
         }),
     })),
@@ -122,7 +129,56 @@ export function createCommands(state: AppState): CommandBus<AppState> {
         guarded(s, 'Save failed', async () => {
           const text = await s.saveInp();
           saveTextFile(text, s.fileName.endsWith('.inp') ? s.fileName : `${s.fileName}.inp`);
+          markAutosaveClean();
           s.log('info', `Saved ${s.fileName}.`);
+          if (
+            s.scenarios.scenarios.length > 0 ||
+            s.store.doc.data.isolationValves.length > 0 ||
+            s.store.doc.data.msx
+          )
+            s.log(
+              'warning',
+              'An .inp file keeps only the network: save a project to keep scenarios, isolation valves and the MSX input.',
+            );
+        }),
+    },
+    {
+      id: 'file.save.project',
+      title: 'Save project',
+      icon: 'archive',
+      shortcut: 'Mod+Shift+S',
+      category: 'File',
+      run: (s) =>
+        guarded(s, 'Save failed', async () => {
+          const rev = s.store.rev;
+          const bytes = await encodeProject(captureProject(s));
+          const name = projectFileName(s);
+          saveBinaryFile(bytes, name);
+          if (s.store.rev === rev) s.markSaved(name);
+          markAutosaveClean();
+          s.log('info', `Saved the project ${name}.`);
+        }),
+    },
+    {
+      id: 'file.recover',
+      title: 'Recover autosaved project',
+      icon: 'history',
+      category: 'File',
+      enabled: () => autosaveInfo() !== null,
+      run: (s) =>
+        guarded(s, 'Recovery failed', async () => {
+          if (!confirmDiscard(s)) return;
+          const info = autosaveInfo();
+          const bytes = await readAutosave();
+          if (!info || !bytes) throw new Error('there is no autosaved project');
+          const p = await decodeProject(bytes);
+          s.openProject(p, info.name.replace(/\.inp$/i, '.wsproj'));
+          s.projectName = null;
+          // Recovered work is unsaved until it is written to a file.
+          s.savedRev = -1;
+          s.log('info', `Recovered ${info.name} as autosaved at ${new Date(info.time).toLocaleString()}.`);
+          s.emit();
+          s.view?.fit();
         }),
     },
     {

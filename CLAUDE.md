@@ -38,7 +38,8 @@ WaterStudio is a browser-based, open-source successor to EPA EPANET. Read `docs/
   `ws-cli` command line, `ws-hyd` benchmark)
 - `packages/`: `core` (document store, edits, options, scenarios), `ui` (tokens, icons, components), `symbols`
   (symbol masters), `render` (WebGPU and Canvas 2D map renderer), `engine-client` (engine workers), `gis`
-  (GeoJSON, shapefile, DXF), `agents` (tool registry, providers, assistant loop)
+  (GeoJSON, shapefile, DXF, DEMs), `project` (the .wsproj SQLite project file), `agents` (tool registry, providers,
+  assistant loop)
 - `apps/web`: the app (Vite, React for the shell only)
 - `oracle/`: reference engine builds (OWA-EPANET, EPANET-MSX), corpus fetch, comparison and ratchet
 - `scripts/`: build and verification scripts
