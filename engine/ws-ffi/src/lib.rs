@@ -1298,3 +1298,80 @@ pub unsafe extern "C" fn EN_setcontrol(
 pub unsafe extern "C" fn EN_setcontrolenabled(p: EnProject, index: c_int, enabled: c_int) -> c_int {
     with!(p, t => t.setcontrolenabled(index, enabled))
 }
+
+// ---- Network structure -----------------------------------------------------------------
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_addnode(
+    p: EnProject,
+    id: *const c_char,
+    node_type: c_int,
+    index: *mut c_int,
+) -> c_int {
+    // SAFETY: see `text`.
+    let s = unsafe { text(id) };
+    with!(p, t => {
+        let mut v = 0;
+        let e = t.addnode(&s, node_type, &mut v);
+        // SAFETY: see `out`.
+        unsafe { out(index, v) };
+        e
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_deletenode(p: EnProject, index: c_int, action_code: c_int) -> c_int {
+    with!(p, t => t.deletenode(index, action_code))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_addlink(
+    p: EnProject,
+    id: *const c_char,
+    link_type: c_int,
+    from_node: *const c_char,
+    to_node: *const c_char,
+    index: *mut c_int,
+) -> c_int {
+    // SAFETY: see `text`.
+    let (s, a, b) = unsafe { (text(id), text(from_node), text(to_node)) };
+    with!(p, t => {
+        let mut v = 0;
+        let e = t.addlink(&s, link_type, &a, &b, &mut v);
+        // SAFETY: see `out`.
+        unsafe { out(index, v) };
+        e
+    })
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_deletelink(p: EnProject, index: c_int, action_code: c_int) -> c_int {
+    with!(p, t => t.deletelink(index, action_code))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setlinknodes(
+    p: EnProject,
+    index: c_int,
+    node1: c_int,
+    node2: c_int,
+) -> c_int {
+    with!(p, t => t.setlinknodes(index, node1, node2))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setlinktype(
+    p: EnProject,
+    index: *mut c_int,
+    link_type: c_int,
+    action_code: c_int,
+) -> c_int {
+    with!(p, t => {
+        // SAFETY: index points at the caller's link index, read and rewritten.
+        let Some(i) = (unsafe { index.as_mut() }) else { return 204 };
+        let mut v = *i;
+        let e = t.setlinktype(&mut v, link_type, action_code);
+        *i = v;
+        e
+    })
+}

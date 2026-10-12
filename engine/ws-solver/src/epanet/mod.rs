@@ -214,6 +214,10 @@ pub(super) struct Meta {
     pub(super) curve_comment: Vec<Option<String>>,
     /// For each node, the name of each of its demand categories (parallel to `Node::d`).
     pub(super) demand_name: Vec<Vec<Option<String>>>,
+    /// `ResultIndex`: an element's position when `inithyd` last numbered them (0 until
+    /// then, and for elements added since). It moves with the element.
+    pub(super) node_result: Vec<i32>,
+    pub(super) link_result: Vec<i32>,
 }
 
 /// `xstrcpy`: a copy of at most `n` bytes, or None for an empty string.
@@ -270,6 +274,8 @@ impl Meta {
                     }
                 }))
                 .collect(),
+            node_result: vec![0; pr.net.nnodes + 1],
+            link_result: vec![0; pr.net.nlinks + 1],
         }
     }
 }
@@ -294,8 +300,6 @@ pub(super) struct Open {
     /// The hydraulics file and the position `readhyd` reads from next.
     pub(super) hydfile: Vec<HydRecord>,
     pub(super) hyd_next: usize,
-    /// Whether `inithyd` has numbered the elements' results (`ResultIndex`).
-    pub(super) result_index: bool,
     /// `report.Nperiods`.
     pub(super) nperiods: i64,
 }
@@ -306,6 +310,7 @@ pub struct Toolkit {
     pub(super) p: Option<Box<Open>>,
 }
 
+mod edit;
 mod set;
 
 /// `EN_geterror`'s text for each error code (`errors.dat`); "" for unknown codes.
@@ -487,7 +492,7 @@ impl Toolkit {
         Toolkit::default()
     }
 
-    fn o(&self) -> Option<&Open> {
+    pub(super) fn o(&self) -> Option<&Open> {
         self.p.as_deref()
     }
 
@@ -527,7 +532,6 @@ impl Toolkit {
             saveflag: false,
             hydfile: Vec::new(),
             hyd_next: 0,
-            result_index: false,
             nperiods: 0,
         }));
         0
@@ -662,6 +666,8 @@ impl Toolkit {
         }
         match hydraul::openhyd(&mut o.pr) {
             Ok(()) => {
+                // createsparse leaves fresh adjacency lists for the quality solver.
+                o.pr.adjlist = quality::buildadjlists(&o.pr.net);
                 o.open_h = true;
                 0
             }
@@ -690,7 +696,12 @@ impl Toolkit {
         }
         leakage::openleakage(&mut o.pr);
         hydraul::inithyd(&mut o.pr, fflag > 0);
-        o.result_index = true;
+        for (i, r) in o.meta.node_result.iter_mut().enumerate() {
+            *r = i as i32;
+        }
+        for (k, r) in o.meta.link_result.iter_mut().enumerate() {
+            *r = k as i32;
+        }
         0
     }
 
@@ -777,6 +788,7 @@ impl Toolkit {
         if !o.open_h && !o.save_h {
             return 104;
         }
+        o.pr.adjlist = quality::buildadjlists(&o.pr.net);
         match quality::openqual(&mut o.pr) {
             Ok(()) => {
                 o.open_q = true;
@@ -962,9 +974,11 @@ impl Toolkit {
         } else {
             return 251;
         }
-        if o.result_index {
-            *value = index;
-        }
+        *value = if kind == EN_NODE {
+            o.meta.node_result[index as usize]
+        } else {
+            o.meta.link_result[index as usize]
+        };
         0
     }
 
@@ -1132,14 +1146,14 @@ impl Toolkit {
     // ---- Nodes -----------------------------------------------------------------------
 
     /// `findnode`
-    fn findnode(o: &Open, id: &str) -> usize {
+    pub(super) fn findnode(o: &Open, id: &str) -> usize {
         (1..=o.pr.net.nnodes)
             .find(|&i| o.pr.net.node[i].id == id)
             .unwrap_or(0)
     }
 
     /// `findlink`
-    fn findlink(o: &Open, id: &str) -> usize {
+    pub(super) fn findlink(o: &Open, id: &str) -> usize {
         (1..=o.pr.net.nlinks)
             .find(|&i| o.pr.net.link[i].id == id)
             .unwrap_or(0)
@@ -1184,7 +1198,7 @@ impl Toolkit {
     }
 
     /// `incontrols` (project.c): whether a simple or rule-based control names an element.
-    fn incontrols(pr: &Project, node: bool, index: usize) -> bool {
+    pub(super) fn incontrols(pr: &Project, node: bool, index: usize) -> bool {
         let net = &pr.net;
         for i in 1..=net.ncontrols {
             if node && net.control[i].node == index {

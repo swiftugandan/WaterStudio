@@ -95,8 +95,8 @@ Gate: MSX examples within tolerance; all performance budgets met; agent evaluati
   settings, with `nodes` and `links` views for SQL tools; autosaved to the browser's private file system and
   recoverable after a crash or a closed tab
 - [ ] C toolkit API (`ws-ffi`, ADR 0016) and CLI: a drop-in `libepanet2` identical to OWA-EPANET's on every network;
-  done: project, analysis, every getter and every setter. Next: network structure, rules, reports, output and
-  .inp files, hydraulics files, the legacy `epanet2.h` API
+  done: project, analysis, every getter and setter, network structure. Next: rules, reports, output and .inp files,
+  hydraulics files, the legacy `epanet2.h` API
 - [ ] Proposal and review UI; MCP server
 
 ## Phase 4: Agent design 1.1

@@ -65,14 +65,19 @@ holds that same `Project`, field by field.
   - With quality open concurrently, the hydraulic step leaves the report time to the quality solver.
   - The toolkit's `Meta` (comments, tags, coordinates, vertices, demand names, titles) lives in solver order beside
     the `Project`, as C keeps it in `Snode` and `Slink`.
+- **Stage 3.** Network structure: `EN_addnode`, `EN_deletenode`, `EN_addlink`, `EN_deletelink`, `EN_setlinknodes`
+  and `EN_setlinktype`. These move every index into the network as C does: tanks, link ends, pumps, valves,
+  controls and rule premises, including C's quirk that a premise on the first tank keeps its index when a junction
+  is added. Each element's `ResultIndex` moves with it. As in C, hydraulic results stay where they were until the
+  next `EN_initH`. The adjacency lists are rebuilt whenever a solver opens.
 - The probe's mutation scenario applies every kind of setter to each network, valid calls and invalid ones (return
   codes printed), then reads everything and solves again: 64 of 64 networks give identical output.
-- The probe avoids two things that are undefined in OWA-EPANET. `EN_SOURCEMASS` on a source `EN_setnodevalue` has
-  just made reads uninitialised memory. `EN_gettitle` leaves a 79-character title unterminated, so the probe zeroes
-  its buffers.
+- The probe avoids what is undefined in OWA-EPANET:
+  - `EN_SOURCEMASS` on a source `EN_setnodevalue` has just made reads uninitialised memory.
+  - `EN_gettitle` leaves a 79-character title unterminated, so the probe zeroes its buffers.
+  - After structural edits, nodes' full demands and qualities are stale or uninitialised until a run sets them.
+  - Results are read only after a successful solve.
 - Not yet:
-  - network structure (`EN_addnode`, `EN_addlink`, `EN_deletenode`, `EN_deletelink`, `EN_setlinknodes`,
-    `EN_setlinktype`);
   - rule-based control access;
   - `EN_report`, `EN_saveinpfile`, and the report and output files from `EN_open`;
   - external hydraulics files (`EN_savehydfile`, `EN_usehydfile`);

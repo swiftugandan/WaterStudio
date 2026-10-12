@@ -113,7 +113,7 @@ pub(super) fn valvecheck(net: &Network, index: usize, t: LinkType, j1: usize, j2
     0
 }
 
-fn link_type(code: i32) -> Option<LinkType> {
+pub(super) fn link_type(code: i32) -> Option<LinkType> {
     Some(match code {
         0 => LinkType::CvPipe,
         1 => LinkType::Pipe,
@@ -267,7 +267,7 @@ fn makecontrol(
 }
 
 impl Toolkit {
-    fn om(&mut self) -> Option<&mut Open> {
+    pub(super) fn om(&mut self) -> Option<&mut Open> {
         self.p.as_deref_mut()
     }
 

@@ -53,7 +53,8 @@ pub fn allochyd(pr: &mut Project) {
     let nn = pr.net.nnodes;
     let nl = pr.net.nlinks;
     let hyd = &mut pr.hyd;
-    if hyd.node_head.len() == nn + 1 && hyd.link_flow.len() == nl + 1 {
+    // Kept when large enough: deleting elements leaves EPANET's arrays as they were.
+    if hyd.node_head.len() > nn && hyd.link_flow.len() > nl {
         return;
     }
     hyd.node_head = vec![0.0; nn + 1];

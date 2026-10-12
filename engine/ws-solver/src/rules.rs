@@ -144,7 +144,46 @@ pub(crate) fn updateruleunits(pr: &mut Project, dcf: f64, pcf: f64, hcf: f64, qc
     }
 }
 
+/// `adjustrules` (rules.c): delete the rules that name a deleted node or link, then
+/// lower the indices above it.
+pub(crate) fn adjustrules(rules: &mut Vec<Rule>, node: bool, index: usize) {
+    let object = if node { Object::Node } else { Object::Link };
+    rules.retain(|r| {
+        let named = r
+            .premises
+            .iter()
+            .any(|p| p.object == object && p.index == index)
+            || (!node
+                && (r.then_actions.iter().any(|a| a.link == index)
+                    || r.else_actions.iter().any(|a| a.link == index)));
+        !named
+    });
+    for r in rules.iter_mut() {
+        for p in &mut r.premises {
+            if p.object == object && p.index > index {
+                p.index -= 1;
+            }
+        }
+        if !node {
+            for a in r.then_actions.iter_mut().chain(r.else_actions.iter_mut()) {
+                if a.link > index {
+                    a.link -= 1;
+                }
+            }
+        }
+    }
+}
+
 impl Rule {
+    /// `adjusttankrules` (rules.c) for one rule: move node premises above `njuncs`.
+    pub(crate) fn shift_tank_premises(&mut self, njuncs: usize, ndiff: usize) {
+        for p in &mut self.premises {
+            if p.object == Object::Node && p.index > njuncs {
+                p.index += ndiff;
+            }
+        }
+    }
+
     /// Whether the rule names a node (in a premise) or a link (in a premise or an
     /// action), as `incontrols` (project.c) checks.
     pub fn names(&self, node: bool, index: usize) -> bool {

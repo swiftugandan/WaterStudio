@@ -87,8 +87,15 @@ static const int DYN_LINK[] = {EN_FLOW, EN_VELOCITY, EN_HEADLOSS, EN_STATUS, EN_
                                EN_PUMP_STATE, EN_PUMP_EFFIC, EN_LINK_LEAKAGE};
 
 static void dynamic(const char *tag) {
-  for (size_t i = 0; i < sizeof DYN_NODE / sizeof *DYN_NODE; i++) nodeprop(tag, DYN_NODE[i]);
-  for (size_t i = 0; i < sizeof DYN_LINK / sizeof *DYN_LINK; i++) linkprop(tag, DYN_LINK[i]);
+  /* Nothing writes a tank's full demand, so for tanks added by EN_addnode OWA-EPANET
+     returns uninitialised memory: EN_FULLDEMAND is not read after the edits. */
+  /* Likewise node qualities: EN_addnode grows NodeQual without shifting it, so until a
+     quality run sets them they are stale (and one is uninitialised): qualities are read
+     in quality runs only after the edits. */
+  for (size_t i = 0; i < sizeof DYN_NODE / sizeof *DYN_NODE; i++)
+    if (!(mutated && (DYN_NODE[i] == EN_FULLDEMAND || DYN_NODE[i] == EN_QUALITY))) nodeprop(tag, DYN_NODE[i]);
+  for (size_t i = 0; i < sizeof DYN_LINK / sizeof *DYN_LINK; i++)
+    if (!(mutated && DYN_LINK[i] == EN_LINKQUAL)) linkprop(tag, DYN_LINK[i]);
   stats(tag);
 }
 
@@ -407,8 +414,71 @@ static void mutate(void) {
   counts();
 }
 
+/* Add and delete nodes and links, change link types and end nodes. */
+static void restructure(void) {
+  int xj = 0, xt = 0, xr = 0, xl1 = 0, xl2 = 0, xp = 0, xv = 0, xj2 = 0, n = 0, crv = 0, ci = 0;
+  char id1[EN_MAXID + 1] = "", id2[EN_MAXID + 1] = "", id3[EN_MAXID + 1] = "";
+  double el = 0;
+  counts();
+  EN_getnodeid(ph, 1, id1);
+  EN_getnodeid(ph, nnodes > 1 ? 2 : 1, id2);
+  EN_getnodeid(ph, nnodes > 2 ? 3 : 1, id3);
+  EN_getnodevalue(ph, 1, EN_ELEVATION, &el);
+  EN_getcurveindex(ph, "CY", &crv);
+
+  /* Structure is locked while a solver is open (the earlier quality solver still is). */
+  SET(EN_addnode(ph, "XJ0", EN_JUNCTION, &n));
+  SET(EN_closeQ(ph));
+  SET(EN_setqualtype(ph, EN_CHEM, "Chlorine", "mg/L", ""));
+  SET(EN_addnode(ph, "XJ1", EN_JUNCTION, &xj));
+  SET(EN_addnode(ph, "XJ1", EN_JUNCTION, &n));
+  SET(EN_addnode(ph, "X J", EN_JUNCTION, &n));
+  SET(EN_addnode(ph, "XQ", 7, &n));
+  SET(EN_setnodevalue(ph, xj, EN_ELEVATION, el));
+  SET(EN_setnodevalue(ph, xj, EN_BASEDEMAND, 1));
+  SET(EN_addnode(ph, "XT1", EN_TANK, &xt));
+  SET(EN_settankdata(ph, xt, el + 20, 5, 0, 10, 20, 0, ""));
+  SET(EN_addnode(ph, "XR1", EN_RESERVOIR, &xr));
+  SET(EN_setnodevalue(ph, xr, EN_ELEVATION, el + 30));
+  SET(EN_getnodeindex(ph, "XJ1", &xj));
+  SET(EN_getnodeindex(ph, "XT1", &xt));
+  SET(EN_addlink(ph, "XL1", EN_PIPE, id1, "XJ1", &xl1));
+  SET(EN_addlink(ph, "XL2", EN_PIPE, "XJ1", "XT1", &xl2));
+  SET(EN_addlink(ph, "XP1", EN_PUMP, "XR1", "XJ1", &xp));
+  SET(EN_addlink(ph, "XV1", EN_TCV, "XJ1", id2, &xv));
+  SET(EN_addlink(ph, "XV2", EN_PRV, "XJ1", "XT1", &n));
+  SET(EN_addlink(ph, "XL1", EN_PIPE, id1, "XJ1", &n));
+  SET(EN_addlink(ph, "XL9", EN_PIPE, id1, "nowhere", &n));
+  if (crv) SET(EN_setheadcurveindex(ph, xp, crv));
+  else SET(EN_setlinkvalue(ph, xp, EN_PUMP_POWER, 10));
+  SET(EN_setlinkvalue(ph, xv, EN_INITSETTING, 2));
+  SET(EN_addcontrol(ph, EN_TIMER, xl2, 0, 0, 3600, &ci));
+  SET(EN_setlinktype(ph, &xl2, EN_CVPIPE, EN_CONDITIONAL));
+  SET(EN_setlinktype(ph, &xl1, EN_PRV, EN_CONDITIONAL));
+  printf("xl1 now %d\n", xl1);
+  SET(EN_setlinktype(ph, &xl1, EN_PIPE, EN_UNCONDITIONAL));
+  SET(EN_getlinkindex(ph, "XV1", &xv));
+  SET(EN_setlinknodes(ph, xv, xj, nnodes > 2 ? 3 : 1));
+  SET(EN_setlinknodes(ph, xv, xj, xj));
+  SET(EN_setcomment(ph, EN_LINK, xv, "a new valve"));
+  SET(EN_setcoord(ph, xj, 1, 2));
+  SET(EN_deletenode(ph, xr, EN_CONDITIONAL));
+  SET(EN_deletenode(ph, xr, EN_UNCONDITIONAL));
+  SET(EN_deletelink(ph, xl2, EN_CONDITIONAL));
+  SET(EN_addnode(ph, "XJ2", EN_JUNCTION, &xj2));
+  SET(EN_deletenode(ph, xj2, EN_CONDITIONAL));
+  SET(EN_deletenode(ph, 1, EN_CONDITIONAL));
+  SET(EN_deletenode(ph, 0, EN_UNCONDITIONAL));
+  SET(EN_deletelink(ph, 0, EN_UNCONDITIONAL));
+  counts();
+  /* The last original link, conditionally (it may be in a control). */
+  SET(EN_deletelink(ph, nlinks > 6 ? nlinks - 5 : 1, EN_CONDITIONAL));
+  counts();
+}
+
 static void hydraulics(int initflag) {
   long t = 0, tstep = 0, left = 0;
+  int solved = 0;
   int e = EN_openH(ph); printf("openH %d\n", e);
   e = EN_initH(ph, initflag); printf("initH %d\n", e);
   int step = 0;
@@ -416,13 +486,14 @@ static void hydraulics(int initflag) {
     e = EN_runH(ph, &t);
     char tag[64]; snprintf(tag, sizeof tag, "H%d@%ld", step++, t);
     printf("%s runH %d\n", tag, e);
-    dynamic(tag);
+    /* Without a solution there is nothing to read (the arrays hold stale values). */
+    if (e <= 100) { dynamic(tag); solved = 1; }
     e = EN_timetonextevent(ph, &(int){0}, &left, &(int){0});
     e = EN_nextH(ph, &tstep);
     printf("%s nextH %d %ld\n", tag, e, tstep);
     if (e > 100 || step > 100000) break;
   } while (tstep > 0);
-  arrays("H-end");
+  if (solved) arrays("H-end");
 }
 
 static void quality_from_file(int use_step) {
@@ -435,7 +506,7 @@ static void quality_from_file(int use_step) {
       e = EN_runQ(ph, &t);
       char tag[64]; snprintf(tag, sizeof tag, "Q%d@%ld", step++, t);
       printf("%s runQ %d\n", tag, e);
-      quality(tag);
+      if (e <= 100) quality(tag);
       e = EN_nextQ(ph, &tstep);
       printf("%s nextQ %d %ld\n", tag, e, tstep);
       if (e > 100 || step > 100000) break;
@@ -443,14 +514,15 @@ static void quality_from_file(int use_step) {
   } else {
     e = EN_runQ(ph, &t);
     printf("S runQ %d %ld\n", e, t);
+    int ok = e <= 100;
     do {
       e = EN_stepQ(ph, &tstep);
       char tag[64]; snprintf(tag, sizeof tag, "S%d@%ld", step++, tstep);
       printf("%s stepQ %d\n", tag, e);
-      if (step % 7 == 1) quality(tag);
+      if (ok && step % 7 == 1) quality(tag);
       if (e > 100 || step > 100000) break;
     } while (tstep > 0);
-    quality("S-end");
+    if (ok) quality("S-end");
   }
   e = EN_closeQ(ph); printf("closeQ %d\n", e);
 }
@@ -467,7 +539,7 @@ static void concurrent(void) {
     int e2 = EN_runQ(ph, &qt);
     char tag[64]; snprintf(tag, sizeof tag, "C%d@%ld", step++, t);
     printf("%s run %d %d %ld\n", tag, e, e2, qt);
-    quality(tag);
+    if (e <= 100 && e2 <= 100) quality(tag);
     e = EN_nextH(ph, &tstep);
     e2 = EN_nextQ(ph, &qstep);
     printf("%s next %d %ld %d %ld\n", tag, e, tstep, e2, qstep);
@@ -511,6 +583,7 @@ int main(int argc, char **argv) {
 
   /* Change everything the setters reach, then read and solve again. */
   mutate();
+  restructure();
   mutated = 1;
   statics();
   hydraulics(EN_SAVE);

@@ -222,3 +222,43 @@ fn setters_change_what_the_solver_sees() {
     assert_eq!(id, "J1b");
     assert_eq!(t.setnodeid(2, "J1b"), 215);
 }
+
+#[test]
+fn edits_the_network_structure() {
+    let mut t = open();
+    let (mut j, mut k, mut n, mut tank) = (0, 0, 0, 0);
+    assert_eq!(t.addnode("J3", EN_JUNCTION, &mut j), 0);
+    assert_eq!(j, 3); // junctions stay before tanks and reservoirs
+    t.getnodeindex("T", &mut tank);
+    assert_eq!(tank, 5);
+    assert_eq!(t.addlink("P4", 1, "J2", "J3", &mut k), 0);
+    t.getcount(EN_LINKCOUNT, &mut n);
+    assert_eq!((k, n), (4, 4));
+    let (mut n1, mut n2) = (0, 0);
+    t.getlinknodes(3, &mut n1, &mut n2); // P3 J2-T follows the tank's new index
+    assert_eq!((n1, n2), (2, 5));
+    assert_eq!(t.setnodevalue(j, EN_ELEVATION, 80.0), 0);
+    assert_eq!(t.setnodevalue(j, EN_BASEDEMAND, 5.0), 0);
+    assert_eq!(t.solve_h(), 0);
+    // Structure is locked while a solver is open.
+    assert_eq!(t.open_h(), 0);
+    assert_eq!(t.addnode("J4", EN_JUNCTION, &mut n), 262);
+    assert_eq!(t.close_h(), 0);
+    // A connected node goes only unconditionally, taking its links with it.
+    assert_eq!(t.deletenode(j, 1), 259);
+    assert_eq!(t.deletenode(j, 0), 0);
+    t.getcount(EN_LINKCOUNT, &mut n);
+    assert_eq!(n, 3);
+    t.getnodeindex("T", &mut tank);
+    assert_eq!(tank, 4);
+    // Changing a pipe into a pump replaces it at the end.
+    let mut p2 = 2;
+    assert_eq!(t.setlinktype(&mut p2, 2, 0), 0);
+    assert_eq!(p2, 3);
+    let mut ty = 0;
+    t.getlinktype(p2, &mut ty);
+    assert_eq!(ty, 2);
+    let mut id = String::new();
+    t.getlinkid(p2, &mut id);
+    assert_eq!(id, "P2");
+}
