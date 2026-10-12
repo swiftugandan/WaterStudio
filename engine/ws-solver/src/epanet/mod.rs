@@ -311,6 +311,7 @@ pub struct Toolkit {
 }
 
 mod edit;
+mod rules;
 mod set;
 
 /// `EN_geterror`'s text for each error code (`errors.dat`); "" for unknown codes.

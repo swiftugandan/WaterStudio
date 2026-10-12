@@ -28,6 +28,7 @@ static int nnodes, nlinks, npats, ncurves, ncontrols, nrules;
 /* A source made by EN_setnodevalue has no mass until a quality run sets it: OWA-EPANET
    leaves the field uninitialised, so EN_SOURCEMASS is not read after the setters. */
 static int mutated;
+static void dumprules(const char *tag);
 
 static void nodeprop(const char *tag, int prop) {
   Hash x; hinit(&x);
@@ -217,6 +218,7 @@ static void statics(void) {
     int e2 = EN_getcontrolenabled(ph, i, &en);
     printf("control %d %d: %d %d %.17g %d %.17g | %d %d\n", i, e, t, l, s, n, lv, e2, en);
   }
+  dumprules("S");
   printf("errors");
   int bad[] = {EN_getnodevalue(ph, 0, 0, &(double){0}), EN_getnodevalue(ph, 1, 99, &(double){0}),
                EN_getlinkvalue(ph, nlinks + 1, 0, &(double){0}), EN_getnodeindex(ph, "no such node", &v),
@@ -476,6 +478,74 @@ static void restructure(void) {
   counts();
 }
 
+static void dumprules(const char *tag) {
+  int n = 0;
+  EN_getcount(ph, EN_RULECOUNT, &n);
+  for (int r = 0; r <= n + 1; r++) {
+    int np = -1, nt = -1, ne = -1, en = -1; double pr = -1;
+    char id[EN_MAXID + 1] = "";
+    int e = EN_getrule(ph, r, &np, &nt, &ne, &pr);
+    int e2 = EN_getruleID(ph, r, id);
+    int e3 = EN_getruleenabled(ph, r, &en);
+    printf("%s rule %d %d %d %d %d %.17g [%s] %d %d %d\n", tag, r, e, np, nt, ne, pr, id, e2, e3, en);
+    for (int i = 0; i <= np + 1 && e == 0; i++) {
+      int lo = -1, ob = -1, ix = -1, va = -1, ro = -1, st = -1; double v = -1;
+      int ep = EN_getpremise(ph, r, i, &lo, &ob, &ix, &va, &ro, &st, &v);
+      printf("%s  premise %d %d: %d %d %d %d %d %d %.17g\n", tag, i, ep, lo, ob, ix, va, ro, st, v);
+    }
+    for (int i = 0; i <= nt + 1 && e == 0; i++) {
+      int l = -1, st = -1; double v = -1;
+      int ea = EN_getthenaction(ph, r, i, &l, &st, &v);
+      printf("%s  then %d %d: %d %d %.17g\n", tag, i, ea, l, st, v);
+    }
+    for (int i = 0; i <= ne + 1 && e == 0; i++) {
+      int l = -1, st = -1; double v = -1;
+      int ea = EN_getelseaction(ph, r, i, &l, &st, &v);
+      printf("%s  else %d %d: %d %d %.17g\n", tag, i, ea, l, st, v);
+    }
+  }
+}
+
+/* Add, change and delete rule-based controls. */
+static void ruleplay(void) {
+  int pipe = 0, t;
+  char nid[EN_MAXID + 1] = "", lid[EN_MAXID + 1] = "", rule[1024];
+  counts();
+  for (int k = 1; k <= nlinks && !pipe; k++) { EN_getlinktype(ph, k, &t); if (t == EN_PIPE) pipe = k; }
+  if (!pipe) return;
+  EN_getnodeid(ph, 1, nid);
+  EN_getlinkid(ph, pipe, lid);
+  snprintf(rule, sizeof rule,
+           "RULE RX1\nIF NODE %s PRESSURE ABOVE 10 ; a comment\nAND SYSTEM CLOCKTIME >= 6 AM\nOR SYSTEM TIME < 3\n"
+           "THEN LINK %s STATUS IS CLOSED\nELSE LINK %s STATUS IS OPEN\nPRIORITY 3", nid, lid, lid);
+  SET(EN_addrule(ph, rule));
+  snprintf(rule, sizeof rule, "RULE RX2\nIF LINK %s FLOW > 0\nTHEN LINK %s SETTING = 90\nDISABLED", lid, lid);
+  SET(EN_addrule(ph, rule));
+  /* Every EN_addrule that fails crashes OWA-EPANET 2.3.5 (its error path deletes a rule
+     it has not finished making), so only valid rules are added. */
+  counts();
+  dumprules("R");
+  if (nrules >= 1) {
+    SET(EN_setpremise(ph, nrules, 1, 2, EN_R_NODE, 1, EN_R_HEAD, EN_R_GT, 0, 20));
+    SET(EN_setpremisevalue(ph, nrules, 1, 25));
+    SET(EN_setpremisestatus(ph, nrules, 1, 0));
+    SET(EN_setpremiseindex(ph, nrules, 1, 1));
+    SET(EN_setpremise(ph, nrules, 9, 2, EN_R_NODE, 1, EN_R_HEAD, EN_R_GT, 0, 20));
+    SET(EN_setthenaction(ph, nrules, 1, pipe, EN_R_IS_OPEN, 0));
+    SET(EN_setthenaction(ph, nrules, 5, pipe, EN_R_IS_OPEN, 0));
+    SET(EN_setelseaction(ph, nrules, 1, pipe, EN_R_IS_CLOSED, 0));
+    SET(EN_setrulepriority(ph, nrules, 7.5));
+    SET(EN_setruleenabled(ph, nrules, 1));
+    SET(EN_setruleenabled(ph, nrules, 5));
+  }
+  SET(EN_setrulepriority(ph, nrules + 1, 1));
+  SET(EN_getruleenabled(ph, nrules + 1, &t));
+  if (nrules >= 2) SET(EN_deleterule(ph, 1));
+  SET(EN_deleterule(ph, 0));
+  counts();
+  dumprules("R2");
+}
+
 static void hydraulics(int initflag) {
   long t = 0, tstep = 0, left = 0;
   int solved = 0;
@@ -584,6 +654,7 @@ int main(int argc, char **argv) {
   /* Change everything the setters reach, then read and solve again. */
   mutate();
   restructure();
+  ruleplay();
   mutated = 1;
   statics();
   hydraulics(EN_SAVE);

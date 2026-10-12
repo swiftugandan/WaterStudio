@@ -1375,3 +1375,186 @@ pub unsafe extern "C" fn EN_setlinktype(
         e
     })
 }
+
+// ---- Rule-based controls ---------------------------------------------------------------
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_addrule(p: EnProject, rule: *mut c_char) -> c_int {
+    // SAFETY: see `text`.
+    let s = unsafe { text(rule) };
+    with!(p, t => t.addrule(&s))
+}
+
+by_index!(EN_deleterule, deleterule);
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_getrule(
+    p: EnProject,
+    index: c_int,
+    n_premises: *mut c_int,
+    n_then_actions: *mut c_int,
+    n_else_actions: *mut c_int,
+    priority: *mut c_double,
+) -> c_int {
+    with!(p, t => {
+        let (mut a, mut b, mut c, mut d) = (0, 0, 0, 0.0);
+        let e = t.getrule(index, &mut a, &mut b, &mut c, &mut d);
+        if e == 0 {
+            // SAFETY: see `out`.
+            unsafe {
+                out(n_premises, a);
+                out(n_then_actions, b);
+                out(n_else_actions, c);
+                out(priority, d);
+            }
+        }
+        e
+    })
+}
+
+id_of!(EN_getruleID, getruleid);
+
+#[unsafe(no_mangle)]
+#[allow(clippy::too_many_arguments)]
+pub unsafe extern "C" fn EN_getpremise(
+    p: EnProject,
+    rule_index: c_int,
+    premise_index: c_int,
+    logop: *mut c_int,
+    object: *mut c_int,
+    obj_index: *mut c_int,
+    variable: *mut c_int,
+    relop: *mut c_int,
+    status: *mut c_int,
+    value: *mut c_double,
+) -> c_int {
+    with!(p, t => {
+        let (mut a, mut b, mut c, mut d, mut e2, mut f, mut g) = (0, 0, 0, 0, 0, 0, 0.0);
+        let e = t.getpremise(rule_index, premise_index, &mut a, &mut b, &mut c, &mut d, &mut e2, &mut f, &mut g);
+        if e == 0 {
+            // SAFETY: see `out`.
+            unsafe {
+                out(logop, a);
+                out(object, b);
+                out(obj_index, c);
+                out(variable, d);
+                out(relop, e2);
+                out(status, f);
+                out(value, g);
+            }
+        }
+        e
+    })
+}
+
+#[unsafe(no_mangle)]
+#[allow(clippy::too_many_arguments)]
+pub unsafe extern "C" fn EN_setpremise(
+    p: EnProject,
+    rule_index: c_int,
+    premise_index: c_int,
+    logop: c_int,
+    object: c_int,
+    obj_index: c_int,
+    variable: c_int,
+    relop: c_int,
+    status: c_int,
+    value: c_double,
+) -> c_int {
+    with!(p, t => t.setpremise(rule_index, premise_index, logop, object, obj_index, variable, relop, status, value))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setpremiseindex(
+    p: EnProject,
+    rule_index: c_int,
+    premise_index: c_int,
+    obj_index: c_int,
+) -> c_int {
+    with!(p, t => t.setpremiseindex(rule_index, premise_index, obj_index))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setpremisestatus(
+    p: EnProject,
+    rule_index: c_int,
+    premise_index: c_int,
+    status: c_int,
+) -> c_int {
+    with!(p, t => t.setpremisestatus(rule_index, premise_index, status))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setpremisevalue(
+    p: EnProject,
+    rule_index: c_int,
+    premise_index: c_int,
+    value: c_double,
+) -> c_int {
+    with!(p, t => t.setpremisevalue(rule_index, premise_index, value))
+}
+
+macro_rules! get_action {
+    ($name:ident, $method:ident) => {
+        #[unsafe(no_mangle)]
+        pub unsafe extern "C" fn $name(
+            p: EnProject,
+            rule_index: c_int,
+            action_index: c_int,
+            link_index: *mut c_int,
+            status: *mut c_int,
+            setting: *mut c_double,
+        ) -> c_int {
+            with!(p, t => {
+                let (mut a, mut b, mut c) = (0, 0, 0.0);
+                let e = t.$method(rule_index, action_index, &mut a, &mut b, &mut c);
+                if e == 0 {
+                    // SAFETY: see `out`.
+                    unsafe {
+                        out(link_index, a);
+                        out(status, b);
+                        out(setting, c);
+                    }
+                }
+                e
+            })
+        }
+    };
+}
+
+macro_rules! set_action {
+    ($name:ident, $method:ident) => {
+        #[unsafe(no_mangle)]
+        pub unsafe extern "C" fn $name(
+            p: EnProject,
+            rule_index: c_int,
+            action_index: c_int,
+            link_index: c_int,
+            status: c_int,
+            setting: c_double,
+        ) -> c_int {
+            with!(p, t => t.$method(rule_index, action_index, link_index, status, setting))
+        }
+    };
+}
+
+get_action!(EN_getthenaction, getthenaction);
+get_action!(EN_getelseaction, getelseaction);
+set_action!(EN_setthenaction, setthenaction);
+set_action!(EN_setelseaction, setelseaction);
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setrulepriority(
+    p: EnProject,
+    index: c_int,
+    priority: c_double,
+) -> c_int {
+    with!(p, t => t.setrulepriority(index, priority))
+}
+
+int_of!(EN_getruleenabled, getruleenabled, keep);
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setruleenabled(p: EnProject, index: c_int, enabled: c_int) -> c_int {
+    with!(p, t => t.setruleenabled(index, enabled))
+}

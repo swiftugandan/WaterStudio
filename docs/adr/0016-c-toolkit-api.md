@@ -70,6 +70,10 @@ holds that same `Project`, field by field.
   controls and rule premises, including C's quirk that a premise on the first tank keeps its index when a junction
   is added. Each element's `ResultIndex` moves with it. As in C, hydraulic results stay where they were until the
   next `EN_initH`. The adjacency lists are rebuilt whenever a solver opens.
+- **Stage 4.** Rule-based controls: `EN_addrule` parses rule text with the same parser as `[RULES]`, and the
+  rest read and change rules, premises, actions, priorities and whether a rule is enabled. As in C, a failed
+  `EN_addrule` deletes the last rule. `EN_setpremise` accepts only codes the evaluator knows (251 otherwise), where
+  C stores any number. Every failing `EN_addrule` crashes OWA-EPANET 2.3.5, so the probe compares valid rules only.
 - The probe's mutation scenario applies every kind of setter to each network, valid calls and invalid ones (return
   codes printed), then reads everything and solves again: 64 of 64 networks give identical output.
 - The probe avoids what is undefined in OWA-EPANET:
@@ -78,7 +82,6 @@ holds that same `Project`, field by field.
   - After structural edits, nodes' full demands and qualities are stale or uninitialised until a run sets them.
   - Results are read only after a successful solve.
 - Not yet:
-  - rule-based control access;
   - `EN_report`, `EN_saveinpfile`, and the report and output files from `EN_open`;
   - external hydraulics files (`EN_savehydfile`, `EN_usehydfile`);
   - `EN_init`;
