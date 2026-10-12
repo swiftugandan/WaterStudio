@@ -463,7 +463,3 @@ export const DRAFT_TOOLS: Tool<never>[] = [
   discardDraft,
   submitProposal,
 ] as Tool<never>[];
-
-export const DRAFT_PROMPT = `
-
-You can also edit, through a draft: a private copy of the model that only you see. set_properties, add_nodes, add_links and delete_elements change the draft; the read tools and run_analysis look at the draft. When the change does what was asked, submit it with submit_proposal: the engineer reviews it and decides whether to apply it to the model. Check the result with run_analysis and find_violations before you submit, and say in the rationale which limits are still not met. Never claim the model has been changed: only the engineer can accept a proposal.`;

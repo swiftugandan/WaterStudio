@@ -31,6 +31,7 @@ import type { AppState, Tool } from './state.ts';
 const PANEL_ICONS: Record<string, string> = {
   report: 'file-text',
   assistant: 'sparkles',
+  proposals: 'git-pull-request',
   options: 'settings',
   patterns: 'chart-column',
   curves: 'spline',
@@ -639,6 +640,7 @@ export function createCommands(state: AppState): CommandBus<AppState> {
         ['messages', 'Messages'],
         ['report', 'Reports'],
         ['assistant', 'Assistant'],
+        ['proposals', 'Proposals'],
         ['options', 'Options'],
         ['patterns', 'Patterns'],
         ['curves', 'Curves'],

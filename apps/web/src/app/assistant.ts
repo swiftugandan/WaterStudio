@@ -7,12 +7,17 @@
 import {
   AssistantSession,
   DEFAULT_SETTINGS,
+  draftContext,
+  DRAFT_TOOLS,
   providerFor,
   READ_TOOLS,
+  systemPrompt,
   ToolRegistry,
   type AgentContext,
+  type AgentHost,
   type ProviderSettings,
   type RunView,
+  type Scope,
   type SessionEvent,
 } from '@waterstudio/agents';
 import { toModel } from '@waterstudio/core';
@@ -22,8 +27,12 @@ import { ctime } from './time.ts';
 const KEY = 'ws.assistant';
 const SECRET = 'ws.assistant.key';
 
+/** What the assistant may do: look only, or also propose changes for review. */
+export type AssistantMode = 'read' | 'propose';
+
 export interface StoredSettings extends ProviderSettings {
   rememberKey: boolean;
+  mode: AssistantMode;
 }
 
 function storage(kind: 'local' | 'session'): Storage | null {
@@ -47,6 +56,7 @@ export function loadSettings(): StoredSettings {
     endpoint: s.endpoint || DEFAULT_SETTINGS.endpoint,
     model: s.model || DEFAULT_SETTINGS.model,
     rememberKey: s.rememberKey === true,
+    mode: s.mode === 'read' ? 'read' : 'propose',
     ...(key ? { apiKey: key } : {}),
   };
 }
@@ -100,6 +110,32 @@ export function agentContext(state: AppState): AgentContext {
   };
 }
 
+/** The app as a host for an agent that drafts and proposes. */
+export function agentHost(state: AppState, author: string): AgentHost {
+  return {
+    get units() {
+      return state.units;
+    },
+    get fileName() {
+      return state.fileName;
+    },
+    author,
+    doc: () => state.store.doc,
+    period: () => state.period,
+    run: async (doc) => (await state.engine.run(toModel(doc))).value,
+    files: async (doc, statusLog) =>
+      (
+        await state.engine.runFiles({
+          model: toModel(doc),
+          inpName: state.fileName,
+          date: ctime(),
+          statusLog,
+        })
+      ).value,
+    submit: (p) => state.submitProposal(p),
+  };
+}
+
 export type Entry =
   | { kind: 'user'; text: string }
   | { kind: 'assistant'; text: string }
@@ -113,18 +149,36 @@ export class Conversation {
   private session: AssistantSession | null = null;
   private settingsKey = '';
   private abort: AbortController | null = null;
-  private readonly registry = new ToolRegistry(READ_TOOLS);
+  private readonly registry = new ToolRegistry([...READ_TOOLS, ...DRAFT_TOOLS]);
   private readonly state: AppState;
+  /** The settings of the last message, for sending a proposal back later. */
+  private settings: StoredSettings | null = null;
 
   constructor(state: AppState) {
     this.state = state;
   }
 
-  async send(text: string, settings: ProviderSettings): Promise<void> {
-    const key = JSON.stringify([settings.kind, settings.endpoint, settings.model, settings.apiKey ?? '']);
+  async send(text: string, settings: StoredSettings): Promise<void> {
+    this.settings = settings;
+    const key = JSON.stringify([
+      settings.kind,
+      settings.endpoint,
+      settings.model,
+      settings.apiKey ?? '',
+      settings.mode,
+    ]);
     if (!this.session || key !== this.settingsKey) {
       this.settingsKey = key;
-      this.session = new AssistantSession(providerFor(settings), this.registry, agentContext(this.state));
+      const propose = settings.mode === 'propose';
+      const scopes: Scope[] = propose ? ['read', 'analyse', 'draft', 'propose'] : ['read', 'analyse'];
+      const ctx = propose
+        ? draftContext(agentHost(this.state, `Assistant (${settings.model})`))
+        : agentContext(this.state);
+      this.session = new AssistantSession(providerFor(settings), this.registry, ctx, {
+        system: systemPrompt(propose),
+        scopes,
+        maxSteps: propose ? 30 : 12,
+      });
     }
     this.entries = [...this.entries, { kind: 'user', text }];
     this.busy = true;
@@ -148,6 +202,13 @@ export class Conversation {
       this.abort = null;
       this.state.emit();
     }
+  }
+
+  /** Tell the agent its proposal came back, with the reviewer's comment, if it can still be reached. */
+  sendBack(text: string): boolean {
+    if (!this.settings || this.busy) return false;
+    void this.send(text, this.settings);
+    return true;
   }
 
   stop(): void {

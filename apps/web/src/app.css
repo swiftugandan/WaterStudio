@@ -1467,6 +1467,93 @@ button.link {
   cursor: pointer;
 }
 
+/* Proposals */
+.proposals {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+}
+.proposals-empty {
+  padding: var(--ws-space-2);
+}
+.proposal-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.proposal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ws-space-2);
+  width: 100%;
+  min-height: var(--ws-space-6);
+  padding: 0 var(--ws-space-2);
+  border: 0;
+  background: none;
+  color: var(--ws-color-text-primary);
+  font: inherit;
+  text-align: left;
+}
+.proposal-row:hover {
+  background: var(--ws-color-bg-hover);
+}
+.proposal-row.picked {
+  background: var(--ws-color-bg-active);
+}
+.proposal-status {
+  padding: 0 var(--ws-space-1);
+  border-radius: var(--ws-radius-full);
+  background: var(--ws-color-bg-surface-alt);
+  color: var(--ws-color-text-secondary);
+  font-size: var(--ws-font-size-xs);
+  white-space: nowrap;
+}
+.proposal-status.pending {
+  background: var(--ws-color-info-bg);
+  color: var(--ws-color-info-text);
+}
+.proposal-status.accepted,
+.proposal-status.partial {
+  color: var(--ws-color-success-text);
+}
+.proposal-status.rejected {
+  color: var(--ws-color-danger-text);
+}
+.proposal-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ws-space-2);
+}
+.proposal-detail h3 {
+  margin: 0;
+  font-size: var(--ws-font-size-md);
+}
+.proposal-detail p {
+  margin: 0;
+}
+.proposal-rationale {
+  white-space: pre-wrap;
+}
+.proposal-detail .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ws-space-1);
+}
+.proposal-detail textarea {
+  width: 100%;
+  resize: vertical;
+}
+.proposal-kpis tr.changed td {
+  font-weight: var(--ws-font-weight-semibold);
+}
+.proposal-items tr.op-add td:nth-child(2) {
+  color: var(--ws-color-success-text);
+}
+.proposal-items tr.op-delete td:nth-child(2) {
+  color: var(--ws-color-danger-text);
+}
+
 /* Studies */
 .studies-body {
   display: flex;

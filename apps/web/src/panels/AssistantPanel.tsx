@@ -1,7 +1,8 @@
 /**
  * The AI assistant: a conversation with a language model that can look at the network
- * and its results through read-only tools and run analyses. Each tool call is shown,
- * so the engineer can see where every number came from. The provider, endpoint and
+ * and its results through tools and run analyses, and (when allowed) edit a draft copy
+ * and propose the change for review. Each tool call is shown, so the engineer can see
+ * where every number came from. The provider, endpoint and
  * model are settings; an API key stays in this browser and goes only to the endpoint.
  */
 
@@ -78,6 +79,16 @@ function Settings({
           }}
         />
       </label>
+      <label>
+        <span>The assistant may</span>
+        <select
+          value={s.mode}
+          onChange={(e) => setS({ ...s, mode: e.target.value as StoredSettings['mode'] })}
+        >
+          <option value="propose">Look, run analyses and propose changes for review</option>
+          <option value="read">Only look and run analyses</option>
+        </select>
+      </label>
       <label className="check">
         <input
           type="checkbox"
@@ -121,6 +132,7 @@ const SUGGESTIONS = [
   'Which pipes have velocities above 2 m/s (or 6 ft/s)?',
   'Explain the warnings in the status report.',
 ];
+const PROPOSE_SUGGESTIONS = ['Propose larger pipes where junction pressures are lowest.'];
 
 export function AssistantPanel() {
   const { state } = useApp();
@@ -161,7 +173,9 @@ export function AssistantPanel() {
   return (
     <div className="panel assistant">
       <div className="panel-toolbar">
-        <span className="muted">{settings.model}</span>
+        <span className="muted">
+          {settings.model} · {settings.mode === 'propose' ? 'may propose changes' : 'read only'}
+        </span>
         <span className="spacer" />
         <button
           type="button"
@@ -179,11 +193,12 @@ export function AssistantPanel() {
         {convo.entries.length === 0 && (
           <div className="assistant-empty">
             <p>
-              Ask about the network and its results. The assistant looks things up with tools and can run the
-              analysis, but does not edit the network.
+              {settings.mode === 'propose'
+                ? 'Ask about the network, or ask for a change. The assistant looks things up with tools and runs the analysis; changes it makes go to a draft copy and come back as a proposal you review in Proposals.'
+                : 'Ask about the network and its results. The assistant looks things up with tools and can run the analysis, but does not edit the network.'}
             </p>
             <ul>
-              {SUGGESTIONS.map((s) => (
+              {[...SUGGESTIONS, ...(settings.mode === 'propose' ? PROPOSE_SUGGESTIONS : [])].map((s) => (
                 <li key={s}>
                   <button type="button" className="link" onClick={() => send(s)}>
                     {s}

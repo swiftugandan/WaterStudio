@@ -29,6 +29,7 @@ import {
 import type { RampName, RendererStatus } from '@waterstudio/render';
 import { restoreScenarios, type ProjectData } from '@waterstudio/project';
 import { readSettings } from './project.ts';
+import { applyChangeset, type ApplyResult, type Proposal, type ProposalDraft } from '@waterstudio/agents';
 import { Conversation } from './assistant.ts';
 import { Emitter } from './emitter.ts';
 import { ctime } from './time.ts';
@@ -144,6 +145,9 @@ export class AppState extends Emitter {
   readonly prefs: Prefs;
   /** The assistant conversation (kept when its panel closes). */
   readonly conversation: Conversation;
+  /** Changes agents have proposed for this network, newest last. */
+  proposals: Proposal[] = [];
+  private proposalSeq = 0;
   private unsubscribeStore: () => void = () => {};
 
   constructor(prefs: Prefs, engine = new EngineClient({ workers: 1 })) {
@@ -221,6 +225,56 @@ export class AppState extends Emitter {
     this.scenarios.activate(id);
     const name = id === null ? 'the base network' : (this.scenarios.get(id)?.name ?? id);
     this.log('info', `Showing ${name}. Edits to properties now belong to it.`);
+    this.emit();
+  }
+
+  /** Queue an agent's proposal for review; returns its ID. */
+  submitProposal(p: ProposalDraft): string {
+    const id = `P${++this.proposalSeq}`;
+    this.proposals = [...this.proposals, { ...p, id, status: 'pending', created: Date.now() }];
+    this.log(
+      'info',
+      `${p.author} proposed ${id}: ${p.title} (${p.items.length} changes). Review it in Proposals.`,
+    );
+    this.emit();
+    return id;
+  }
+
+  /**
+   * Apply the chosen items of a pending proposal as one undoable step. Items whose
+   * element changed since the agent forked its draft are skipped and reported.
+   */
+  acceptProposal(id: string, chosen: (index: number) => boolean = () => true): ApplyResult | null {
+    const p = this.proposals.find((x) => x.id === id);
+    if (!p || p.status !== 'pending') return null;
+    const result = applyChangeset(this.store, p.items, `Proposal ${id}: ${p.title}`, chosen);
+    const all = result.conflicts.length === 0 && p.items.every((_, i) => chosen(i));
+    this.setProposal(id, { status: result.applied === 0 ? 'pending' : all ? 'accepted' : 'partial' });
+    this.log(
+      result.conflicts.length > 0 ? 'warning' : 'info',
+      `Accepted ${result.applied} of ${p.items.length} changes of ${id}` +
+        (result.conflicts.length > 0 ? `; ${result.conflicts.length} conflicted and were skipped.` : '.'),
+    );
+    for (const c of result.conflicts) this.log('warning', `${id}, change ${c.index + 1}: ${c.reason}`);
+    return result;
+  }
+
+  /** Reject a proposal, or send it back to the agent with a comment. */
+  closeProposal(id: string, status: 'rejected' | 'returned', comment: string): void {
+    const p = this.proposals.find((x) => x.id === id);
+    if (!p || p.status !== 'pending') return;
+    this.setProposal(id, { status, ...(comment ? { comment } : {}) });
+    if (status === 'returned') {
+      const sent = this.conversation.sendBack(
+        `The engineer sent proposal ${id} ("${p.title}") back without applying it.` +
+          (comment ? ` Their comment: ${comment}` : ''),
+      );
+      if (!sent) this.log('info', `${id} was sent back; the comment stays with it.`);
+    }
+  }
+
+  private setProposal(id: string, patch: Partial<Proposal>): void {
+    this.proposals = this.proposals.map((x) => (x.id === id ? { ...x, ...patch } : x));
     this.emit();
   }
 
@@ -302,6 +356,8 @@ export class AppState extends Emitter {
     if (this.backdrop) URL.revokeObjectURL(this.backdrop.url);
     this.backdrop = null;
     this.period = 0;
+    // Proposals were made against the network that was open.
+    this.proposals = [];
     const errors = issues.filter((i) => i.severity === 'error').length;
     this.log(
       errors > 0 ? 'warning' : 'info',

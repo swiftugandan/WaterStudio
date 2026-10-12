@@ -180,7 +180,13 @@ const TABS: Tab[] = [
         label: 'Studies',
         items: [{ cmd: 'view.panel.studies', size: 'large', label: 'Fire flow, criticality' }],
       },
-      { label: 'AI', items: [{ cmd: 'view.panel.assistant', size: 'large', label: 'Assistant' }] },
+      {
+        label: 'AI',
+        items: [
+          { cmd: 'view.panel.assistant', size: 'large', label: 'Assistant' },
+          { cmd: 'view.panel.proposals', size: 'large', label: 'Proposals' },
+        ],
+      },
     ],
   },
   {
@@ -224,6 +230,7 @@ const TABS: Tab[] = [
           { cmd: 'view.panel.messages', label: 'Messages' },
           { cmd: 'view.panel.report', label: 'Reports' },
           { cmd: 'view.panel.assistant', label: 'Assistant' },
+          { cmd: 'view.panel.proposals', label: 'Proposals' },
           { cmd: 'view.panel.options', label: 'Options' },
           { cmd: 'view.panel.patterns', label: 'Patterns' },
           { cmd: 'view.panel.curves', label: 'Curves' },

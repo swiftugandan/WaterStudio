@@ -406,6 +406,8 @@ test('imports GeoJSON into a projected network and exports GeoJSON and DXF', asy
 });
 
 test('the assistant answers with tools, showing each call', async ({ page }) => {
+  // Read only: its analyses are of the network itself, not a draft.
+  await page.addInitScript(() => localStorage.setItem('ws.assistant', JSON.stringify({ mode: 'read' })));
   // A scripted model: run the analysis, look at pressures, then answer.
   const bodies: { messages: { role: string; content: { type: string; content?: string }[] }[] }[] = [];
   const replies = [
@@ -444,6 +446,78 @@ test('the assistant answers with tools, showing each call', async ({ page }) => 
   // The model got the engine's numbers back as tool results.
   const last = bodies[2]!.messages.at(-1)!.content[0]!;
   expect(JSON.parse(last.content!)).toMatchObject({ variable: 'pressure', lowest: [{ id: '32' }] });
+});
+
+test('the assistant proposes a change in a draft, and the engineer reviews and accepts it', async ({
+  page,
+}) => {
+  const replies = [
+    {
+      content: [
+        {
+          type: 'tool_use',
+          id: 't1',
+          name: 'set_properties',
+          input: { links: ['10'], values: { diameter: 20 } },
+        },
+      ],
+      stop_reason: 'tool_use',
+    },
+    {
+      content: [
+        {
+          type: 'tool_use',
+          id: 't2',
+          name: 'submit_proposal',
+          input: { title: 'Larger pipe 10', rationale: 'Raises pressures downstream of the source.' },
+        },
+      ],
+      stop_reason: 'tool_use',
+    },
+    { content: [{ type: 'text', text: 'Proposal P1 is ready for your review.' }], stop_reason: 'end_turn' },
+  ];
+  await page.route('https://api.anthropic.com/v1/messages', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(replies.shift()) }),
+  );
+  await ready(page);
+  const diameter = () =>
+    ws(page, (w) => {
+      const doc = w.state.store.doc as unknown as {
+        findLink(id: string): number;
+        num(h: number, f: string): number;
+      };
+      return doc.num(doc.findLink('10'), 'diameter');
+    });
+  expect(await diameter()).toBe(18);
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Analysis' }).click();
+  await page.getByRole('button', { name: 'Show assistant' }).click();
+  const chat = page.locator('.panel.assistant');
+  await expect(chat.locator('.panel-toolbar')).toContainText('may propose changes');
+  await chat.getByRole('textbox', { name: 'Message to the assistant' }).fill('Make pipe 10 larger.');
+  await chat.getByRole('button', { name: 'Send' }).click();
+  await expect(chat.getByRole('log')).toContainText('Proposal P1 is ready for your review.');
+  // The draft changed, the network did not.
+  expect(await diameter()).toBe(18);
+
+  await page.getByRole('button', { name: 'Show proposals' }).click();
+  const panel = page.locator('.panel.proposals');
+  await expect(panel.getByRole('button', { name: /P1: Larger pipe 10/ })).toBeVisible();
+  await expect(panel.locator('.proposal-items')).toContainText('Diameter: 18 → 20');
+  await expect(panel.locator('.proposal-kpis')).toContainText('Lowest junction pressure');
+  const audit = await new AxeBuilder({ page })
+    .include('.panel.proposals')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  expect(audit.violations.map((v) => v.id)).toEqual([]);
+  // Keyboard: the accept button is reachable and works with Enter.
+  await panel.getByRole('button', { name: 'Accept all' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(panel.getByRole('status')).toContainText('Applied 1 change');
+  expect(await diameter()).toBe(20);
+  await expect(panel.locator('.proposal-status')).toHaveText('accepted');
+  // One undo step reverts the whole proposal.
+  await ws(page, (w) => w.state.store.undo());
+  expect(await diameter()).toBe(18);
 });
 
 /** The [OPTIONS] line starting with `key`, as text. */

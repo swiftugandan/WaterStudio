@@ -25,7 +25,13 @@ export {
   type ProviderSettings,
   type ToolSpec,
 } from './providers.ts';
-export { AssistantSession, SYSTEM_PROMPT, type SessionEvent, type SessionOptions } from './session.ts';
+export {
+  AssistantSession,
+  SYSTEM_PROMPT,
+  systemPrompt,
+  type SessionEvent,
+  type SessionOptions,
+} from './session.ts';
 export {
   applyChangeset,
   diffDocuments,
@@ -46,7 +52,6 @@ export {
 export {
   describeChanges,
   draftContext,
-  DRAFT_PROMPT,
   DRAFT_TOOLS,
   isDraftContext,
   type AgentHost,

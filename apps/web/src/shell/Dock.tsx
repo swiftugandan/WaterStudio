@@ -32,6 +32,7 @@ import { MessagesPanel } from '../panels/MessagesPanel.tsx';
 import { MsxPanel } from '../panels/MsxPanel.tsx';
 import { ToolsPanel } from '../panels/ToolsPanel.tsx';
 import { PropertiesPanel } from '../panels/PropertiesPanel.tsx';
+import { ProposalsPanel } from '../panels/ProposalsPanel.tsx';
 import { ResultsPanel } from '../panels/ResultsPanel.tsx';
 import { MapView } from '../viewport/MapView.tsx';
 
@@ -48,6 +49,7 @@ const PANELS: Record<
   messages: { title: 'Messages', position: () => ({ referencePanel: 'results', direction: 'within' }) },
   report: { title: 'Reports', position: () => ({ referencePanel: 'results', direction: 'within' }) },
   assistant: { title: 'Assistant', position: () => ({ referencePanel: 'properties', direction: 'within' }) },
+  proposals: { title: 'Proposals', position: () => ({ referencePanel: 'properties', direction: 'within' }) },
   options: { title: 'Options', position: () => ({ referencePanel: 'properties', direction: 'within' }) },
   patterns: { title: 'Patterns', position: () => ({ referencePanel: 'map', direction: 'right' }) },
   curves: { title: 'Curves', position: () => ({ referencePanel: 'map', direction: 'right' }) },
@@ -73,6 +75,7 @@ const components = {
   messages: () => <MessagesPanel />,
   report: () => <ReportPanel />,
   assistant: () => <AssistantPanel />,
+  proposals: () => <ProposalsPanel />,
   options: () => <OptionsPanel />,
   patterns: () => <PatternsPanel />,
   curves: () => <CurvesPanel />,

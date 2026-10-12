@@ -9,7 +9,8 @@ kept current: a change that affects a criterion below updates this file in the s
   `wcag2a`, `wcag2aa`, `wcag21aa` and `wcag22aa` rules (`apps/web/e2e/app.spec.ts`) on the whole app with a graph,
   the reports and the assistant open, in both themes, and on every editor in turn: the inspector, each options
   tab, patterns, curves, controls, query and group edit, add element, the legend editor, the calibration report,
-  the studies, the multi-species and the network tools panels.
+  the studies, the multi-species and the network tools panels, and the proposals review panel (whose Accept is
+  also exercised from the keyboard).
   Token contrast is unit-tested (`packages/ui/src/tokens/tokens.test.ts`).
 
 ## Result
@@ -47,7 +48,7 @@ Passes, with the exception noted under 2.5.7 (dock splitters) and the known thir
 | 3.3.7 Redundant entry | Defaults (Options › Defaults) avoid retyping common values; Copy and Paste properties carry an element's values to others. |
 | 3.3.8 Accessible authentication | No authentication; the assistant's API key is a pasteable field. |
 | 4.1.2 Name, role, value | Toggles use `aria-pressed`, tabs `aria-selected`, listboxes `aria-activedescendant` and `aria-selected`. **Known issue:** dockview renders each tab's close button inside the tab element (nested interactive), excluded from axe and tracked upstream; the same panels can be closed from the View tab. |
-| 4.1.3 Status messages | Run status, query and import results, copy and apply confirmations use `role="status"`; the assistant's log is `aria-live`. |
+| 4.1.3 Status messages | Run status, query and import results, copy and apply confirmations and the outcome of accepting a proposal use `role="status"`; the assistant's log and the proposal count are `aria-live`. |
 
 ## Not covered yet
 
