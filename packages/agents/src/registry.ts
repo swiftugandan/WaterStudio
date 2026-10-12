@@ -34,13 +34,16 @@ export interface AgentContext {
   files(statusLog: boolean): Promise<EpanetFiles>;
 }
 
-export type Scope = 'read' | 'analyse' | 'draft';
+export type Scope = 'read' | 'analyse' | 'draft' | 'propose';
 
 export interface Tool<A = Record<string, unknown>> {
   name: string;
   description: string;
   input: JsonSchema & { type: 'object' };
-  /** read: looks only; analyse: runs the engine but changes nothing; draft: edits a draft. */
+  /**
+   * read: looks only; analyse: runs the engine but changes nothing; draft: edits the
+   * agent's draft; propose: submits the draft for review.
+   */
   scope: Scope;
   run(args: A, ctx: AgentContext): unknown;
 }

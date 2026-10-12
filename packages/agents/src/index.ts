@@ -26,3 +26,29 @@ export {
   type ToolSpec,
 } from './providers.ts';
 export { AssistantSession, SYSTEM_PROMPT, type SessionEvent, type SessionOptions } from './session.ts';
+export {
+  applyChangeset,
+  diffDocuments,
+  kpis,
+  same,
+  Sandbox,
+  touchedIds,
+  type ApplyResult,
+  type ChangeItem,
+  type Conflict,
+  type ElementTable,
+  type Evidence,
+  type Kpis,
+  type Proposal,
+  type ProposalDraft,
+  type ProposalStatus,
+} from './proposal.ts';
+export {
+  describeChanges,
+  draftContext,
+  DRAFT_PROMPT,
+  DRAFT_TOOLS,
+  isDraftContext,
+  type AgentHost,
+  type DraftContext,
+} from './draft.ts';

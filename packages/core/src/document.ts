@@ -102,6 +102,20 @@ export class Document {
     return this.nextHandle++;
   }
 
+  /** An independent copy with the same handles, elements in the same order (agent drafts). */
+  clone(): Document {
+    const d = new Document();
+    for (const table of ['node', 'link'] as const) {
+      const t = this.table(table);
+      for (const r of t.rows()) {
+        d.apply({ t: 'add', h: t.handles[r]!, table, row: -1, values: structuredClone(t.readRow(r)) });
+      }
+    }
+    d.data = structuredClone(this.data);
+    d.nextHandle = this.nextHandle;
+    return d;
+  }
+
   has(h: number): boolean {
     const p = this.places.get(h);
     return p !== undefined && this.table(p.table).isAlive(p.row);
