@@ -125,7 +125,9 @@ static void statics(void) {
   for (int o = 0; o <= 26; o++) { double d = -1; e = EN_getoption(ph, o, &d); printf(" %d:%.17g", e, d); }
   printf(" bad %d\n", EN_getoption(ph, 99, &(double){0}));
   printf("times");
-  for (int t = 0; t <= EN_NEXTEVENTTANK; t++) { long d = -1; e = EN_gettimeparam(ph, t, &d); printf(" %d:%ld", e, d); }
+  /* EN_NEXTEVENT and EN_NEXTEVENTTANK before any solve read the reference's uninitialised
+     tank state: stop at EN_HALTFLAG here (stats() reads them once a solver has run). */
+  for (int t = 0; t < EN_NEXTEVENT; t++) { long d = -1; e = EN_gettimeparam(ph, t, &d); printf(" %d:%ld", e, d); }
   printf("\n");
   int qt, tn; e = EN_getqualtype(ph, &qt, &tn); printf("qualtype %d %d %d\n", e, qt, tn);
   s1[0] = s2[0] = 0; e = EN_getqualinfo(ph, &qt, s1, s2, &tn); printf("qualinfo %d %d [%s] [%s] %d\n", e, qt, s1, s2, tn);
@@ -546,6 +548,46 @@ static void ruleplay(void) {
   dumprules("R2");
 }
 
+/* Report options, the status log, EN_report and EN_saveH: the report and output files
+   are compared by toolkit.sh. */
+static void reports(const char *when) {
+  char line[256], id[EN_MAXID + 1] = "";
+  printf("reports %s\n", when);
+  SET(EN_setstatusreport(ph, EN_FULL_REPORT));
+  if (nnodes <= 150) {
+    SET(EN_setreport(ph, "NODES ALL"));
+    SET(EN_setreport(ph, "LINKS ALL"));
+  } else {
+    EN_getnodeid(ph, 1, id);
+    snprintf(line, sizeof line, "NODES %s", id);
+    SET(EN_setreport(ph, line));
+    EN_getlinkid(ph, 1, id);
+    snprintf(line, sizeof line, "LINKS %s", id);
+    SET(EN_setreport(ph, line));
+  }
+  SET(EN_setreport(ph, "PRESSURE PRECISION 3"));
+  SET(EN_setreport(ph, "FLOW BELOW 1000"));
+  SET(EN_setreport(ph, "ENERGY YES"));
+  SET(EN_setreport(ph, "VELOCITY NO"));
+  SET(EN_setreport(ph, "nonsense"));
+  SET(EN_setreport(ph, "NODES nowhere"));
+  SET(EN_writeline(ph, "probe: a line of our own"));
+  SET(EN_report(ph));
+  int e = EN_solveH(ph);
+  printf("set EN_solveH(ph) = %d\n", e);
+  /* After a failed solve the reference's EN_saveH leaves the quality solver's memory pool
+     half built and EN_solveQ then frees it twice: stop at the failure. */
+  if (e <= 100) {
+    SET(EN_saveH(ph));
+    SET(EN_report(ph));
+    SET(EN_solveQ(ph));
+    SET(EN_report(ph));
+  }
+  SET(EN_setstatusreport(ph, EN_NO_REPORT));
+  SET(EN_resetreport(ph));
+  SET(EN_setstatusreport(ph, 7));
+}
+
 static void hydraulics(int initflag) {
   long t = 0, tstep = 0, left = 0;
   int solved = 0;
@@ -639,6 +681,7 @@ int main(int argc, char **argv) {
   if (e > 100) { EN_deleteproject(ph); return 0; }
   counts();
   statics();
+  reports("first");
   printf("runQ-before %d\n", EN_runQ(ph, &(long){0}));
 
   hydraulics(EN_SAVE);
@@ -660,6 +703,12 @@ int main(int argc, char **argv) {
   hydraulics(EN_SAVE);
   printf("closeH %d\n", EN_closeH(ph));
   quality_from_file(0);
+  reports("mutated");
+  char copy[600];
+  snprintf(copy, sizeof copy, "%s/probe-copy.rpt", scratch);
+  SET(EN_copyreport(ph, copy));
+  SET(EN_clearreport(ph));
+  SET(EN_writeline(ph, "probe: after clearing"));
 
   printf("close %d\n", EN_close(ph));
   printf("after-close %d\n", EN_getcount(ph, EN_NODECOUNT, &(int){0}));

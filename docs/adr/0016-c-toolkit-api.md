@@ -81,8 +81,24 @@ holds that same `Project`, field by field.
   - `EN_gettitle` leaves a 79-character title unterminated, so the probe zeroes its buffers.
   - After structural edits, nodes' full demands and qualities are stale or uninitialised until a run sets them.
   - Results are read only after a successful solve.
+- **Stage 5.** Reports and output files. `EN_open` opens the report and output files it is given (or reports to
+  standard output when the report name is empty), and the rest of the reporting API follows: `EN_writeline`,
+  `EN_setreport`, `EN_resetreport`, `EN_setstatusreport`, `EN_report`, `EN_copyreport`, `EN_clearreport` and the
+  report callback. The status log is written as each solver runs, `EN_saveH` writes the output file (applying
+  the time statistic as `savetimestat` does), and error messages land in the report as `errmsg` puts them there.
+  The whole-run path and the toolkit share one writer for the output file.
+- Following the toolkit there brought two more whole-run behaviours in line with C:
+  - An ill-conditioned network now writes `writehyderr`'s lines (the node, tank statuses and disconnected
+    junctions) before error 110.
+  - Changing flow or pressure units through the toolkit updates the report's field units.
+- `toolkit.sh` compares the probe's report, its copy and its output file byte for byte, report dates aside, and
+  the output file's ID fields without their 32nd byte: OWA-EPANET copies a new element's ID with `strncpy(ID, id,
+  MAXID)`, leaving that byte as whatever `realloc` returned, and writes it out (`oracle/toolkit/outnorm.py`).
+- Two more places where the probe avoids undefined behaviour in OWA-EPANET:
+  - `EN_NEXTEVENT` and `EN_NEXTEVENTTANK` read uninitialised tank state before any solve.
+  - After a failed `EN_solveH`, `EN_saveH` and `EN_solveQ` corrupt the heap (the reference aborts in `closequal`).
 - Not yet:
-  - `EN_report`, `EN_saveinpfile`, and the report and output files from `EN_open`;
+  - `EN_saveinpfile`;
   - external hydraulics files (`EN_savehydfile`, `EN_usehydfile`);
   - `EN_init`;
   - the legacy single-precision API (`epanet2.h`).

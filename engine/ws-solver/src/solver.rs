@@ -100,6 +100,9 @@ pub fn hydsolve(pr: &mut Project) -> Result<(i32, f64), (i32, f64, i32)> {
         iter += 1;
     }
 
+    if errcode > 0 {
+        report::writehyderr(pr, pr.sm.order[errcode]);
+    }
     for i in 1..=pr.net.njuncs {
         pr.hyd.node_demand[i] =
             pr.hyd.demand_flow[i] + pr.hyd.emitter_flow[i] + pr.hyd.leakage_flow[i];

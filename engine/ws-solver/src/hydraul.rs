@@ -34,7 +34,19 @@ pub fn openhyd(pr: &mut Project) -> Result<(), SolverError> {
         linked[pr.net.link[k].n1] = true;
         linked[pr.net.link[k].n2] = true;
     }
-    if let Some(i) = (1..=pr.net.njuncs).find(|&i| !linked[i]) {
+    // unlinked: report up to ten junctions without links.
+    let unlinked: Vec<usize> = (1..=pr.net.njuncs)
+        .filter(|&i| !linked[i])
+        .take(10)
+        .collect();
+    if let Some(&i) = unlinked.first() {
+        for &j in &unlinked {
+            let s = format!(
+                "Error 234: network has an unconnected node with ID:  {}",
+                pr.net.node[j].id
+            );
+            report::writeline(pr, &s);
+        }
         return Err(SolverError::new(
             233,
             format!("node {} is not connected", pr.net.node[i].id),

@@ -262,3 +262,39 @@ fn edits_the_network_structure() {
     t.getlinkid(p2, &mut id);
     assert_eq!(id, "P2");
 }
+
+#[test]
+fn writes_the_same_files_as_the_whole_run() {
+    let dir = std::env::temp_dir().join(format!("ws-toolkit-files-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = |name: &str| dir.join(name).to_string_lossy().into_owned();
+    let (inp, rpt, out) = (path("net.inp"), path("net.rpt"), path("net.out"));
+    std::fs::write(&inp, NET).unwrap();
+    let date = "Mon Oct 12 12:00:00 2026";
+
+    let mut t = Toolkit::new();
+    assert_eq!(t.open_files(&inp, &rpt, &out, date), 0);
+    assert_eq!(t.report(), 106);
+    assert_eq!(t.save_h(), 104);
+    assert_eq!(t.writeline("our own line"), 0);
+    assert_eq!(t.solve_h(), 0);
+    assert_eq!(t.solve_q(), 0);
+    assert_eq!(t.report(), 0);
+    // A report file is appended to whenever the caller flushes (ws-ffi after each call).
+    assert!(matches!(t.flush_report(), ReportOutput::Nothing));
+    assert_eq!(t.close(), 0);
+    let report = std::fs::read_to_string(&rpt).unwrap();
+    assert!(report.contains("our own line"));
+    assert!(report.contains("Analysis begun"));
+
+    let model = ws_io::read_inp(NET).model;
+    let opts = ws_solver::RunOptions {
+        inp_name: inp.clone(),
+        date: date.to_string(),
+        report: true,
+        status_log: false,
+    };
+    let run = ws_solver::run_epanet(&model, &opts, |_| {}).unwrap();
+    assert_eq!(std::fs::read(&out).unwrap(), run.out_file());
+    std::fs::remove_dir_all(&dir).unwrap();
+}

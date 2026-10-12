@@ -42,6 +42,9 @@ pub struct ReportFile {
     pub text: String,
     line_num: i64,
     page_num: i64,
+    /// With a report callback (`EN_setreportcallback`), lines go here one by one,
+    /// unpaginated, instead of into `text`.
+    pub callback_lines: Option<Vec<String>>,
 }
 
 /// Time-series statistic (`TstatType`).
@@ -170,6 +173,27 @@ fn strcomp(a: &str, b: &str) -> bool {
     a.eq_ignore_ascii_case(b)
 }
 
+/// `initreport` for `EN_resetreport`: report options back to their defaults, keeping
+/// the report file, units and time statistic.
+pub fn resetreport(rpt: &mut Report, nnodes: usize, nlinks: usize) {
+    let d = Report::default();
+    rpt.page_size = d.page_size;
+    rpt.summaryflag = d.summaryflag;
+    rpt.messageflag = d.messageflag;
+    rpt.statflag = d.statflag;
+    rpt.energyflag = d.energyflag;
+    rpt.nodeflag = d.nodeflag;
+    rpt.linkflag = d.linkflag;
+    rpt.rpt2_fname.clear();
+    for (f, g) in rpt.field.iter_mut().zip(d.field) {
+        f.enabled = g.enabled;
+        f.precision = g.precision;
+        f.rpt_lim = g.rpt_lim;
+    }
+    rpt.node_rpt = vec![false; nnodes + 1];
+    rpt.link_rpt = vec![false; nlinks + 1];
+}
+
 /// `reportdata` (input3.c) over every [REPORT] line.
 pub fn reportdata(
     rpt: &mut Report,
@@ -182,7 +206,19 @@ pub fn reportdata(
     rpt.node_rpt = vec![false; nnodes + 1];
     rpt.link_rpt = vec![false; nlinks + 1];
     for line in &section.lines {
-        let tok = &line.tokens;
+        reportline(rpt, &line.tokens, findnode, findlink)?;
+    }
+    Ok(())
+}
+
+/// `reportdata` (input3.c) for one [REPORT] line (`EN_setreport` passes one too).
+pub fn reportline(
+    rpt: &mut Report,
+    tok: &[String],
+    findnode: &dyn Fn(&str) -> Option<usize>,
+    findlink: &dyn Fn(&str) -> Option<usize>,
+) -> Result<(), SolverError> {
+    {
         if tok.len() < 2 {
             return Err(err(201, "too few items in [REPORT]"));
         }
@@ -258,11 +294,11 @@ pub fn reportdata(
             let f = &mut rpt.field[i];
             if tok.len() == 1 || m(&tok[1], "YES") {
                 f.enabled = true;
-                continue;
+                return Ok(());
             }
             if m(&tok[1], "NO") {
                 f.enabled = false;
-                continue;
+                return Ok(());
             }
             if tok.len() < 3 {
                 return Err(err(201, format!("too few items for report field {t0}")));
@@ -344,6 +380,10 @@ pub fn writing(pr: &Project) -> bool {
 pub fn writeline(pr: &mut Project, s: &str) {
     let page_size = i64::from(pr.rpt.page_size);
     let Some(f) = &mut pr.rpt.file else { return };
+    if let Some(lines) = &mut f.callback_lines {
+        lines.push(s.to_string());
+        return;
+    }
     if f.line_num == page_size {
         f.page_num += 1;
         f.text.push_str(&format!(
@@ -547,6 +587,24 @@ pub fn writesummary(pr: &mut Project, title: &[String], inp_name: &str) {
     }
     writelimits(pr, Field::Diam as usize, Field::Headloss as usize);
     writeline(pr, " ");
+}
+
+/// `writehyderr`: the status and connectivity when the network equations cannot be
+/// solved. As in the reference the status is written (and the tank statuses it
+/// records updated) whatever the status report level.
+pub fn writehyderr(pr: &mut Project, errnode: usize) {
+    if pr.rpt.messageflag && writing(pr) {
+        let s = format!(
+            "{}: System ill-conditioned at node {}",
+            cfmt::r(&clocktime(pr.times.htime), 10),
+            pr.net.node[errnode].id
+        );
+        writeline(pr, &s);
+    }
+    writehydstat(pr, 0, 0.0);
+    if writing(pr) {
+        disconnected(pr);
+    }
 }
 
 /// `writehydstat`

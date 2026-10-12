@@ -618,37 +618,16 @@ impl EpanetRun {
         self.pr.warnflag
     }
 
-    /// The periods as the output file holds them: every report period, or the one
-    /// time-series statistic the model asks for.
-    fn file_columns(&self) -> (std::borrow::Cow<'_, output::Columns>, usize) {
-        let pr = &self.pr;
-        if pr.rpt.tstatflag == report::Tstat::Series {
-            (std::borrow::Cow::Borrowed(&self.cols), self.times.len())
-        } else {
-            let (nn, nl) = (pr.net.nnodes, pr.net.nlinks);
-            let stat = output::timestat(&self.cols, pr.rpt.tstatflag, nn, nl, self.times.len());
-            (std::borrow::Cow::Owned(stat), 1)
-        }
-    }
-
     /// EPANET's binary output file, byte for byte as `runepanet` writes it.
     pub fn out_file(&self) -> Vec<u8> {
-        let pr = &self.pr;
-        let (nn, nl) = (pr.net.nnodes, pr.net.nlinks);
-        let prolog = output::savenetdata(pr, &self.title, &self.inp_name);
-        let q = &pr.qual;
-        let reacts = [q.wbulk, q.wwall, q.wtank, q.wsource];
-        let (cols, periods) = self.file_columns();
-        output::outfile(
+        let prolog = output::savenetdata(&self.pr, &self.title, &self.inp_name);
+        output::outfile_bytes(
+            &self.pr,
             &prolog,
             &self.energy,
-            &cols,
-            nn,
-            nl,
-            periods,
-            reacts,
-            pr.times.dur,
-            pr.warnflag,
+            &self.cols,
+            self.times.len(),
+            false,
         )
     }
 
@@ -665,7 +644,7 @@ impl EpanetRun {
             if self.pr.rpt.energyflag {
                 report::writeenergy(&mut self.pr);
             }
-            let (cols, periods) = self.file_columns();
+            let (cols, periods) = output::file_columns(&self.pr, &self.cols, self.times.len());
             let cols = cols.into_owned();
             report::writeresults(&mut self.pr, &cols, periods);
         }

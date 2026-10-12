@@ -302,17 +302,29 @@ pub(super) struct Open {
     pub(super) hyd_next: usize,
     /// `report.Nperiods`.
     pub(super) nperiods: i64,
+    /// The input, report and output file names given to `EN_open`.
+    pub(super) inp_name: String,
+    pub(super) rpt1: String,
+    pub(super) out_path: String,
+    pub(super) target: report::ReportTarget,
+    /// The output file of the quality run saving results.
+    pub(super) output: Option<report::Output>,
 }
 
 /// An EPANET project (`EN_Project`).
 #[derive(Clone, Debug, Default)]
 pub struct Toolkit {
     pub(super) p: Option<Box<Open>>,
+    /// The report of an `EN_open` that failed, still to be delivered.
+    pub(super) pending_failed: Option<(report::ReportTarget, String)>,
 }
 
 mod edit;
+mod report;
 mod rules;
 mod set;
+
+pub use report::ReportOutput;
 
 /// `EN_geterror`'s text for each error code (`errors.dat`); "" for unknown codes.
 pub fn errmsg_text(code: i32) -> &'static str {
@@ -534,6 +546,11 @@ impl Toolkit {
             hydfile: Vec::new(),
             hyd_next: 0,
             nperiods: 0,
+            inp_name: String::new(),
+            rpt1: String::new(),
+            out_path: String::new(),
+            target: report::ReportTarget::None,
+            output: None,
         }));
         0
     }
@@ -659,20 +676,26 @@ impl Toolkit {
             }
         }
         if let Err(e) = crate::input::validateproject(&mut o.pr) {
-            return if e.code == 223 || e.code == 224 {
+            let code = if e.code == 223 || e.code == 224 {
                 e.code
             } else {
                 110
             };
+            o.errmsg(code);
+            return code;
         }
         match hydraul::openhyd(&mut o.pr) {
             Ok(()) => {
                 // createsparse leaves fresh adjacency lists for the quality solver.
                 o.pr.adjlist = quality::buildadjlists(&o.pr.net);
                 o.open_h = true;
+                crate::report::writetime(&mut o.pr, "begun");
                 0
             }
-            Err(e) => e.code,
+            Err(e) => {
+                o.errmsg(e.code);
+                e.code
+            }
         }
     }
 
@@ -697,6 +720,9 @@ impl Toolkit {
         }
         leakage::openleakage(&mut o.pr);
         hydraul::inithyd(&mut o.pr, fflag > 0);
+        if o.pr.rpt.statflag != crate::report::Statflag::No && crate::report::writing(&o.pr) {
+            crate::report::writeheader(&mut o.pr, crate::report::Header::Status, false);
+        }
         for (i, r) in o.meta.node_result.iter_mut().enumerate() {
             *r = i as i32;
         }
@@ -718,7 +744,10 @@ impl Toolkit {
         *current_time = o.pr.times.htime;
         match hydraul::runhyd(&mut o.pr) {
             Ok((_, _, warn)) => warn,
-            Err(e) => e.code,
+            Err(e) => {
+                o.errmsg(e.code);
+                e.code
+            }
         }
     }
 
@@ -796,7 +825,10 @@ impl Toolkit {
                 o.pr.qual.open_q = true;
                 0
             }
-            Err(c) => c,
+            Err(c) => {
+                o.errmsg(c);
+                c
+            }
         }
     }
 
@@ -816,6 +848,9 @@ impl Toolkit {
         o.nperiods = 0;
         o.save_q = false;
         o.saveflag = save_flag != 0;
+        if o.saveflag {
+            Self::open_output(o);
+        }
         0
     }
 
@@ -835,6 +870,7 @@ impl Toolkit {
             }
             if o.pr.times.htime >= o.pr.times.rtime {
                 if o.saveflag {
+                    Self::save_output(o);
                     o.nperiods += 1;
                 }
                 o.pr.times.rtime += o.pr.times.rstep;
@@ -873,6 +909,7 @@ impl Toolkit {
         *t_step = quality::nextqual(&mut o.pr);
         if o.saveflag && *t_step == 0 {
             o.save_q = true;
+            return Self::finish_output(o);
         }
         0
     }
@@ -918,6 +955,10 @@ impl Toolkit {
         *time_left = o.pr.times.dur - o.pr.times.qtime;
         if errcode == 0 && *time_left == 0 && o.saveflag {
             o.save_q = true;
+            errcode = Self::finish_output(o);
+        }
+        if errcode != 0 {
+            o.errmsg(errcode);
         }
         errcode
     }
@@ -930,6 +971,7 @@ impl Toolkit {
         quality::closequal(&mut o.pr);
         o.open_q = false;
         o.pr.qual.open_q = false;
+        crate::report::writetime(&mut o.pr, "ended");
         0
     }
 

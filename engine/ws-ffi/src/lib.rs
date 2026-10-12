@@ -16,14 +16,50 @@
 #![allow(unsafe_code)]
 #![allow(clippy::missing_safety_doc)]
 
-use std::ffi::{CStr, c_char, c_double, c_int, c_long};
-use ws_solver::epanet::{self, MAXID, MAXMSG, TITLELEN, Toolkit};
+use std::ffi::{CStr, CString, c_char, c_double, c_int, c_long, c_void};
+use std::io::Write;
+use ws_solver::epanet::{self, MAXID, MAXMSG, ReportOutput, TITLELEN, Toolkit};
+
+/// The report callback of `EN_setreportcallback`: (user data, project, line).
+pub type ReportCallback = unsafe extern "C" fn(*mut c_void, *mut c_void, *const c_char);
+
+/// What an `EN_Project` points at: the toolkit and the caller's report callback.
+pub struct Handle {
+    tk: Toolkit,
+    callback: Option<ReportCallback>,
+    user_data: *mut c_void,
+}
+
+impl Handle {
+    /// Deliver the report written so far: to standard output or the callback (a
+    /// report file is written by the toolkit).
+    fn flush(&mut self) {
+        match self.tk.flush_report() {
+            ReportOutput::Nothing => {}
+            ReportOutput::Stdout(text) => {
+                let mut out = std::io::stdout();
+                let _ = out.write_all(text.as_bytes());
+                let _ = out.flush();
+            }
+            ReportOutput::Lines(lines) => {
+                if let Some(cb) = self.callback {
+                    let me = (self as *mut Handle).cast::<c_void>();
+                    for line in lines {
+                        let line = CString::new(line.replace('\0', " ")).unwrap_or_default();
+                        // SAFETY: the caller registered this callback for this project.
+                        unsafe { cb(self.user_data, me, line.as_ptr()) };
+                    }
+                }
+            }
+        }
+    }
+}
 
 /// `EN_Project`: an opaque pointer to a project.
-pub type EnProject = *mut Toolkit;
+pub type EnProject = *mut Handle;
 
 /// The project behind a handle, or None for a null handle.
-unsafe fn tk<'a>(p: EnProject) -> Option<&'a mut Toolkit> {
+unsafe fn tk<'a>(p: EnProject) -> Option<&'a mut Handle> {
     // SAFETY: a non-null handle comes from EN_createproject and stays valid until
     // EN_deleteproject; the caller must not use it concurrently, as with EPANET.
     unsafe { p.as_mut() }
@@ -62,12 +98,21 @@ unsafe fn out<T>(dst: *mut T, v: T) {
     }
 }
 
-/// Run a toolkit call on a handle; a null handle is error 102 (no network data).
+/// Run a toolkit call on a handle, then deliver what it wrote to the report; a null
+/// handle is error 102 (no network data).
 macro_rules! with {
     ($p:expr, $t:ident => $body:expr) => {{
         // SAFETY: see `tk`.
         match unsafe { tk($p) } {
-            Some($t) => $body,
+            Some(h) => {
+                #[allow(clippy::redundant_closure_call)]
+                let r: c_int = (|| {
+                    let $t: &mut Toolkit = &mut h.tk;
+                    $body
+                })();
+                h.flush();
+                r
+            }
             None => 102,
         }
     }};
@@ -80,7 +125,11 @@ pub unsafe extern "C" fn EN_createproject(p: *mut EnProject) -> c_int {
     if p.is_null() {
         return -1;
     }
-    let ph = Box::into_raw(Box::new(Toolkit::new()));
+    let ph = Box::into_raw(Box::new(Handle {
+        tk: Toolkit::new(),
+        callback: None,
+        user_data: std::ptr::null_mut(),
+    }));
     // SAFETY: p is non-null and points at the caller's EN_Project.
     unsafe { *p = ph };
     0
@@ -92,7 +141,10 @@ pub unsafe extern "C" fn EN_deleteproject(p: EnProject) -> c_int {
         return -1;
     }
     // SAFETY: p came from EN_createproject and is not used again.
-    drop(unsafe { Box::from_raw(p) });
+    let mut h = unsafe { Box::from_raw(p) };
+    h.flush();
+    h.tk.close();
+    drop(h);
     0
 }
 
@@ -121,14 +173,8 @@ pub unsafe extern "C" fn EN_open(
 ) -> c_int {
     // SAFETY: see `arg`.
     let (inp, rpt, outf) = unsafe { (arg(inp_file), arg(rpt_file), arg(out_file)) };
-    with!(p, t => {
-        t.close();
-        let (inp, rpt, outf) = (inp.unwrap_or_default(), rpt.unwrap_or_default(), outf.unwrap_or_default());
-        match check_files(&inp, &rpt, &outf) {
-            0 => t.open(&inp),
-            e => e,
-        }
-    })
+    let date = ctime_now();
+    with!(p, t => t.open_files(&inp.unwrap_or_default(), &rpt.unwrap_or_default(), &outf.unwrap_or_default(), &date))
 }
 
 /// The current time as C's `ctime` prints it (UTC), without the newline.
@@ -1557,4 +1603,65 @@ int_of!(EN_getruleenabled, getruleenabled, keep);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn EN_setruleenabled(p: EnProject, index: c_int, enabled: c_int) -> c_int {
     with!(p, t => t.setruleenabled(index, enabled))
+}
+
+// ---- Reports ---------------------------------------------------------------------------
+
+simple!(EN_report, report);
+simple!(EN_saveH, save_h);
+simple!(EN_resetreport, resetreport);
+simple!(EN_clearreport, clearreport);
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_writeline(p: EnProject, line: *const c_char) -> c_int {
+    // SAFETY: see `text`.
+    let s = unsafe { text(line) };
+    with!(p, t => t.writeline(&s))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setreport(p: EnProject, format: *const c_char) -> c_int {
+    // SAFETY: see `text`.
+    let s = unsafe { text(format) };
+    with!(p, t => t.setreport(&s))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setstatusreport(p: EnProject, level: c_int) -> c_int {
+    with!(p, t => t.setstatusreport(level))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_copyreport(p: EnProject, filename: *const c_char) -> c_int {
+    // SAFETY: see `text`.
+    let s = unsafe { text(filename) };
+    with!(p, t => t.copyreport(&s))
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setreportcallback(
+    p: EnProject,
+    callback: Option<ReportCallback>,
+) -> c_int {
+    // SAFETY: see `tk`.
+    let Some(h) = (unsafe { tk(p) }) else {
+        return 102;
+    };
+    h.flush();
+    h.callback = callback;
+    h.tk.set_report_callback(callback.is_some());
+    0
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_setreportcallbackuserdata(
+    p: EnProject,
+    user_data: *mut c_void,
+) -> c_int {
+    // SAFETY: see `tk`.
+    let Some(h) = (unsafe { tk(p) }) else {
+        return 102;
+    };
+    h.user_data = user_data;
+    0
 }

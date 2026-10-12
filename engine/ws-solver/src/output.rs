@@ -363,3 +363,50 @@ pub fn outfile(
     w.i4(MAGICNUMBER);
     w.0
 }
+
+/// The periods as the output file holds them: every report period, or the one
+/// time-series statistic the project asks for.
+pub fn file_columns<'a>(
+    pr: &Project,
+    cols: &'a Columns,
+    periods: usize,
+) -> (std::borrow::Cow<'a, Columns>, usize) {
+    if pr.rpt.tstatflag == Tstat::Series {
+        (std::borrow::Cow::Borrowed(cols), periods)
+    } else {
+        let (nn, nl) = (pr.net.nnodes, pr.net.nlinks);
+        let stat = timestat(cols, pr.rpt.tstatflag, nn, nl, periods);
+        (std::borrow::Cow::Owned(stat), 1)
+    }
+}
+
+/// EPANET's binary output file from its prolog, the pumps' energy and the saved periods.
+pub fn outfile_bytes(
+    pr: &Project,
+    prolog: &[u8],
+    energy: &[u8],
+    cols: &Columns,
+    periods: usize,
+    reduced: bool,
+) -> Vec<u8> {
+    let (nn, nl) = (pr.net.nnodes, pr.net.nlinks);
+    let q = &pr.qual;
+    let reacts = [q.wbulk, q.wwall, q.wtank, q.wsource];
+    // `reduced`: `cols` already holds the time statistic.
+    let (cols, periods) = if reduced {
+        (std::borrow::Cow::Borrowed(cols), periods)
+    } else {
+        file_columns(pr, cols, periods)
+    };
+    outfile(
+        prolog,
+        energy,
+        &cols,
+        nn,
+        nl,
+        periods,
+        reacts,
+        pr.times.dur,
+        pr.warnflag,
+    )
+}

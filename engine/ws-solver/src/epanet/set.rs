@@ -471,6 +471,7 @@ impl Toolkit {
                 };
                 let old = pr.units.ucf;
                 crate::input::initunits(pr);
+                crate::report::setfieldunits(pr);
                 let f = |x: Field| pr.units.ucf[x as usize] / old[x as usize];
                 let (dcf, pcf, hcf, qcf) = (
                     f(Field::Demand),
@@ -521,6 +522,7 @@ impl Toolkit {
             UnitsType::Us
         };
         crate::input::initunits(pr);
+        crate::report::setfieldunits(pr);
         let u = pr.units.ucf;
         let f = |x: Field| u[x as usize] / old[x as usize];
         let (dcf, pcf, hcf, qcf) = (

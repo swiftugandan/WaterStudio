@@ -36,6 +36,33 @@ fi
 tunables="glibc.cpu.hwcaps=-AVX2_Usable,-FMA_Usable,-AVX2,-FMA"
 scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
+# The probe's report, its copy and the output file, kept per library with the
+# report's clock times masked.
+keep() {
+  for f in probe.rpt probe-copy.rpt probe.out; do
+    if [[ -f "$scratch/$f" ]]; then
+      if [[ $f == *.rpt ]]; then
+        sed -E 's/[A-Z][a-z]{2} [A-Z][a-z]{2} [ 0-9][0-9] [0-9]{2}:[0-9]{2}:[0-9]{2} [0-9]{4}/<date>/' "$scratch/$f" > "$scratch/$1.$f"
+      else
+        cp "$scratch/$f" "$scratch/$1.$f"
+        python3 -I "$here/toolkit/outnorm.py" "$scratch/$1.$f"
+      fi
+      rm -f "$scratch/$f"
+    fi
+  done
+}
+files_match() {
+  for f in probe.rpt probe-copy.rpt probe.out; do
+    if [[ -f "$scratch/ref.$f" || -f "$scratch/ws.$f" ]]; then
+      if ! cmp -s "$scratch/ref.$f" "$scratch/ws.$f"; then
+        echo "      $f differs"
+        diff <(cat -v "$scratch/ref.$f") <(cat -v "$scratch/ws.$f") 2>/dev/null | head -n 6 | cut -c1-160 | sed 's/^/      /' || true
+        return 1
+      fi
+    fi
+  done
+}
+
 # Known differences: network -> properties whose lines are left out of the comparison.
 declare -A known
 while read -r net props; do
@@ -48,8 +75,11 @@ fail=0
 for net in "${networks[@]}"; do
   inp="$here/.corpus/$net"
   # In the scratch directory: OWA-EPANET makes its temporary files in the current one.
+  rm -f "$scratch"/probe*.rpt "$scratch"/probe*.out "$scratch"/{ref,ws}.*.{rpt,out}
   (cd "$scratch" && GLIBC_TUNABLES="$tunables" timeout 600 "$build/probe-ref" "$inp" "$scratch" > ref.txt 2>&1) || true
+  keep ref
   (cd "$scratch" && timeout 600 "$build/probe-ws" "$inp" "$scratch" > ws.txt 2>&1) || true
+  keep ws
   if [[ -n "${known[$net]:-}" ]]; then
     if cmp -s "$scratch/ref.txt" "$scratch/ws.txt"; then
       printf 'FIXED %s: identical now; remove it from toolkit-known.txt\n' "$net"
@@ -62,7 +92,8 @@ for net in "${networks[@]}"; do
       mv "$scratch/$f.filtered" "$scratch/$f.txt"
     done
   fi
-  if cmp -s "$scratch/ref.txt" "$scratch/ws.txt"; then
+  # The report and output files must be identical too, report dates aside.
+  if cmp -s "$scratch/ref.txt" "$scratch/ws.txt" && files_match; then
     pass=$((pass + 1))
     if [[ -n "${known[$net]:-}" ]]; then
       printf 'known %s (%s)\n' "$net" "$(echo ${known[$net]})"
