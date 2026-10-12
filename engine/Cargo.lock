@@ -982,6 +982,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ws-ffi"
+version = "0.0.1"
+dependencies = [
+ "ws-io",
+ "ws-solver",
+]
+
+[[package]]
 name = "ws-hyd"
 version = "0.0.1"
 dependencies = [

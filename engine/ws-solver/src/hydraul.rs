@@ -19,16 +19,10 @@ pub fn openhyd(pr: &mut Project) -> Result<(), SolverError> {
     pr.sm = createsparse(&pr.net);
     let nn = pr.net.nnodes;
     let nl = pr.net.nlinks;
+    // Heads, demands, flows, statuses and settings live from `EN_open` on (`allocdata`,
+    // see `allochyd`), so a second run starts from the first one's values as EPANET's does.
+    allochyd(pr);
     let hyd = &mut pr.hyd;
-    hyd.node_head = vec![0.0; nn + 1];
-    hyd.node_demand = vec![0.0; nn + 1];
-    hyd.full_demand = vec![0.0; nn + 1];
-    hyd.demand_flow = vec![0.0; nn + 1];
-    hyd.emitter_flow = vec![0.0; nn + 1];
-    hyd.leakage_flow = vec![0.0; nn + 1];
-    hyd.link_flow = vec![0.0; nl + 1];
-    hyd.link_setting = vec![0.0; nl + 1];
-    hyd.link_status = vec![Status::Open; nl + 1];
     hyd.p = vec![0.0; nl + 1];
     hyd.y = vec![0.0; nl + 1];
     hyd.xflow = vec![0.0; nn.max(nl) + 1];
@@ -51,6 +45,28 @@ pub fn openhyd(pr: &mut Project) -> Result<(), SolverError> {
         initlinkflow(pr, i, s, kc);
     }
     Ok(())
+}
+
+/// The hydraulic state `allocdata` (project.c) allocates when a project opens, zeroed;
+/// kept as is when already allocated.
+pub fn allochyd(pr: &mut Project) {
+    let nn = pr.net.nnodes;
+    let nl = pr.net.nlinks;
+    let hyd = &mut pr.hyd;
+    if hyd.node_head.len() == nn + 1 && hyd.link_flow.len() == nl + 1 {
+        return;
+    }
+    hyd.node_head = vec![0.0; nn + 1];
+    hyd.node_demand = vec![0.0; nn + 1];
+    hyd.full_demand = vec![0.0; nn + 1];
+    hyd.demand_flow = vec![0.0; nn + 1];
+    hyd.emitter_flow = vec![0.0; nn + 1];
+    hyd.leakage_flow = vec![0.0; nn + 1];
+    hyd.link_flow = vec![0.0; nl + 1];
+    hyd.link_setting = vec![0.0; nl + 1];
+    // calloc: zero is XHEAD.
+    hyd.link_status = vec![Status::XHead; nl + 1];
+    pr.qual.node_qual = vec![0.0; nn + 1];
 }
 
 /// `inithyd`: initialise tanks, links and flows for a new run.
@@ -104,8 +120,9 @@ pub fn inithyd(pr: &mut Project, initflag: bool) {
     pr.times.rtime = pr.times.rstep;
 }
 
-/// `runhyd`: demands and controls at the current time, then solve.
-pub fn runhyd(pr: &mut Project) -> Result<(i32, f64), SolverError> {
+/// `runhyd`: demands and controls at the current time, then solve. Returns the
+/// iterations, the relative error and the warning code (`writehydwarn`, 0 if none).
+pub fn runhyd(pr: &mut Project) -> Result<(i32, f64, i32), SolverError> {
     demands(pr);
     controls(pr);
     match hydsolve(pr) {
@@ -116,8 +133,8 @@ pub fn runhyd(pr: &mut Project) -> Result<(i32, f64), SolverError> {
             if relerr > pr.hyd.hacc && pr.hyd.extra_iter == -1 {
                 pr.hyd.haltflag = true;
             }
-            report::writehydwarn(pr, iter, relerr);
-            Ok((iter, relerr))
+            let warn = report::writehydwarn(pr, iter, relerr);
+            Ok((iter, relerr, warn))
         }
         Err((code, _, node)) => Err(SolverError::new(
             code,
@@ -368,7 +385,7 @@ fn timestep(pr: &mut Project) -> i64 {
 }
 
 /// `tanktimestep`: shorten the step to the time a tank fills or empties.
-fn tanktimestep(pr: &Project, tstep: &mut i64) -> usize {
+pub(crate) fn tanktimestep(pr: &Project, tstep: &mut i64) -> usize {
     let mut tank_idx = 0;
     for i in 1..=pr.net.ntanks {
         let tank = &pr.net.tank[i];
@@ -402,7 +419,7 @@ fn tanktimestep(pr: &Project, tstep: &mut i64) -> usize {
 }
 
 /// `controltimestep`: shorten the step to the time a control would act.
-fn controltimestep(pr: &Project, tstep: &mut i64) -> usize {
+pub(crate) fn controltimestep(pr: &Project, tstep: &mut i64) -> usize {
     let mut control_index = 0;
     let njuncs = pr.net.njuncs;
     for i in 1..=pr.net.ncontrols {

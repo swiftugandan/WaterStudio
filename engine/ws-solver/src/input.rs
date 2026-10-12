@@ -475,6 +475,14 @@ fn times(
 /// Build the project: read the model as EPANET's input stage would, then convert
 /// to internal units and validate as `getdata` and `validateproject` do.
 pub fn build(model: &Model) -> Result<Project, SolverError> {
+    let mut pr = build_unvalidated(model)?;
+    validateproject(&mut pr)?;
+    Ok(pr)
+}
+
+/// What `EN_open` leaves: the model read and converted, not yet validated (EPANET
+/// validates, and computes pump curve parameters, each time the hydraulic solver opens).
+pub fn build_unvalidated(model: &Model) -> Result<Project, SolverError> {
     let mut pr = Project::default();
     let mut set = Settings::default();
 
@@ -914,10 +922,10 @@ pub fn build(model: &Model) -> Result<Project, SolverError> {
     inittanks(&mut pr);
     initunits(&mut pr);
     convertunits(&mut pr);
-    validateproject(&mut pr)?;
     crate::report::setfieldunits(&mut pr);
     pr.adjlist = crate::quality::buildadjlists(&pr.net);
     pr.rpt.title0 = model.title.first().cloned().unwrap_or_default();
+    crate::hydraul::allochyd(&mut pr);
     Ok(pr)
 }
 
@@ -1375,7 +1383,7 @@ fn convertunits(pr: &mut Project) {
 }
 
 /// `validateproject` (validate.c), including pump curve processing.
-fn validateproject(pr: &mut Project) -> Result<(), SolverError> {
+pub(crate) fn validateproject(pr: &mut Project) -> Result<(), SolverError> {
     if pr.net.nnodes < 2 {
         return Err(err(223, "not enough nodes in network"));
     }

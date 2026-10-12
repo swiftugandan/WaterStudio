@@ -106,6 +106,24 @@ pub struct Rule {
     pub is_enabled: bool,
 }
 
+impl Rule {
+    /// Whether the rule names a node (in a premise) or a link (in a premise or an
+    /// action), as `incontrols` (project.c) checks.
+    pub fn names(&self, node: bool, index: usize) -> bool {
+        let object = if node { Object::Node } else { Object::Link };
+        if self
+            .premises
+            .iter()
+            .any(|p| p.object == object && p.index == index)
+        {
+            return true;
+        }
+        !node
+            && (self.then_actions.iter().any(|a| a.link == index)
+                || self.else_actions.iter().any(|a| a.link == index))
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum State {
     Rule,

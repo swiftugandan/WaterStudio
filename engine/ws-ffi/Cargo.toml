@@ -1,0 +1,22 @@
+[package]
+name = "ws-ffi"
+description = "EPANET 2.3's C toolkit API over WaterStudio's engine: a drop-in libepanet2. With ws-wasm, the only crates allowed unsafe code, and only at the boundary."
+version.workspace = true
+edition.workspace = true
+license = "MIT"
+
+[lib]
+name = "epanet2"
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+ws-solver = { workspace = true }
+ws-io = { workspace = true }
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"

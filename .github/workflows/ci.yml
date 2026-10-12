@@ -34,12 +34,14 @@ jobs:
         run: cargo test -p ws-model --features ts --test typescript && git diff --exit-code ../packages/core/src/generated
       - run: cargo build --release --bins --examples
       - run: cargo build --release --target wasm32-unknown-unknown -p ws-wasm
+      - run: cargo build --release -p ws-ffi
       - uses: actions/upload-artifact@v7
         with:
           name: engine-builds
           path: |
             engine/target/release/ws-parity
             engine/target/release/ws
+            engine/target/release/libepanet2.so
             engine/target/release/examples/mathbits
             engine/target/wasm32-unknown-unknown/release/ws_wasm.wasm
           retention-days: 7
@@ -75,6 +77,8 @@ jobs:
         run: python3 -I oracle/math-bits.py engine/target/release/examples/mathbits
       - run: oracle/parity.sh --write-doc
       - run: oracle/msx.sh
+      - name: C toolkit API matches libepanet2
+        run: oracle/toolkit.sh
       - name: Parity report
         if: always()
         run: cat docs/PARITY.md >> "$GITHUB_STEP_SUMMARY" || true

@@ -1,0 +1,11 @@
+# Toolkit values known to differ from OWA-EPANET v2.3.5, by network and property.
+# oracle/toolkit.sh ignores exactly these properties for these networks, fails on any
+# other difference, and says when a listed difference has gone so the line can go too.
+# Each line: corpus path  property...  # why. Properties are as probe.c prints them.
+#
+# A [TANKS] line with zero diameter: EPANET runs it as a reservoir (as we do, results are
+# identical) but its getters still report the line's minimum and maximum level, volume
+# curve and volume. The canonical model keeps such a line as a reservoir with its extra
+# level (what affects results), so we report a reservoir's zeros (ADR 0016).
+../fixtures/features.inp        node.19 node.20 node.21 node.24
+../fixtures/report-summary.inp  node.19 node.20 node.21 node.24

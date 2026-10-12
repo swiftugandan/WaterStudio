@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["ws-model", "ws-io", "ws-solver", "ws-msx", "ws-hyd", "ws-study", "ws-wasm", "ws-parity", "ws-cli"]
+members = ["ws-model", "ws-io", "ws-solver", "ws-msx", "ws-hyd", "ws-study", "ws-wasm", "ws-ffi", "ws-parity", "ws-cli"]
 
 [workspace.package]
 version = "0.0.1"

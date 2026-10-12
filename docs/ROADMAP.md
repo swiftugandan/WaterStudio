@@ -94,7 +94,9 @@ Gate: MSX examples within tolerance; all performance budgets met; agent evaluati
 - [x] SQLite project file (ADR 0015): .wsproj holds the network, scenarios, isolation valves, the MSX input and view
   settings, with `nodes` and `links` views for SQL tools; autosaved to the browser's private file system and
   recoverable after a crash or a closed tab
-- [ ] C toolkit API (`ws-ffi`) and CLI
+- [ ] C toolkit API (`ws-ffi`, ADR 0016) and CLI: a drop-in `libepanet2` identical to OWA-EPANET's on every network;
+  done: project, analysis and every getter. Next: setters and network editing, rules, reports and output files,
+  hydraulics files, the legacy `epanet2.h` API
 - [ ] Proposal and review UI; MCP server
 
 ## Phase 4: Agent design 1.1

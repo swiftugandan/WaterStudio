@@ -20,7 +20,10 @@ WaterStudio is a browser-based, open-source successor to EPA EPANET. Read `docs/
   reports on `oracle/msx-cases.txt`. Run `oracle/build-msx.sh` once and `oracle/msx.sh` after any change to `ws-msx`
   or to what `ws-solver` hands it (`ToolkitData`, `HydRecord`).
 - `engine/ws-hyd` is a fork of epanet-rs (ADR 0001), kept as a benchmark. Record every change in `engine/ws-hyd/FORK.md`.
-- Only `engine/ws-wasm` may use `unsafe`. Elsewhere: no `unwrap`, `expect` or `panic` outside tests.
+- Only `engine/ws-wasm` and `engine/ws-ffi` may use `unsafe`, and only at their boundary. Elsewhere: no `unwrap`,
+  `expect` or `panic` outside tests.
+- `ws_solver::epanet` ports `epanet.c` and `engine/ws-ffi` exports it as a drop-in `libepanet2` (ADR 0016). After any
+  change to either, or to the solver state they read, run `cargo build --release -p ws-ffi && oracle/toolkit.sh`.
 - Clean room: never read the epanet-js application's source (FSL licence). OWA-EPANET, EPA EPANET, epanet-rs and
   PowerStudio are fine to consult and credit.
 - Colours, spacing and type come from `@waterstudio/ui` tokens (`--ws-*`); never hard-code them in components.
@@ -34,8 +37,8 @@ WaterStudio is a browser-based, open-source successor to EPA EPANET. Read `docs/
 ## Layout
 
 - `engine/`: Rust workspace (`ws-model` canonical model, `ws-io` .inp reader/writer, `ws-solver` hydraulic engine,
-  `ws-msx` multi-species quality, `ws-study` studies, `ws-wasm` WebAssembly boundary, `ws-parity` harness,
-  `ws-cli` command line, `ws-hyd` benchmark)
+  `ws-msx` multi-species quality, `ws-study` studies, `ws-wasm` WebAssembly boundary, `ws-ffi` C toolkit API
+  (`libepanet2`), `ws-parity` harness, `ws-cli` command line, `ws-hyd` benchmark)
 - `packages/`: `core` (document store, edits, options, scenarios), `ui` (tokens, icons, components), `symbols`
   (symbol masters), `render` (WebGPU and Canvas 2D map renderer), `engine-client` (engine workers), `gis`
   (GeoJSON, shapefile, DXF, DEMs), `project` (the .wsproj SQLite project file), `agents` (tool registry, providers,

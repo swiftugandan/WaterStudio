@@ -22,11 +22,13 @@
     clippy::needless_range_loop,
     clippy::assign_op_pattern,
     clippy::too_many_arguments,
-    clippy::if_same_then_else
+    clippy::if_same_then_else,
+    clippy::collapsible_match
 )]
 
 pub mod cfmt;
 mod coeffs;
+pub mod epanet;
 mod error;
 mod genmmd;
 mod hydraul;

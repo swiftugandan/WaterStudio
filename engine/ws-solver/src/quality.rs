@@ -153,6 +153,7 @@ pub struct HydRecord {
     head: Vec<f32>,
     flow: Vec<f32>,
     status: Vec<u8>,
+    setting: Vec<f32>,
 }
 
 impl HydRecord {
@@ -197,6 +198,7 @@ pub fn savehyd(pr: &Project, htime: i64) -> HydRecord {
             })
             .collect(),
         status: (1..=nl).map(|k| hyd.link_status[k] as u8).collect(),
+        setting: (1..=nl).map(|k| hyd.link_setting[k] as f32).collect(),
     }
 }
 
@@ -206,11 +208,17 @@ pub fn readhyd(pr: &mut Project, r: &HydRecord) {
     for (i, v) in r.demand.iter().enumerate() {
         hyd.node_demand[i + 1] = f64::from(*v);
     }
+    for (i, v) in r.head.iter().enumerate() {
+        hyd.node_head[i + 1] = f64::from(*v);
+    }
     for (k, v) in r.flow.iter().enumerate() {
         hyd.link_flow[k + 1] = f64::from(*v);
     }
     for (k, v) in r.status.iter().enumerate() {
         hyd.link_status[k + 1] = Status::from_code(*v as i8);
+    }
+    for (k, v) in r.setting.iter().enumerate() {
+        hyd.link_setting[k + 1] = f64::from(*v);
     }
 }
 
@@ -365,6 +373,20 @@ pub fn nextqual(pr: &mut Project) -> i64 {
     hydstep
 }
 
+/// `closequal`: free the segments (links then average their end nodes' quality).
+pub fn closequal(pr: &mut Project) {
+    if pr.qual.qualflag != QualType::None {
+        let q = &mut pr.qual;
+        q.segs.clear();
+        q.first.clear();
+        q.last.clear();
+        q.free = NIL;
+        q.pipe_rate_coeff.clear();
+        q.flow_dir.clear();
+        q.sorted.clear();
+    }
+}
+
 /// `avgqual`: average quality in a link.
 pub fn avgqual(pr: &Project, k: usize) -> f64 {
     let q = &pr.qual;
@@ -445,7 +467,7 @@ fn sourcequal(pr: &Project, source: &Source) -> f64 {
     c * f[k as usize]
 }
 
-fn evalmassbalance(pr: &mut Project) {
+pub(crate) fn evalmassbalance(pr: &mut Project) {
     if pr.qual.qualflag == QualType::None {
         pr.qual.mass.ratio = 1.0;
         return;
@@ -511,7 +533,7 @@ fn flowdirchanged(pr: &mut Project) -> bool {
 
 // ---- qualroute.c ----
 
-fn transport(pr: &mut Project, tstep: i64) {
+pub(crate) fn transport(pr: &mut Project, tstep: i64) {
     if pr.qual.reactflag {
         reactpipes(pr, tstep);
         reacttanks(pr, tstep);
