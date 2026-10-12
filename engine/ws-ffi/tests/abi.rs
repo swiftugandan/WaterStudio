@@ -74,3 +74,35 @@ fn runs_a_network_through_the_c_api() {
     }
     std::fs::remove_dir_all(&dir).ok();
 }
+
+#[test]
+fn runs_a_network_through_the_legacy_api() {
+    use epanet2::legacy::*;
+    let dir = std::env::temp_dir().join(format!("ws-ffi-legacy-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let inp = dir.join("net.inp");
+    std::fs::write(&inp, NET).unwrap();
+    let inp = CString::new(inp.to_str().unwrap()).unwrap();
+    let rpt = CString::new(dir.join("net.rpt").to_str().unwrap()).unwrap();
+    let empty = CString::new("").unwrap();
+    unsafe {
+        assert_eq!(ENopen(inp.as_ptr(), rpt.as_ptr(), empty.as_ptr()), 0);
+        let mut n: c_int = 0;
+        assert_eq!(ENgetcount(0, &mut n), 0);
+        assert_eq!(n, 2);
+        assert_eq!(ENsolveH(), 0);
+        let mut heads = [0.0f32; 2];
+        assert_eq!(ENgetnodevalues(10, heads.as_mut_ptr()), 0);
+        assert!(
+            heads[0] > 100.0 && heads[0] < 200.0 && heads[1] == 200.0,
+            "{heads:?}"
+        );
+        let mut elev = 0.0f32;
+        assert_eq!(ENsetnodevalue(1, 0, 101.5), 0);
+        assert_eq!(ENgetnodevalue(1, 0, &mut elev), 0);
+        assert_eq!(elev, 101.5);
+        assert_eq!(ENclose(), 0);
+        assert_eq!(ENgetcount(0, &mut n), 102);
+    }
+    std::fs::remove_dir_all(&dir).unwrap();
+}

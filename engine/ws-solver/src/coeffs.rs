@@ -419,7 +419,16 @@ pub fn curvecoeff(pr: &Project, i: usize, q: f64) -> (f64, f64) {
     let uflow = pr.units.ucf[Field::Flow as usize];
     let uhead = pr.units.ucf[Field::Head as usize];
     let q = q * uflow;
-    let curve = &pr.net.curve[i];
+    // With fewer than two points EPANET reads outside the curve (only reachable by
+    // running the solver without EN_initH): no panic here, whatever the result.
+    let Some(curve) = pr
+        .net
+        .curve
+        .get(i)
+        .filter(|c| c.x.len() >= 2 && c.y.len() == c.x.len())
+    else {
+        return (0.0, 0.0);
+    };
     let (x, y) = (&curve.x, &curve.y);
     let npts = x.len();
     let mut k2 = 0;

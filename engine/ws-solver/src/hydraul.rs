@@ -26,7 +26,8 @@ pub fn openhyd(pr: &mut Project) -> Result<(), SolverError> {
     hyd.p = vec![0.0; nl + 1];
     hyd.y = vec![0.0; nl + 1];
     hyd.xflow = vec![0.0; nn.max(nl) + 1];
-    hyd.old_status = vec![Status::Open; nl + pr.net.ntanks + 1];
+    // calloc: XHEAD until inithyd sets them.
+    hyd.old_status = vec![Status::XHead; nl + pr.net.ntanks + 1];
 
     // unlinked: every junction must have at least one link.
     let mut linked = vec![false; nn + 1];

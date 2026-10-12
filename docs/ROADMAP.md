@@ -96,7 +96,7 @@ Gate: MSX examples within tolerance; all performance budgets met; agent evaluati
   recoverable after a crash or a closed tab
 - [ ] C toolkit API (`ws-ffi`, ADR 0016) and CLI: a drop-in `libepanet2` identical to OWA-EPANET's on every network;
   done: project, analysis, every getter and setter, network structure, rules, reports, output, input and hydraulics
-  files, `EN_init`. Next: input errors as EPANET reports them and `EN_openX`, the legacy `epanet2.h` API
+  files, `EN_init`, the legacy `epanet2.h` API. Next: input errors as EPANET reports them, and `EN_openX`
 - [ ] Proposal and review UI; MCP server
 
 ## Phase 4: Agent design 1.1

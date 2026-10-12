@@ -20,6 +20,8 @@ use std::ffi::{CStr, CString, c_char, c_double, c_int, c_long, c_void};
 use std::io::Write;
 use ws_solver::epanet::{self, MAXID, MAXMSG, ReportOutput, TITLELEN, Toolkit};
 
+pub mod legacy;
+
 /// The report callback of `EN_setreportcallback`: (user data, project, line).
 pub type ReportCallback = unsafe extern "C" fn(*mut c_void, *mut c_void, *const c_char);
 

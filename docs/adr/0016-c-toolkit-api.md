@@ -114,9 +114,14 @@ holds that same `Project`, field by field.
   from nothing with the editing functions, solves it and saves it, identically to OWA-EPANET. `EN_addrule`
   crashes the reference in such a project, so the probe leaves rules out there. `EN_open` without a readable
   input file now writes no report, as `openfiles` opens the input first.
-- Not yet:
-  - `EN_openX`, which needs EPANET's input error messages and its partly read networks;
-  - the legacy single-precision API (`epanet2.h`).
+- **Stage 9.** The legacy single-precision API of `epanet2.h`: 141 `EN...` functions on one project the library
+  keeps, forwarding as `epanet2.c` does, with real values as `float`. Most are generated from `epanet2.c`
+  (`scripts/gen-legacy-api.py`); the dozen that do more (whole runs, arrays, `ENgetcurve`) are written out.
+  `oracle/toolkit/legacy.c` drives them on every network (values, setters, patterns, curves, controls, rules,
+  hydraulics, quality, saved input, report and output files, `ENepanet`) and `toolkit.sh` requires identical
+  output and files. On the way, `openhyd` now leaves link statuses zeroed as `calloc` does, and a curve of fewer
+  than two points no longer panics (both only reachable by running the solver without `EN_initH`, which reads
+  uninitialised memory in the reference).
+- Not yet: `EN_openX` and `ENopenX`, which need EPANET's input error messages and its partly read networks.
 
-  A program calling these fails to link rather than misbehaving. They follow in later stages, under the same
-  harness.
+  A program calling them fails to link rather than misbehaving. They follow under the same harness.
