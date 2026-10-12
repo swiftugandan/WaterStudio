@@ -10,7 +10,7 @@ import type { BackendName } from './backend.ts';
 import { Camera } from './camera.ts';
 import { createBackend, RenderCore, type FromRenderer, type Preference, type ToRenderer } from './core.ts';
 import { Picker, type Hit } from './picking.ts';
-import type { Scene } from './scene.ts';
+import type { Scene, ScenePatch } from './scene.ts';
 import { defaultDrawOptions, type DrawOptions, type Paint, type Theme } from './style.ts';
 
 export interface RendererStatus {
@@ -122,7 +122,8 @@ export class Renderer {
   }
 
   private post(m: ToRenderer): void {
-    this.last[m.t] = m;
+    // A patch moves elements of the scene held here too, so replaying the scene carries it.
+    if (m.t !== 'patch') this.last[m.t] = m;
     if (this.worker) this.worker.postMessage(m);
     else this.core?.handle(m);
   }
@@ -133,8 +134,20 @@ export class Renderer {
 
   setScene(scene: Scene): void {
     this.scene = scene;
-    this.picker = new Picker(scene);
+    this.picker = null;
     this.post({ t: 'scene', scene });
+  }
+
+  /** Tell the backend about elements `patchScene` moved in the current scene. */
+  patchScene(patch: ScenePatch): void {
+    this.picker = null;
+    this.post({ t: 'patch', patch });
+  }
+
+  /** Hit testing, rebuilt on first use after the scene changes. */
+  private pickerOf(): Picker | null {
+    if (!this.picker && this.scene) this.picker = new Picker(this.scene);
+    return this.picker;
   }
 
   setPaint(paint: Paint): void {
@@ -185,14 +198,14 @@ export class Renderer {
   }
 
   pick(sx: number, sy: number, tolerance?: number): Hit | null {
-    return this.picker?.pick(this.camera, sx, sy, tolerance) ?? null;
+    return this.pickerOf()?.pick(this.camera, sx, sy, tolerance) ?? null;
   }
 
   queryScreenRect(x0: number, y0: number, x1: number, y1: number, crossing: boolean) {
     const [ax, ay] = this.camera.toWorld(Math.min(x0, x1), Math.max(y0, y1));
     const [bx, by] = this.camera.toWorld(Math.max(x0, x1), Math.min(y0, y1));
     return (
-      this.picker?.query({ minX: ax, minY: ay, maxX: bx, maxY: by }, crossing) ?? { nodes: [], links: [] }
+      this.pickerOf()?.query({ minX: ax, minY: ay, maxX: bx, maxY: by }, crossing) ?? { nodes: [], links: [] }
     );
   }
 

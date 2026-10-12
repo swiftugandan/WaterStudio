@@ -291,15 +291,15 @@ export const sizePipes = defineTool({
 
 Every claim the app makes is backed by a test that runs in CI: numerics against OWA-EPANET, rendering by decoding screenshot pixels in each backend, accessibility by axe-core, and speed against the budgets below. A budget miss fails the build like a broken test.
 
-| Budget (initial targets) | Target | Measured by |
-| --- | --- | --- |
-| Open and draw a 10,000-pipe .inp | under 1.5 s | Playwright trace, mid-range laptop |
-| Pan and zoom, 200,000 links | 60 fps WebGPU; 30 fps or better on Canvas 2D with LOD | Frame timings in the scene benchmark |
-| Step or scrub one time step, 100,000 elements | under 16 ms | Buffer write plus frame |
-| 24-hour EPS, 10,000 nodes, 1-hour steps | under 2 s in one WASM worker | ws bench, native and WASM |
-| Fire flow at 1,000 hydrants, 10,000-node network | under 10 s on 8 workers | Pool benchmark |
-| Edit to repaint | under 50 ms; no main-thread task over 50 ms | Long-task observer in e2e tests |
-| Memory, 100,000-element project with one EPS loaded | under 1 GB per tab | Engine memory reports plus performance.measureUserAgentSpecificMemory |
+| Budget | Target | Measured by | Measured in CI (Canvas 2D, ADR 0018) |
+| --- | --- | --- | --- |
+| Open and draw a 10,000-pipe .inp | under 1.5 s | Playwright, production build | 0.2 s |
+| Pan and zoom, 200,000 links | 60 fps WebGPU; 30 fps or better on Canvas 2D with LOD | Frames the render worker reports | 54 fps (50,000 pipes: 50–58 fps) |
+| Step or scrub one time step, 100,000 elements | under 16 ms | Paint plus the worker's draw | 5 ms average, 10 ms worst |
+| 24-hour EPS, 10,000 nodes, 1-hour steps | under 2 s in one WASM worker | Engine worker, realistic network | 0.3 s (full grid: 1.0 s) |
+| Fire flow at 1,000 hydrants, 10,000-node network | under 10 s on 8 workers | Study pool; budget scaled to its size | 16 s on 1 worker (budget 80 s) |
+| Edit to repaint | under 50 ms; no main-thread task over 50 ms | Transaction to drawn frame, long-task observer | 34 ms, no long tasks |
+| Memory, 100,000-element project with one EPS loaded | under 1 GB per tab | Resident size of the tab's renderer processes | 814 MB |
 
 **Test layers.** Rust unit and oracle tests; native versus WASM comparison; Vitest for the core and store; Playwright in four projects (Chromium with WebGPU, Chromium without it to force Canvas 2D, Firefox, WebKit) covering drawing, snapping, import, runs, undo, docking and the agent review flow; screenshot pixel checks per backend; nightly agent evaluations.
 

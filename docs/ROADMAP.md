@@ -85,7 +85,7 @@ Gate: MSX examples within tolerance; all performance budgets met; agent evaluati
   hydraulics and MSX on a separate worker that can be stopped, and every species becomes a result variable on the
   map, in graphs, the results table, the inspector, queries and legends; the MSX report and input save as files
 - [x] Scenario manager (ADR 0013): property overrides that inherit as a tree over a shared network; compare any two
-- [x] Fire flow (available flow at a residual and system pressure, warm-started bisection), criticality (each link out
+- [x] Fire flow (available flow at a residual and system pressure, warm-started regula falsi), criticality (each link out
   of service over the whole simulation), isolation segments (valves at pipe ends, N−1 and every-end rules, unintended
   isolation); studies split across the engine pool
 - [x] Elevations from a DEM (GeoTIFF or ASCII grid, reprojected when it names another CRS) or online terrain tiles;
@@ -104,6 +104,11 @@ Gate: MSX examples within tolerance; all performance budgets met; agent evaluati
 - [x] MCP server (`apps/mcp-server`, ADR 0017): `ws-mcp network.inp` serves the same tools, drafts and proposals
   to MCP clients on stdio (stateless 2026-07-28 revision, `initialize` for earlier clients); proposals land in a
   file the Proposals panel opens, and only `--accept` lets the agent apply them and save
+- [x] Performance budgets (ADR 0018), gated in the e2e suite on Canvas 2D: open 10,000 pipes in 0.2 s; 200,000
+  links pan at 54 fps; a time step of 100,000 elements in 5 ms; 24-hour EPS of 10,000 nodes in 0.3 s; fire flow at
+  1,000 hydrants in 16 s on one worker (about 2 s on 8); edit to repaint in 34 ms; 814 MB for 100,000 elements
+  with a run. The sparse solver assembles in place (still bit-identical); fire flow reuses a warm solver and
+  regula falsi; the overview is rasterised; edits patch the scene
 
 ## Phase 4: Agent design 1.1
 

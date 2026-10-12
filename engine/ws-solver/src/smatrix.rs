@@ -68,8 +68,21 @@ pub fn createsparse(net: &Network) -> Smatrix {
     storesparse(&mut sm, &adj, njuncs);
     sortsparse(&mut sm, njuncs);
 
+    // EPANET assembles coefficient c at Aij[c] and reads it as Aij[LNZ[i]] while
+    // factorising. Assembling it straight at its factor position i (where LNZ[i] == c)
+    // gives the same values without the indirection. Coefficients no factor position
+    // holds (links to tanks and reservoirs) are never assembled; they get a spare slot.
+    let spare = sm.ncoeffs + 1;
+    let mut pos = vec![spare; sm.ncoeffs + 2];
+    for p in 1..sm.xlnz[njuncs + 1] {
+        pos[sm.lnz[p]] = p;
+    }
+    for k in 1..=nlinks {
+        sm.ndx[k] = pos[sm.ndx[k]];
+    }
+
     // alloclinsolve
-    sm.aij = vec![0.0; sm.ncoeffs + 1];
+    sm.aij = vec![0.0; sm.ncoeffs + 2];
     sm.aii = vec![0.0; nnodes + 1];
     sm.f = vec![0.0; nnodes + 1];
     sm.temp = vec![0.0; nnodes + 1];
@@ -132,6 +145,11 @@ fn factorize(sm: &mut Smatrix, adj: &mut [Vec<Adj>], nnodes: usize, njuncs: usiz
     for k in 1..=njuncs {
         degree[k] = adj[k].iter().filter(|a| a.node > 0).count() as i32;
     }
+    // `linked(inode, jnode)` scans inode's list in EPANET; marking inode's neighbours once
+    // per inode answers the same question in constant time (only inode's list grows
+    // with inode's entries while it is checked).
+    let mut mark = vec![0usize; nnodes + 1];
+    let mut stamp = 0usize;
     for k in 1..=njuncs {
         let knode = sm.order[k];
         // growlist: knode's own list does not change while it is walked.
@@ -142,10 +160,14 @@ fn factorize(sm: &mut Smatrix, adj: &mut [Vec<Adj>], nnodes: usize, njuncs: usiz
                 degree[node] -= 1;
                 // newlink: scan the entries that follow `pos` in head-first order.
                 let inode = node;
+                stamp += 1;
+                for a in &adj[inode] {
+                    mark[a.node] = stamp;
+                }
                 for bpos in (0..pos).rev() {
                     let jnode = list[bpos].node;
-                    if jnode > 0 && degree[jnode] > 0 && !adj[inode].iter().any(|a| a.node == jnode)
-                    {
+                    if jnode > 0 && degree[jnode] > 0 && mark[jnode] != stamp {
+                        mark[jnode] = stamp;
                         sm.ncoeffs += 1;
                         adj[inode].push(Adj {
                             node: jnode,
@@ -257,12 +279,13 @@ fn transpose(
 /// factorisation. The solution replaces `F`. Returns the 1-based row where the
 /// matrix stopped being positive definite, or 0 on success.
 pub fn linsolve(sm: &mut Smatrix, n: usize) -> usize {
+    // Coefficients are assembled at their factor positions (see `createsparse`), so
+    // EPANET's Aij[LNZ[i]] is aij[i] here; the arithmetic and its order are EPANET's.
     let Smatrix {
         aii,
         aij,
         f: b,
         temp,
-        lnz,
         xlnz,
         nzsub,
         link,
@@ -282,7 +305,7 @@ pub fn linsolve(sm: &mut Smatrix, n: usize) -> usize {
         while k != 0 {
             newk = link[k];
             let kfirst = first[k];
-            let ljk = aij[lnz[kfirst]];
+            let ljk = aij[kfirst];
             diagj += ljk * ljk;
             let istrt = kfirst + 1;
             let istop = xlnz[k + 1] - 1;
@@ -291,9 +314,8 @@ pub fn linsolve(sm: &mut Smatrix, n: usize) -> usize {
                 let isub = nzsub[istrt];
                 link[k] = link[isub];
                 link[isub] = k;
-                for i in istrt..=istop {
-                    let isub = nzsub[i];
-                    temp[isub] += aij[lnz[i]] * ljk;
+                for (&isub, &l) in nzsub[istrt..=istop].iter().zip(&aij[istrt..=istop]) {
+                    temp[isub] += l * ljk;
                 }
             }
             k = newk;
@@ -311,10 +333,8 @@ pub fn linsolve(sm: &mut Smatrix, n: usize) -> usize {
             let isub = nzsub[istrt];
             link[j] = link[isub];
             link[isub] = j;
-            for i in istrt..=istop {
-                let isub = nzsub[i];
-                let bj = (aij[lnz[i]] - temp[isub]) / diag;
-                aij[lnz[i]] = bj;
+            for (&isub, l) in nzsub[istrt..=istop].iter().zip(&mut aij[istrt..=istop]) {
+                *l = (*l - temp[isub]) / diag;
                 temp[isub] = 0.0;
             }
         }
@@ -326,9 +346,8 @@ pub fn linsolve(sm: &mut Smatrix, n: usize) -> usize {
         let istrt = xlnz[j];
         let istop = xlnz[j + 1] - 1;
         if istop >= istrt {
-            for i in istrt..=istop {
-                let isub = nzsub[i];
-                b[isub] -= aij[lnz[i]] * bj;
+            for (&isub, &l) in nzsub[istrt..=istop].iter().zip(&aij[istrt..=istop]) {
+                b[isub] -= l * bj;
             }
         }
     }
@@ -338,9 +357,8 @@ pub fn linsolve(sm: &mut Smatrix, n: usize) -> usize {
         let istrt = xlnz[j];
         let istop = xlnz[j + 1] - 1;
         if istop >= istrt {
-            for i in istrt..=istop {
-                let isub = nzsub[i];
-                bj -= aij[lnz[i]] * b[isub];
+            for (&isub, &l) in nzsub[istrt..=istop].iter().zip(&aij[istrt..=istop]) {
+                bj -= l * b[isub];
             }
         }
         b[j] = bj / aii[j];

@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 use ws_model::{LinkKind, Model, OpenClosed, PipeStatus};
+use ws_solver::math::pow;
 use ws_solver::{Hydraulics, hour};
 
 /// Fire flow: a design flow drawn at each hydrant, at one time of day.
@@ -119,6 +120,8 @@ pub fn fire_flow(model: &Model, opts: &FireFlowOptions) -> Result<Vec<FireFlowRe
         solve_with(&base, 0, 0.0).ok_or("the network cannot be solved without fire flow")?;
     let max_flow = opts.max_flow.unwrap_or(opts.flow * 10.0).max(opts.flow);
     let mut out = Vec::with_capacity(opts.hydrants.len());
+    let mut h = base.clone();
+    let mut previous: Option<usize> = None;
     for id in &opts.hydrants {
         let Some(node) = ids.iter().position(|x| x == id).filter(|&i| i < njuncs) else {
             out.push(FireFlowResult {
@@ -149,7 +152,19 @@ pub fn fire_flow(model: &Model, opts: &FireFlowOptions) -> Result<Vec<FireFlowRe
             }
             (m, low, at)
         };
-        let design = solve_with(&base, node, opts.flow);
+        // One solution, re-solved from flow to flow: each hydrant starts from the static
+        // solution, each later flow from the last (fewer trials than starting afresh).
+        if let Some(prev) = previous.replace(node) {
+            h.set_constant_demand(prev, 0.0)
+                .map_err(|e| e.to_string())?;
+        }
+        h.copy_solution(&base);
+        let mut solve = |q: f64| -> Option<Vec<f64>> {
+            h.set_constant_demand(node, q).ok()?;
+            h.run().ok()?;
+            Some(h.pressures())
+        };
+        let design = solve(opts.flow);
         let (residual, critical, critical_node, meets) = match &design {
             Some(p) => {
                 let (m, low, at) = margin(p);
@@ -157,32 +172,16 @@ pub fn fire_flow(model: &Model, opts: &FireFlowOptions) -> Result<Vec<FireFlowRe
             }
             None => (f64::NAN, f64::NAN, None, false),
         };
-        let ok = |q: f64| solve_with(&base, node, q).is_some_and(|p| margin(&p).0 >= 0.0);
-        let available = if !ok(0.0) {
-            0.0
-        } else {
-            let (mut lo, mut hi) = (0.0, opts.flow.max(1e-6));
-            while ok(hi) && hi < max_flow {
-                lo = hi;
-                hi = (hi * 2.0).min(max_flow);
-            }
-            if ok(hi) {
-                hi
-            } else {
-                for _ in 0..40 {
-                    if hi - lo <= 2e-3 * hi.max(1.0) {
-                        break;
-                    }
-                    let mid = 0.5 * (lo + hi);
-                    if ok(mid) {
-                        lo = mid;
-                    } else {
-                        hi = mid;
-                    }
-                }
-                lo
-            }
-        };
+        let mut probe = |q: f64| -> Option<f64> { solve(q).map(|p| margin(&p).0) };
+        let static_margin = margin(&static_p).0;
+        let design_margin = design.as_ref().map(|p| margin(p).0);
+        let available = available_flow(
+            static_margin,
+            opts.flow,
+            design_margin,
+            max_flow,
+            &mut probe,
+        );
         out.push(FireFlowResult {
             id: id.clone(),
             static_pressure: static_p[node],
@@ -199,6 +198,97 @@ pub fn fire_flow(model: &Model, opts: &FireFlowOptions) -> Result<Vec<FireFlowRe
         });
     }
     Ok(out)
+}
+
+/// Relative width of the flow interval the available flow is found to.
+const FLOW_TOLERANCE: f64 = 2e-3;
+
+/// The largest flow (up to `max_flow`) whose margin `probe` finds non-negative, to
+/// within [`FLOW_TOLERANCE`]. After the design flow, the largest flow is tried; if it
+/// breaks the limits, the root is bracketed and found by regula falsi in x = q^1.852
+/// (pressure falls with about the 1.852nd power of the flow drawn, as hydrant flow tests
+/// assume, so the margin is close to linear in x), probing just below and just above
+/// each estimate, which usually closes the bracket in one round. A probe that fails to
+/// solve counts as breaking the limits.
+fn available_flow(
+    static_margin: f64,
+    design: f64,
+    design_margin: Option<f64>,
+    max_flow: f64,
+    probe: &mut dyn FnMut(f64) -> Option<f64>,
+) -> f64 {
+    const EXP: f64 = 1.852;
+    if static_margin < 0.0 {
+        return 0.0;
+    }
+    // The engine's own pow, so results are the same natively and in WebAssembly.
+    let x = |q: f64| pow(q, EXP);
+    let q_of = |x: f64| pow(x.max(0.0), 1.0 / EXP);
+    // The largest flow known to keep the limits, and the smallest known to break them
+    // (a failed solve breaks them with an unknown margin).
+    let mut lo = (0.0, static_margin);
+    let mut hi: Option<(f64, f64)> = None;
+    let seen = |q: f64, m: Option<f64>, lo: &mut (f64, f64), hi: &mut Option<(f64, f64)>| match m {
+        Some(m) if m >= 0.0 => {
+            if q > lo.0 {
+                *lo = (q, m);
+            }
+        }
+        _ => {
+            if hi.is_none_or(|(hq, _)| q < hq) {
+                *hi = Some((q, m.unwrap_or(f64::NEG_INFINITY)));
+            }
+        }
+    };
+    seen(design, design_margin, &mut lo, &mut hi);
+    if hi.is_none() {
+        let m = probe(max_flow);
+        seen(max_flow, m, &mut lo, &mut hi);
+    }
+    let Some(mut bracket) = hi else {
+        return max_flow;
+    };
+    // Illinois: an end kept twice in a row counts for half, so the estimate moves on.
+    let mut kept_lo = 0;
+    let mut kept_hi = 0;
+    for _ in 0..16 {
+        let (hq, hm) = bracket;
+        if hq - lo.0 <= FLOW_TOLERANCE * hq.max(1.0) {
+            break;
+        }
+        let estimate = if hm.is_finite() && lo.1 - hm > 0.0 {
+            let ml = if kept_lo >= 2 { 0.5 * lo.1 } else { lo.1 };
+            let mh = if kept_hi >= 2 { 0.5 * hm } else { hm };
+            let (xl, xh) = (x(lo.0), x(hq));
+            q_of(xl + ml * (xh - xl) / (ml - mh))
+        } else {
+            0.5 * (lo.0 + hq)
+        };
+        let half = 0.5 * FLOW_TOLERANCE * estimate.max(1.0);
+        let (before_lo, before_hi) = (lo.0, hq);
+        let below = estimate - half;
+        let above = estimate + half;
+        if below > lo.0 && above < hq {
+            let m = probe(below);
+            seen(below, m, &mut lo, &mut hi);
+            if m.is_some_and(|m| m >= 0.0) {
+                let m = probe(above);
+                seen(above, m, &mut lo, &mut hi);
+            }
+        } else {
+            let mid = 0.5 * (lo.0 + hq);
+            let m = probe(mid);
+            seen(mid, m, &mut lo, &mut hi);
+        }
+        bracket = hi.unwrap_or(bracket);
+        kept_lo = if lo.0 == before_lo { kept_lo + 1 } else { 0 };
+        kept_hi = if bracket.0 == before_hi {
+            kept_hi + 1
+        } else {
+            0
+        };
+    }
+    lo.0
 }
 
 /// Criticality: each link taken out of service in turn over the whole simulation.

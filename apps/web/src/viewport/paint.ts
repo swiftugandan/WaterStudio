@@ -99,6 +99,24 @@ function indexOf(handles: Uint32Array): Map<number, number> {
   return m;
 }
 
+/** For each scene element, its column in a run (-1 if absent), built once per pair. */
+const columnsCache = new WeakMap<Uint32Array, WeakMap<Uint32Array, Int32Array>>();
+function columnsOf(runHandles: Uint32Array, sceneHandles: Uint32Array): Int32Array {
+  let byScene = columnsCache.get(runHandles);
+  if (!byScene) {
+    byScene = new WeakMap();
+    columnsCache.set(runHandles, byScene);
+  }
+  let cols = byScene.get(sceneHandles);
+  if (!cols) {
+    const idx = indexOf(runHandles);
+    cols = new Int32Array(sceneHandles.length);
+    for (let i = 0; i < sceneHandles.length; i++) cols[i] = idx.get(sceneHandles[i]!) ?? -1;
+    byScene.set(sceneHandles, cols);
+  }
+  return cols;
+}
+
 /** Values of a run's frame for the scene's elements, by handle (NaN where absent). */
 function mapFrame(
   frame: Float32Array,
@@ -106,11 +124,11 @@ function mapFrame(
   sceneHandles: Uint32Array,
   abs: boolean,
 ): Float32Array {
-  const idx = indexOf(runHandles);
-  const out = new Float32Array(sceneHandles.length);
-  for (let i = 0; i < sceneHandles.length; i++) {
-    const k = idx.get(sceneHandles[i]!);
-    const v = k === undefined ? NaN : frame[k]!;
+  const cols = columnsOf(runHandles, sceneHandles);
+  const out = new Float32Array(cols.length);
+  for (let i = 0; i < cols.length; i++) {
+    const k = cols[i]!;
+    const v = k < 0 ? NaN : frame[k]!;
     out[i] = abs ? Math.abs(v) : v;
   }
   return out;

@@ -9,7 +9,7 @@
 
 import { atlasIndex, ATLAS_SYMBOLS, type Atlas } from './atlas.ts';
 import type { Backend, Frame } from './backend.ts';
-import { LINK_SYMBOLS, type Scene } from './scene.ts';
+import { applyScenePatch, LINK_SYMBOLS, type Scene, type ScenePatch } from './scene.ts';
 import { defaultDrawOptions, rgb, type DrawOptions, type Paint, type Theme } from './style.ts';
 
 const SHADER = /* wgsl */ `
@@ -335,6 +335,13 @@ export class WebGPUBackend implements Backend {
     if (data.byteLength > 0)
       this.device.queue.writeBuffer(b, 0, data.buffer, data.byteOffset, data.byteLength);
     return b;
+  }
+
+  patchScene(p: ScenePatch): void {
+    if (!this.scene) return;
+    applyScenePatch(this.scene, p);
+    // Buffers are rebuilt whole: on the GPU this is cheap.
+    this.setScene(this.scene);
   }
 
   setScene(s: Scene): void {

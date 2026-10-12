@@ -245,6 +245,40 @@ impl Hydraulics {
         Ok(())
     }
 
+    /// Study API: take another solution of the same network (heads, flows, statuses
+    /// and settings) as the starting point of the next [`Hydraulics::run`], without
+    /// copying the network itself.
+    pub fn copy_solution(&mut self, from: &Hydraulics) {
+        self.pr.hyd.clone_from(&from.pr.hyd);
+    }
+
+    /// Study API: like [`Hydraulics::add_constant_demand`], but sets the junction's
+    /// constant demand rather than adding another, so one solution can be re-solved
+    /// for a series of flows, each starting from the last.
+    pub fn set_constant_demand(&mut self, node: usize, flow: f64) -> Result<(), SolverError> {
+        let i = node + 1;
+        if node >= self.pr.net.njuncs {
+            return Err(SolverError::new(203, "a constant demand needs a junction"));
+        }
+        let pat = self
+            .pr
+            .net
+            .pattern
+            .iter()
+            .position(|p| p.id == "\u{0}constant");
+        if let Some(k) = pat.and_then(|pat| self.pr.net.node[i].d.iter().position(|d| d.pat == pat))
+        {
+            let dmult = if self.pr.hyd.dmult == 0.0 {
+                1.0
+            } else {
+                self.pr.hyd.dmult
+            };
+            self.pr.net.node[i].d[k].base = flow / self.ucf(Field::Demand) / dmult;
+            return Ok(());
+        }
+        self.add_constant_demand(node, flow)
+    }
+
     /// Hydraulic heads in user units.
     pub fn heads(&self) -> Vec<f64> {
         let u = self.ucf(Field::Head);

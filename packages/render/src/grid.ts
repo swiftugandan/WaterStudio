@@ -15,6 +15,8 @@ export class Grid {
   private readonly size: number;
   private readonly stamp: Uint32Array;
   private mark = 0;
+  /** Items that moved since the grid was built: visited by every query. */
+  private readonly extra: number[] = [];
 
   /** `box(i)` writes item i's [minX, minY, maxX, maxY] (NaN to skip). */
   constructor(count: number, bounds: Bounds, box: (i: number, out: Float64Array) => void) {
@@ -54,12 +56,28 @@ export class Grid {
     return Math.max(0, Math.min(this.rows - 1, Math.floor((y - this.y0) / this.size)));
   }
 
+  /** Items that moved and are checked by every query. */
+  get moved(): number {
+    return this.extra.length;
+  }
+
+  /** Item i moved: queries visit it wherever they look (its old cells still list it too). */
+  include(i: number): void {
+    this.extra.push(i);
+  }
+
   /** Call `fn` once for each item whose cell overlaps the rectangle. */
   query(minX: number, minY: number, maxX: number, maxY: number, fn: (i: number) => void): void {
     this.mark++;
     if (this.mark === 0xffffffff) {
       this.stamp.fill(0);
       this.mark = 1;
+    }
+    for (const i of this.extra) {
+      if (this.stamp[i] !== this.mark) {
+        this.stamp[i] = this.mark;
+        fn(i);
+      }
     }
     const c0 = this.col(minX);
     const c1 = this.col(maxX);

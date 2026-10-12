@@ -15,11 +15,11 @@ import type { model } from '@waterstudio/core';
 
 let pool: EngineClient | null = null;
 
-/** The study pool, started on first use (one engine per worker, up to four). */
+/** The study pool, started on first use (one engine per worker, up to eight, leaving a core free). */
 export function studyPool(): EngineClient {
   if (!pool) {
     const hw = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 2;
-    pool = new EngineClient({ workers: Math.max(1, Math.min(4, (hw || 2) - 1)) });
+    pool = new EngineClient({ workers: Math.max(1, Math.min(8, (hw || 2) - 1)) });
   }
   return pool;
 }

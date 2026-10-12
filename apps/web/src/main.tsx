@@ -3,7 +3,8 @@ import { createRoot } from 'react-dom/client';
 import '@waterstudio/ui/tokens.css';
 import './app.css';
 import { noticeAutosave, startAutosave } from './app/autosave.ts';
-import { gridModel } from './app/bench.ts';
+import { epsModel, gridModel, networkModel } from './app/bench.ts';
+import { runFireFlow, studyPool } from './app/studies.ts';
 import { createCommands } from './app/commands.ts';
 import { AppContext } from './app/context.tsx';
 import { Prefs } from './app/prefs.ts';
@@ -15,7 +16,12 @@ const state = new AppState(prefs);
 prefs.subscribe(() => state.emit());
 const bus = createCommands(state);
 // Exposed for tests and the browser console.
-(globalThis as { waterstudio?: unknown }).waterstudio = { state, bus, gridModel };
+(globalThis as { waterstudio?: unknown }).waterstudio = {
+  state,
+  bus,
+  gridModel,
+  bench: { epsModel, networkModel, runFireFlow, studyPool },
+};
 
 const root = document.getElementById('root');
 if (!root) throw new Error('missing #root');

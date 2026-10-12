@@ -8,7 +8,7 @@ import type { Atlas } from './atlas.ts';
 import type { Backend, BackendName, Frame } from './backend.ts';
 import { Canvas2DBackend } from './canvas2d.ts';
 import type { CameraState } from './camera.ts';
-import type { Scene } from './scene.ts';
+import type { Scene, ScenePatch } from './scene.ts';
 import type { DrawOptions, Paint, Theme } from './style.ts';
 import { WebGPUBackend } from './webgpu.ts';
 
@@ -16,6 +16,7 @@ export type Preference = 'auto' | BackendName;
 
 export type ToRenderer =
   | { t: 'scene'; scene: Scene }
+  | { t: 'patch'; patch: ScenePatch }
   | { t: 'paint'; paint: Paint }
   | { t: 'flags'; node: Uint8Array; link: Uint8Array }
   | { t: 'theme'; theme: Theme; atlas: Atlas | null }
@@ -69,6 +70,9 @@ export class RenderCore {
     switch (m.t) {
       case 'scene':
         this.backend.setScene(m.scene);
+        break;
+      case 'patch':
+        this.backend.patchScene(m.patch);
         break;
       case 'paint':
         this.backend.setPaint(m.paint);

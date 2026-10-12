@@ -2,7 +2,8 @@ import { addLink, addNode, Store } from '@waterstudio/core';
 import { describe, expect, it } from 'vitest';
 import { Camera } from './camera.ts';
 import { Picker } from './picking.ts';
-import { buildScene, LINK_SYMBOLS } from './scene.ts';
+import { applyScenePatch, buildScene, LINK_SYMBOLS, patchScene } from './scene.ts';
+import { packColor, strokeLine } from './raster.ts';
 import { classify, legendFor, quantileBreaks, rampColors } from './style.ts';
 
 function network() {
@@ -112,5 +113,58 @@ describe('picking', () => {
     expect(win.links).toEqual([1]); // P2 only; P1 and the pump cross the edge
     const cross = p.query({ minX: 1050, minY: 1950, maxX: 1250, maxY: 2150 }, true);
     expect(cross.links.sort()).toEqual([0, 1, 2]);
+  });
+});
+
+describe('overview rasteriser', () => {
+  it('packs hex colours as RGBA pixels', () => {
+    expect(packColor('#ff8000')).toBe(0xff0080ff);
+    expect(packColor('#f80')).toBe(0xff0088ff);
+    expect(packColor('red')).toBeNull();
+  });
+
+  it('draws clipped square-brushed lines', () => {
+    const w = 10;
+    const h = 6;
+    const buf = new Uint32Array(w * h);
+    strokeLine(buf, w, h, -5, 2, 4, 2, 1, 7);
+    const row = (y: number) => [...buf.slice(y * w, (y + 1) * w)];
+    expect(row(2)).toEqual([7, 7, 7, 7, 7, 0, 0, 0, 0, 0]);
+    buf.fill(0);
+    strokeLine(buf, w, h, 2, 1, 2, 3, 2, 9);
+    expect(row(0)).toEqual(new Array<number>(w).fill(0));
+    expect(row(1).slice(0, 4)).toEqual([0, 0, 9, 9]);
+    expect(row(3).slice(0, 4)).toEqual([0, 0, 9, 9]);
+    buf.fill(0);
+    strokeLine(buf, w, h, 20, 20, 30, 30, 3, 5);
+    expect(buf.every((v) => v === 0)).toBe(true);
+  });
+});
+
+describe('scene patches', () => {
+  it('move nodes, their links and symbols in place, matching a new scene', () => {
+    const { store, b, t, p2, pu } = network();
+    const scene = buildScene(store.doc);
+    const copy = buildScene(store.doc);
+    store.transact('move', (tx) => {
+      tx.set(b, 'x', 1250);
+      tx.set(b, 'y', 2050);
+    });
+    const ni = [...scene.nodeHandles].indexOf(b);
+    const li = [p2, pu].map((h) => [...scene.linkHandles].indexOf(h));
+    const patch = patchScene(scene, store.doc, [ni], li)!;
+    expect(patch).not.toBeNull();
+    const fresh = buildScene(store.doc);
+    expect([...scene.nodeXY]).toEqual([...fresh.nodeXY]);
+    expect([...scene.segXY]).toEqual([...fresh.segXY]);
+    expect([...scene.symXY]).toEqual([...fresh.symXY]);
+    applyScenePatch(copy, patch);
+    expect([...copy.segXY]).toEqual([...fresh.segXY]);
+    expect([...copy.symAngle]).toEqual([...fresh.symAngle]);
+    // A new vertex, or leaving the bounds, needs a new scene.
+    store.transact('vertex', (tx) => tx.set(p2, 'vertices', [1200, 2000, 1220, 2010]));
+    expect(patchScene(scene, store.doc, [], [li[0]!])).toBeNull();
+    store.transact('far', (tx) => tx.set(t, 'x', 9999));
+    expect(patchScene(scene, store.doc, [[...scene.nodeHandles].indexOf(t)], [li[1]!])).toBeNull();
   });
 });

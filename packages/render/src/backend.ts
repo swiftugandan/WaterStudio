@@ -1,6 +1,6 @@
 import type { Atlas } from './atlas.ts';
 import type { CameraState } from './camera.ts';
-import type { Scene } from './scene.ts';
+import type { Scene, ScenePatch } from './scene.ts';
 import type { DrawOptions, Paint, Theme } from './style.ts';
 
 export type BackendName = 'webgpu' | 'canvas2d';
@@ -15,6 +15,8 @@ export interface Frame {
 export interface Backend {
   readonly name: BackendName;
   setScene(scene: Scene): void;
+  /** Move a few elements of the current scene (see `patchScene`). */
+  patchScene(patch: ScenePatch): void;
   setPaint(paint: Paint): void;
   setFlags(node: Uint8Array, link: Uint8Array): void;
   setTheme(theme: Theme, atlas: Atlas | null): void;

@@ -17,6 +17,7 @@ import {
 } from '@waterstudio/core';
 import {
   buildScene,
+  patchScene,
   FLAG_HIDDEN,
   FLAG_HOVER,
   FLAG_SELECTED,
@@ -40,6 +41,10 @@ import { autoLength, linkPoints } from '../app/geometry.ts';
 import { newElement } from '../app/defaults.ts';
 
 const GEOMETRY_FIELDS = new Set(['x', 'y', 'vertices', 'from', 'to', 'kind', 'pipeStatus', 'valveType']);
+/** Geometry changes the scene can take in place (elements move; nothing is added or re-linked). */
+const MOVE_FIELDS = new Set(['x', 'y', 'vertices']);
+/** Beyond this many moved elements a new scene is cheaper than patching. */
+const MAX_PATCH = 2000;
 const DRAG_THRESHOLD = 4;
 
 type Gesture =
@@ -78,9 +83,13 @@ class MapController {
   readonly renderer: Renderer;
   private index: SceneIndex | null = null;
   private sceneDirty = true;
+  /** Nodes and links (handles) that moved since the last frame, for a scene patch. */
+  private movedNodes = new Set<number>();
+  private movedLinks = new Set<number>();
   private paintDirty = true;
   private flagsDirty = true;
-  private frame = 0;
+  private scheduled = false;
+  private destroyed = false;
   private unsubStore: () => void = () => {};
   private generation = -1;
   private lastSelection: Set<number> | null = null;
@@ -106,6 +115,9 @@ class MapController {
   private readonly state: AppState;
   frames = 0;
   frameMs = 0;
+  /** Results painted onto the scene and the main-thread time it took (a time step's buffer write). */
+  paints = 0;
+  paintMs = 0;
   private readonly basemap: Basemap;
   private readonly backdrop: HTMLImageElement;
   private backdropUrl: string | null = null;
@@ -230,9 +242,50 @@ class MapController {
   }
 
   private onChange(c: Change): void {
-    if (c.structural || [...c.fields].some((f) => GEOMETRY_FIELDS.has(f))) this.sceneDirty = true;
+    const geometry = [...c.fields].filter((f) => GEOMETRY_FIELDS.has(f));
+    if (c.structural || geometry.some((f) => !MOVE_FIELDS.has(f)) || !this.index) {
+      this.sceneDirty = true;
+    } else if (geometry.length > 0 && !this.sceneDirty) {
+      // Moved elements are patched into the scene rather than building a new one.
+      const doc = this.state.store.doc;
+      for (const op of c.ops) {
+        if (op.t !== 'set' || !MOVE_FIELDS.has(op.f) || !doc.has(op.h)) continue;
+        (doc.isNode(op.h) ? this.movedNodes : this.movedLinks).add(op.h);
+      }
+      if (this.movedNodes.size + this.movedLinks.size > MAX_PATCH) this.sceneDirty = true;
+    }
     this.schedule();
     this.scheduleAnnotations();
+  }
+
+  /** Patch moved elements into the scene; false when a new scene is needed instead. */
+  private patchMoved(idx: SceneIndex): boolean {
+    const doc = this.state.store.doc;
+    const nodes: number[] = [];
+    for (const h of this.movedNodes) {
+      const i = idx.node.get(h);
+      if (i === undefined) return false;
+      nodes.push(i);
+    }
+    const links = new Set<number>();
+    for (const h of this.movedLinks) {
+      const i = idx.link.get(h);
+      if (i === undefined) return false;
+      links.add(i);
+    }
+    // Links whose ends moved: few nodes ask the document, many scan the links once.
+    if (this.movedNodes.size <= 8) {
+      for (const n of this.movedNodes) for (const l of doc.linksAt(n)) links.add(idx.link.get(l) ?? -1);
+    } else {
+      idx.scene.linkHandles.forEach((l, i) => {
+        if (this.movedNodes.has(doc.num(l, 'from')) || this.movedNodes.has(doc.num(l, 'to'))) links.add(i);
+      });
+    }
+    if (links.has(-1)) return false;
+    const patch = patchScene(idx.scene, doc, nodes, [...links]);
+    if (!patch) return false;
+    this.renderer.patchScene(patch);
+    return true;
   }
 
   scheduleAnnotations(): void {
@@ -361,15 +414,23 @@ class MapController {
   }
 
   private schedule(): void {
-    if (this.frame) return;
-    this.frame = requestAnimationFrame(() => {
-      this.frame = 0;
-      this.flush();
+    if (this.scheduled) return;
+    this.scheduled = true;
+    // At the end of this task rather than at the next frame: the render worker then draws
+    // the change in its next frame, one frame sooner.
+    queueMicrotask(() => {
+      this.scheduled = false;
+      if (!this.destroyed) this.flush();
     });
   }
 
   private flush(): void {
     const s = this.state;
+    if (!this.sceneDirty && this.index && this.movedNodes.size + this.movedLinks.size > 0) {
+      if (!this.patchMoved(this.index)) this.sceneDirty = true;
+    }
+    this.movedNodes.clear();
+    this.movedLinks.clear();
     if (this.sceneDirty) {
       this.sceneDirty = false;
       const scene = buildScene(s.store.doc, s.store.rev);
@@ -386,7 +447,10 @@ class MapController {
     if (!idx) return;
     if (this.paintDirty) {
       this.paintDirty = false;
+      const t0 = performance.now();
       this.renderer.setPaint(computePaint(idx.scene, s.run, s.period, s.mapTheme));
+      this.paints++;
+      this.paintMs += performance.now() - t0;
     }
     if (this.flagsDirty) {
       this.flagsDirty = false;
@@ -611,7 +675,7 @@ class MapController {
   }
 
   destroy(): void {
-    cancelAnimationFrame(this.frame);
+    this.destroyed = true;
     cancelAnimationFrame(this.annotationFrame);
     this.unsubStore();
     this.renderer.destroy();
@@ -763,7 +827,7 @@ export function MapView() {
         c.renderer.camera.panBy(dx, dy);
         c.renderer.redraw();
       },
-      frameStats: () => ({ frames: c.frames, ms: c.frameMs }),
+      frameStats: () => ({ frames: c.frames, ms: c.frameMs, paints: c.paints, paintMs: c.paintMs }),
       exportSvg: () => {
         const css = getComputedStyle(el);
         const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
