@@ -10,8 +10,8 @@ import {
   type CriticalityResult,
   type FireFlowOptions,
   type FireFlowResult,
+  type Source,
 } from '@waterstudio/engine-client';
-import type { model } from '@waterstudio/core';
 
 let pool: EngineClient | null = null;
 
@@ -31,8 +31,12 @@ function chunks<T>(items: T[], parts: number): T[][] {
   return out;
 }
 
+/**
+ * With a document (`EngineSync`) rather than a model, each worker receives the model
+ * once (or only the edits since it last did) and the chunks carry only their hydrants.
+ */
 export async function runFireFlow(
-  m: model.Model,
+  m: Source,
   options: FireFlowOptions,
   progress: (done: number, total: number) => void,
 ): Promise<FireFlowResult[]> {
@@ -52,14 +56,17 @@ export async function runFireFlow(
 }
 
 export async function runCriticality(
-  m: model.Model,
+  m: Source,
   options: CriticalityOptions,
   progress: (done: number, total: number) => void,
 ): Promise<CriticalityResult[]> {
   const engine = studyPool();
+  const all = () => ('snapshot' in m ? m.snapshot().model : m).links;
   const links = options.links.length
     ? options.links
-    : m.links.filter((l) => l.kind.type === 'pipe').map((l) => l.id);
+    : all()
+        .filter((l) => l.kind.type === 'pipe')
+        .map((l) => l.id);
   const parts = chunks(links, engine.size * 4);
   let done = 0;
   progress(0, links.length);

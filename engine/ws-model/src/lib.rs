@@ -16,6 +16,9 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "ts")]
 use ts_rs::TS;
 
+pub mod mirror;
+pub use mirror::{LinkSlot, Mirror, MirrorError, ModelPatch, NodeSlot, Snapshot};
+
 pub type Id = String;
 
 /// A whole network model.

@@ -1,6 +1,6 @@
 /** Studies the engine runs over many solutions: fire flow and criticality (ws-study). */
 
-import type { model } from '@waterstudio/core';
+import type { model, SessionRef } from '@waterstudio/core';
 
 export interface FireFlowOptions {
   hydrants: string[];
@@ -42,9 +42,10 @@ export interface CriticalityResult {
   error: string | null;
 }
 
+/** A study of a model, or of the engine's resident model at a revision (ADR 0020). */
 export type StudyRequest =
-  | { kind: 'fireFlow'; model: model.Model; options: FireFlowOptions }
-  | { kind: 'criticality'; model: model.Model; options: CriticalityOptions };
+  | { kind: 'fireFlow'; model: model.Model | SessionRef; options: FireFlowOptions }
+  | { kind: 'criticality'; model: model.Model | SessionRef; options: CriticalityOptions };
 
 export type StudyResult<R extends StudyRequest> = R extends { kind: 'fireFlow' }
   ? FireFlowResult[]

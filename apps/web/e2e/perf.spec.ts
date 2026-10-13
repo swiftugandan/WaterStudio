@@ -19,6 +19,7 @@ interface Bench {
     runHydraulics(): Promise<void>;
     setPeriod(p: number): void;
     engine: { run(m: unknown): Promise<{ value: { times: number[] }; ms: number }> };
+    sync: unknown;
     view: {
       fit(): void;
       zoom(f: number): void;
@@ -198,6 +199,37 @@ test('a 24-hour simulation of 10,000 nodes takes under 2 s in one worker', async
   );
   expect(r.periods).toBe(25);
   expect(r.wall).toBeLessThan(2_000);
+});
+
+// ADR 0020: the engine keeps the open network between runs and receives only the edits.
+test('after an edit, a run of 10,000 nodes sends only the edit', async ({ page }) => {
+  test.setTimeout(120_000);
+  await start(page);
+  const r = await page.evaluate(async () => {
+    const w = (globalThis as unknown as { waterstudio: Bench }).waterstudio;
+    const m = w.bench.networkModel(100, 24);
+    w.state.openModel(m, 'grid.inp');
+    await w.state.runHydraulics(); // the engine receives the network once
+    const median = (xs: number[]) => xs.sort((a, b) => a - b)[Math.floor(xs.length / 2)]!;
+    const resident: number[] = [];
+    const whole: number[] = [];
+    const doc = w.state.store.doc as unknown as { findLink(id: string): number | undefined };
+    for (let i = 0; i < 3; i++) {
+      w.state.store.transact('Edit', (tx) => tx.set(doc.findLink('P1')!, 'diameter', 8 + i));
+      let t0 = performance.now();
+      await w.state.engine.run(w.state.sync);
+      resident.push(performance.now() - t0);
+      t0 = performance.now();
+      await w.state.engine.run(m);
+      whole.push(performance.now() - t0);
+    }
+    return { resident: median(resident), whole: median(whole) };
+  });
+  report(
+    `24-hour EPS of 10,000 nodes after an edit: ${r.resident.toFixed(0)} ms with the edit sent, ${r.whole.toFixed(0)} ms with the whole network`,
+  );
+  expect(r.resident).toBeLessThan(2_000);
+  expect(r.resident).toBeLessThan(r.whole);
 });
 
 test('a time step of 100,000 elements repaints in under 16 ms', async ({ page }) => {

@@ -42,6 +42,11 @@ export type Link = { id: string, from: string, to: string, kind: LinkKind, comme
 
 export type LinkKind = { "type": "pipe" } & Pipe | { "type": "pump" } & Pump | { "type": "valve" } & Valve;
 
+/**
+ * A link slot's new content; `None` empties it.
+ */
+export type LinkSlot = { slot: number, link: Link | null, };
+
 export type MixModel = "mixed" | "twoComp" | "fifo" | "lifo";
 
 export type Mixing = { model: MixModel, 
@@ -71,6 +76,23 @@ reactions: KeywordSection, backdrop: KeywordSection, labels: Array<Label>,
  */
 extraSections: Array<RawSection>, };
 
+/**
+ * What changed between two revisions of a document.
+ */
+export type ModelPatch = { epoch: number, 
+/**
+ * The revision the mirror must be at.
+ */
+from: number, 
+/**
+ * The revision it is at afterwards.
+ */
+to: number, nodes: Array<NodeSlot>, links: Array<LinkSlot>, 
+/**
+ * Sections that changed, each replaced whole.
+ */
+title?: Array<string>, patterns?: Array<Pattern>, curves?: Array<Curve>, controls?: Array<Control>, rules?: Array<Rule>, options?: KeywordSection, times?: KeywordSection, report?: KeywordSection, energy?: KeywordSection, reactions?: KeywordSection, backdrop?: KeywordSection, labels?: Array<Label>, extraSections?: Array<RawSection>, };
+
 export type Node = { id: string, kind: NodeKind, 
 /**
  * EPANET's description: the comment on the element's line.
@@ -82,6 +104,11 @@ comment: string | null, tag: string | null, coordinates: [number, number] | null
 initialQuality: number | null, source: Source | null, };
 
 export type NodeKind = { "type": "junction" } & Junction | { "type": "reservoir" } & Reservoir | { "type": "tank" } & Tank;
+
+/**
+ * A node slot's new content; `None` empties it (the element was deleted).
+ */
+export type NodeSlot = { slot: number, node: Node | null, };
 
 export type OpenClosed = "open" | "closed";
 
@@ -121,6 +148,27 @@ level: number, };
  * A rule-based control, kept as the text of its lines.
  */
 export type Rule = { name: string, lines: Array<string>, };
+
+/**
+ * A whole model with the slot of each element: what opens a mirror.
+ */
+export type Snapshot = { 
+/**
+ * Which document this is a copy of; a patch from another document is refused.
+ */
+epoch: number, 
+/**
+ * The document's revision.
+ */
+rev: number, model: Model, 
+/**
+ * The slot of each of `model.nodes`, in increasing order.
+ */
+nodeSlots: Array<number>, 
+/**
+ * The slot of each of `model.links`, in increasing order.
+ */
+linkSlots: Array<number>, };
 
 export type Source = { kind: SourceKind, strength: number, pattern: string | null, };
 

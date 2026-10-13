@@ -171,7 +171,8 @@ export function loadModel(store: Store, model: Model): void {
   });
 }
 
-function nodeToModel(doc: Document, h: number): MNode {
+/** One node of the document as a canonical model node. */
+export function nodeToModel(doc: Document, h: number): MNode {
   const g = (f: string) => doc.get(h, f);
   const n = (f: string) => doc.num(h, f);
   const x = n('x');
@@ -224,7 +225,8 @@ function pairs(flat: number[]): [number, number][] {
   return out;
 }
 
-function linkToModel(doc: Document, h: number): MLink {
+/** One link of the document as a canonical model link. */
+export function linkToModel(doc: Document, h: number): MLink {
   const n = (f: string) => doc.num(h, f);
   const s = (f: string) => doc.str(h, f);
   let kind: MLinkKind;

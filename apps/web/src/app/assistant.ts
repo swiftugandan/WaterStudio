@@ -20,7 +20,7 @@ import {
   type Scope,
   type SessionEvent,
 } from '@waterstudio/agents';
-import { toModel } from '@waterstudio/core';
+import { EngineSync, toModel, type Store } from '@waterstudio/core';
 import type { AppState } from './state.ts';
 import { ctime } from './time.ts';
 
@@ -100,7 +100,7 @@ export function agentContext(state: AppState): AgentContext {
     },
     files: async (statusLog) => {
       const { value } = await state.engine.runFiles({
-        model: toModel(state.store.doc),
+        model: state.sync,
         inpName: state.fileName,
         date: ctime(),
         statusLog,
@@ -108,6 +108,15 @@ export function agentContext(state: AppState): AgentContext {
       return value;
     },
   };
+}
+
+const syncs = new WeakMap<Store, EngineSync>();
+
+/** The sync of an agent's draft store, made on its first run. */
+function syncOf(store: Store): EngineSync {
+  let s = syncs.get(store);
+  if (!s) syncs.set(store, (s = new EngineSync(store)));
+  return s;
 }
 
 /** The app as a host for an agent that drafts and proposes. */
@@ -122,7 +131,8 @@ export function agentHost(state: AppState, author: string): AgentHost {
     author,
     doc: () => state.store.doc,
     period: () => state.period,
-    run: async (doc) => (await state.engine.run(toModel(doc))).value,
+    // A draft's engine keeps its model between the agent's runs (ADR 0020).
+    run: async (doc, store) => (await state.engine.run(store ? syncOf(store) : toModel(doc))).value,
     files: async (doc, statusLog) =>
       (
         await state.engine.runFiles({

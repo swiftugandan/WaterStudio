@@ -8,6 +8,7 @@ import { readDefaults, saveDefaults, type Defaults } from './defaults.ts';
 import { planLengthOf } from './geometry.ts';
 import type { CalibrationData, CalibrationVariable } from './calibration.ts';
 import {
+  EngineSync,
   fillFromModel,
   Scenarios,
   Store,
@@ -141,6 +142,8 @@ export class AppState extends Emitter {
   private panelFocus: string | null = null;
   /** Alternatives of this network (the scenario manager). */
   scenarios!: Scenarios;
+  /** The document as engines hold it between runs. */
+  sync!: EngineSync;
   /** Properties copied with Edit › Copy, for pasting onto elements of the same kind. */
   clipboard: PropertyClip | null = null;
   /** Defaults for new elements (Project › Defaults). */
@@ -166,6 +169,9 @@ export class AppState extends Emitter {
 
   private bindStore(): void {
     this.unsubscribeStore();
+    // Engines keep this document's model and receive only its edits (ADR 0020).
+    (this.sync as EngineSync | undefined)?.dispose();
+    this.sync = new EngineSync(this.store);
     (this.scenarios as Scenarios | undefined)?.dispose();
     this.scenarios = new Scenarios(this.store);
     this.unsubscribeStore = this.store.subscribe((c) => {
@@ -458,7 +464,7 @@ export class AppState extends Emitter {
     let next: FilesState;
     try {
       const { value } = await this.engine.runFiles({
-        model: toModel(doc),
+        model: this.sync,
         inpName: this.fileName,
         date: ctime(),
         statusLog,
@@ -482,7 +488,7 @@ export class AppState extends Emitter {
     this.run = { ...this.run, status: 'running' };
     this.emit();
     try {
-      const { value, ms } = await this.engine.run(toModel(doc));
+      const { value, ms } = await this.engine.run(this.sync);
       this.run = { status: 'done', results: value, rev, nodes, links, ms };
       this.period = Math.min(this.period, value.times.length - 1);
       this.log('info', `Hydraulics solved: ${value.times.length} report periods in ${ms.toFixed(0)} ms.`);
@@ -529,7 +535,7 @@ export class AppState extends Emitter {
     this.msxEngine ??= new EngineClient({ workers: 1 });
     try {
       const { value, ms } = await this.msxEngine.msx({
-        model: toModel(doc),
+        model: this.sync,
         msx: input.text,
         fileName: input.name,
       });

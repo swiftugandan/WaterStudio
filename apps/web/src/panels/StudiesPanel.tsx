@@ -4,7 +4,7 @@
  * on the map, and copy to the clipboard.
  */
 
-import { cutOff, getfloat, hour, segments, toModel, unitLabel } from '@waterstudio/core';
+import { cutOff, getfloat, hour, segments, unitLabel } from '@waterstudio/core';
 import type { CriticalityResult, FireFlowResult } from '@waterstudio/engine-client';
 import { useId, useState } from 'react';
 import { useApp, useAppContext } from '../app/context.tsx';
@@ -92,7 +92,7 @@ function FireFlow({ state }: { state: AppState }) {
       return;
     }
     setFormError(null);
-    const m = toModel(doc);
+    const m = state.sync;
     void r.run(async (p) => {
       const res = await runFireFlow(
         m,
@@ -278,7 +278,7 @@ function Criticality({ state }: { state: AppState }) {
       return;
     }
     setFormError(null);
-    const m = toModel(doc);
+    const m = state.sync;
     void r.run(async (prog) => {
       const res = await runCriticality(m, { links, pressure: p }, prog);
       setResults(

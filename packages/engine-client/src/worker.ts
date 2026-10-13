@@ -1,14 +1,18 @@
 /// <reference lib="webworker" />
 /** Engine worker: one WebAssembly engine instance, one request at a time. */
 
-import type { EngineReply, EngineRequest, EngineResponse } from './protocol.ts';
+import { handle } from './handle.ts';
+import type { EngineRequest, EngineResponse } from './protocol.ts';
 import { transferables } from './results.ts';
 import { instantiateEngine, type Engine } from './wasm.ts';
+import type { model } from '@waterstudio/core';
 
 declare const self: DedicatedWorkerGlobalScope;
 
 let module: Promise<WebAssembly.Module> | undefined;
 let engine: Promise<Engine> | undefined;
+/** The resident model of a recycled instance, for the next one (ADR 0020). */
+let carried: model.Snapshot | null = null;
 
 /**
  * WebAssembly memory grows to a run's peak and never shrinks, so after a request that
@@ -24,29 +28,14 @@ function load(): Promise<Engine> {
       return r.arrayBuffer();
     })
     .then((bytes) => WebAssembly.compile(bytes));
-  engine ??= module.then((m) => instantiateEngine(m));
+  engine ??= module
+    .then((m) => instantiateEngine(m))
+    .then((e) => {
+      if (carried) e.sessionOpen(carried);
+      carried = null;
+      return e;
+    });
   return engine;
-}
-
-function handle(e: Engine, req: EngineRequest): EngineReply {
-  switch (req.kind) {
-    case 'read-inp':
-      return { kind: 'read-inp', value: e.readInp(req.inp) };
-    case 'write-inp':
-      return { kind: 'write-inp', value: e.writeInp(req.model) };
-    case 'run':
-      return { kind: 'run', value: e.run(req.model) };
-    case 'run-hydraulics':
-      return { kind: 'run-hydraulics', value: e.runHydraulicsInp(req.inp) };
-    case 'run-files':
-      return { kind: 'run-files', value: e.runFiles(req.request) };
-    case 'study':
-      return { kind: 'study', value: e.study(req.request) };
-    case 'check':
-      return { kind: 'check', value: e.check(req.model) };
-    case 'msx':
-      return { kind: 'msx', value: e.msx(req.request) };
-  }
 }
 
 self.onmessage = async (event: MessageEvent<EngineRequest>) => {
@@ -65,5 +54,10 @@ self.onmessage = async (event: MessageEvent<EngineRequest>) => {
   }
   self.postMessage(reply, transfer);
   const e = await engine?.catch(() => undefined);
-  if (!e || e.memoryBytes() > RECYCLE_BYTES) engine = undefined;
+  if (!e) engine = undefined;
+  else if (e.memoryBytes() > RECYCLE_BYTES) {
+    // The resident model goes on in the fresh instance.
+    carried = e.sessionExport();
+    engine = undefined;
+  }
 };

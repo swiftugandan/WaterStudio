@@ -18,7 +18,8 @@ export {
   type Listener,
   type Transaction,
 } from './store.ts';
-export { fillFromModel, loadModel, toModel } from './convert.ts';
+export { fillFromModel, linkToModel, loadModel, nodeToModel, toModel } from './convert.ts';
+export { EngineSync, type SessionRef } from './sync.ts';
 export * from './edits.ts';
 export { CommandBus, type Command, type CommandRecord } from './commands.ts';
 export type * as model from './generated/model.ts';

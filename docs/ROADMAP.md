@@ -36,7 +36,8 @@ budget on both renderers (**met for Canvas 2D in CI; WebGPU measured on real GPU
 - [x] Energy: pump energy, efficiency, cost, demand charge (computed; reporting in Phase 2)
 - [x] Determinism: native and WebAssembly bit-identical (ADR 0003), gated in CI
 - [x] Engine workers with typed requests (read, write, run); results as transferred f32 columns
-- [ ] Edit forwarding to long-lived engine instances (runs send a snapshot today)
+- [x] Edit forwarding to long-lived engine instances (ADR 0020): engines keep the open network and receive only
+  the slots and sections an edit changed; analyses, studies, report files, MSX and the assistant's drafts use it
 - [x] Document store with exact undo/redo over columnar tables, field catalogue, command bus
 - [x] Renderer: display list, WebGPU and Canvas 2D backends in a render worker, picking, device-loss fallback (ADR 0008)
 - [x] Shell: ribbon, docking panels, inspector, model browser, results table, status bar, command palette

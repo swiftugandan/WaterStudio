@@ -1,4 +1,4 @@
-export { EngineClient, type Timed, type WorkerFactory } from './client.ts';
+export { EngineClient, type ModelSync, type Source, type Timed, type WorkerFactory } from './client.ts';
 export {
   EngineError,
   type EngineRequest,
@@ -7,8 +7,11 @@ export {
   type FilesRequest,
   type HydraulicReport,
   type InpIssue,
+  type ModelSource,
   type MsxRequest,
   type ReadResult,
+  isSessionRef,
+  STALE_SESSION,
 } from './protocol.ts';
 export * from './outfile.ts';
 export * from './results.ts';

@@ -11,9 +11,11 @@ import type { CriticalityResult, FireFlowResult, StudyRequest } from './study.ts
 import type { model } from '@waterstudio/core';
 import {
   EngineError,
+  isSessionRef,
   type EpanetFiles,
   type FilesRequest,
   type HydraulicReport,
+  type ModelSource,
   type MsxRequest,
   type ReadResult,
 } from './protocol.ts';
@@ -33,16 +35,27 @@ interface Exports {
   ws_check: Entry;
   ws_study: Entry;
   ws_msx: Entry;
+  ws_session: Entry;
 }
 
+/**
+ * One engine instance. Requests take a model, or a reference to the model the instance
+ * holds (`sessionOpen`, then `sessionPatch` after each edit; ADR 0020).
+ */
 export interface Engine {
   readInp(inp: string | Uint8Array): ReadResult;
   writeInp(m: model.Model): string;
-  run(m: model.Model): RunResults;
+  run(m: ModelSource): RunResults;
   runHydraulicsInp(inp: string | Uint8Array): HydraulicReport;
   runFiles(req: FilesRequest): EpanetFiles;
   /** The error EPANET's input stage would refuse the model with, or null. */
-  check(m: model.Model): string | null;
+  check(m: ModelSource): string | null;
+  /** Hold this model from now on. */
+  sessionOpen(s: model.Snapshot): void;
+  /** Bring the held model to a later revision. */
+  sessionPatch(p: model.ModelPatch): void;
+  /** The held model, to carry it to another instance; null if none. */
+  sessionExport(): model.Snapshot | null;
   study(req: StudyRequest): FireFlowResult[] | CriticalityResult[];
   /** Hydraulics and an EPANET-MSX analysis: the run's results with the species added. */
   msx(req: MsxRequest): RunResults;
@@ -79,29 +92,77 @@ export async function instantiateEngine(source: BufferSource | WebAssembly.Modul
   const bytes = (v: string | Uint8Array) => (typeof v === 'string' ? encoder.encode(v) : v);
   const json = (v: unknown) => encoder.encode(JSON.stringify(v));
 
+  const session = (cmd: unknown) => call(x.ws_session, json(cmd));
+  /** A request on a model: sent whole, or as a reference to the held one. */
+  const on = <T>(
+    m: ModelSource,
+    whole: (m: model.Model) => T,
+    held: (ref: { epoch: number; rev: number }) => T,
+  ): T => (isSessionRef(m) ? held({ epoch: m.epoch, rev: m.rev }) : whole(m));
+  const files = (body: Uint8Array): EpanetFiles => {
+    const n = new DataView(body.buffer, body.byteOffset, 4).getUint32(0, true);
+    return { report: decoder.decode(body.subarray(4, 4 + n)), out: body.slice(4 + n) };
+  };
+
   return {
     readInp: (inp) => JSON.parse(decoder.decode(call(x.ws_read_inp, bytes(inp)))) as ReadResult,
     writeInp: (m) => decoder.decode(call(x.ws_write_inp, json(m))),
-    run: (m) => decodeResults(call(x.ws_run, json(m))),
+    run: (m) =>
+      decodeResults(
+        on(
+          m,
+          (whole) => call(x.ws_run, json(whole)),
+          (ref) => session({ op: 'run', ...ref }),
+        ),
+      ),
     runHydraulicsInp: (inp) =>
       JSON.parse(decoder.decode(call(x.ws_run_hydraulics_inp, bytes(inp)))) as HydraulicReport,
     runFiles: (req) => {
-      const body = call(x.ws_run_files, json(req));
-      const n = new DataView(body.buffer, body.byteOffset, 4).getUint32(0, true);
-      return { report: decoder.decode(body.subarray(4, 4 + n)), out: body.slice(4 + n) };
+      const { model: m, ...options } = req;
+      return files(
+        on(
+          m,
+          (whole) => call(x.ws_run_files, json({ ...options, model: whole })),
+          (ref) => session({ op: 'files', ...ref, options }),
+        ),
+      );
     },
-    msx: (req) => decodeResults(call(x.ws_msx, json(req))),
-    study: (req) =>
-      JSON.parse(decoder.decode(call(x.ws_study, json(req)))) as FireFlowResult[] | CriticalityResult[],
+    msx: (req) => {
+      const { model: m, ...options } = req;
+      return decodeResults(
+        on(
+          m,
+          (whole) => call(x.ws_msx, json({ ...options, model: whole })),
+          (ref) => session({ op: 'msx', ...ref, options }),
+        ),
+      );
+    },
+    study: (req) => {
+      const { model: m, ...study } = req;
+      const body = on(
+        m,
+        (whole) => call(x.ws_study, json({ ...study, model: whole })),
+        (ref) => session({ op: 'study', ...ref, study }),
+      );
+      return JSON.parse(decoder.decode(body)) as FireFlowResult[] | CriticalityResult[];
+    },
     memoryBytes: () => x.memory.buffer.byteLength,
     check: (m) => {
       try {
-        call(x.ws_check, json(m));
+        on(
+          m,
+          (whole) => call(x.ws_check, json(whole)),
+          (ref) => session({ op: 'check', ...ref }),
+        );
         return null;
       } catch (e) {
-        if (e instanceof EngineError) return e.message;
+        // A stale reference is not a verdict on the model.
+        if (e instanceof EngineError && !e.message.startsWith('stale session')) return e.message;
         throw e;
       }
     },
+    sessionOpen: (snapshot) => void session({ op: 'open', snapshot }),
+    sessionPatch: (patch) => void session({ op: 'patch', patch }),
+    sessionExport: () => JSON.parse(decoder.decode(session({ op: 'export' }))) as model.Snapshot | null,
   };
 }

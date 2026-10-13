@@ -17,6 +17,7 @@ import {
   type FieldSpec,
   type LinkKind,
   type NodeKind,
+  type Store,
   type UnitSystem,
 } from '@waterstudio/core';
 import type { EpanetFiles, RunResults } from '@waterstudio/engine-client';
@@ -30,7 +31,11 @@ export interface AgentHost {
   /** The live model, which drafts are forked from. */
   doc(): Document;
   period(): number;
-  run(doc: Document): Promise<RunResults>;
+  /**
+   * Solve a document. A draft passes its store too, so a host can keep the model in its
+   * engines between runs and send only the edits (ADR 0020).
+   */
+  run(doc: Document, store?: Store): Promise<RunResults>;
   files(doc: Document, statusLog: boolean): Promise<EpanetFiles>;
   /** Queue a proposal for review; returns its ID. */
   submit(p: ProposalDraft): string;
@@ -89,7 +94,7 @@ export function draftContext(host: AgentHost): DraftContext {
     analyse: async () => {
       const doc = sandbox.draft;
       const rev = sandbox.store.rev;
-      const view = viewOf(doc, await host.run(doc));
+      const view = viewOf(doc, await host.run(doc, sandbox.store));
       cached = { rev, view };
       return view;
     },

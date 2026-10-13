@@ -15,6 +15,8 @@ fn export_typescript() {
         .with_out_dir(&dir)
         .with_import_extension(Some("ts"));
     ws_model::Model::export_all(&cfg).unwrap();
+    ws_model::Snapshot::export_all(&cfg).unwrap();
+    ws_model::ModelPatch::export_all(&cfg).unwrap();
     // ts-rs imports a file's own types when several share it; drop that line.
     let path = dir.join("model.ts");
     let text = std::fs::read_to_string(&path).unwrap();
