@@ -94,9 +94,10 @@ Gate: MSX examples within tolerance; all performance budgets met; agent evaluati
 - [x] SQLite project file (ADR 0015): .wsproj holds the network, scenarios, isolation valves, the MSX input and view
   settings, with `nodes` and `links` views for SQL tools; autosaved to the browser's private file system and
   recoverable after a crash or a closed tab
-- [ ] C toolkit API (`ws-ffi`, ADR 0016) and CLI: a drop-in `libepanet2` identical to OWA-EPANET's on every network;
-  done: project, analysis, every getter and setter, network structure, rules, reports, output, input and hydraulics
-  files, `EN_init`, the legacy `epanet2.h` API. Next: input errors as EPANET reports them, and `EN_openX`
+- [x] C toolkit API (`ws-ffi`, ADR 0016) and CLI: a drop-in `libepanet2` identical to OWA-EPANET's on every network:
+  project, analysis, every getter and setter, network structure, rules, reports, output, input and hydraulics
+  files, `EN_init`, the legacy `epanet2.h` API, and input errors as EPANET reports them with `EN_openX` opening
+  the network it partly read (identical on 84 networks, 19 of them files with input errors)
 - [x] Proposals (ADR 0017): with the assistant allowed to propose (the default), it edits a draft copy of the
   network, runs it, and submits a changeset with the engine's before-and-after figures; the Proposals panel shows
   the rationale, the evidence and every change, and the engineer accepts all or some of it as one undoable step,

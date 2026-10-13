@@ -363,7 +363,7 @@ mod report;
 mod rules;
 mod set;
 
-pub use report::ReportOutput;
+pub use report::{ReportOutput, refused_report};
 
 /// `EN_geterror`'s text for each error code (`errors.dat`); "" for unknown codes.
 pub fn errmsg_text(code: i32) -> &'static str {
@@ -557,11 +557,11 @@ impl Toolkit {
     /// the file has input errors, the validation error otherwise, 0 when it opened.
     pub fn open_text(&mut self, text: &str) -> i32 {
         self.p = None;
-        let r = ws_io::read_inp(text);
-        if r.errors().next().is_some() {
-            return 200;
+        let (check, model) = ws_io::read_as_epanet(text);
+        match check.code() {
+            0 => self.open_model(model),
+            code => i32::from(code),
         }
-        self.open_model(r.model)
     }
 
     /// `EN_open` with a model already read.

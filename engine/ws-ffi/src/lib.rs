@@ -150,22 +150,6 @@ pub unsafe extern "C" fn EN_deleteproject(p: EnProject) -> c_int {
     0
 }
 
-/// `strcomp`: case-insensitive comparison of file names.
-fn same_name(a: &str, b: &str) -> bool {
-    a.eq_ignore_ascii_case(b)
-}
-
-/// `openfiles`' checks on the file names.
-fn check_files(inp: &str, rpt: &str, outf: &str) -> c_int {
-    if !inp.is_empty() && (same_name(inp, rpt) || same_name(inp, outf)) {
-        return 301;
-    }
-    if !outf.is_empty() && same_name(rpt, outf) {
-        return 301;
-    }
-    0
-}
-
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn EN_open(
     p: EnProject,
@@ -177,6 +161,20 @@ pub unsafe extern "C" fn EN_open(
     let (inp, rpt, outf) = unsafe { (arg(inp_file), arg(rpt_file), arg(out_file)) };
     let date = ctime_now();
     with!(p, t => t.open_files(&inp.unwrap_or_default(), &rpt.unwrap_or_default(), &outf.unwrap_or_default(), &date))
+}
+
+/// `EN_openX`: open a file even if it has input errors, keeping the network EPANET read.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn EN_openX(
+    p: EnProject,
+    inp_file: *const c_char,
+    rpt_file: *const c_char,
+    out_file: *const c_char,
+) -> c_int {
+    // SAFETY: see `arg`.
+    let (inp, rpt, outf) = unsafe { (arg(inp_file), arg(rpt_file), arg(out_file)) };
+    let date = ctime_now();
+    with!(p, t => t.open_files_x(&inp.unwrap_or_default(), &rpt.unwrap_or_default(), &outf.unwrap_or_default(), &date))
 }
 
 /// `EN_init`
@@ -235,37 +233,20 @@ pub unsafe extern "C" fn EN_runproject(
 ) -> c_int {
     // SAFETY: see `arg`.
     let (inp, rpt, outf) = unsafe { (arg(inp_file), arg(rpt_file), arg(out_file)) };
+    let date = ctime_now();
     with!(p, t => {
-        t.close();
-        let (inp, rpt, outf) = (inp.unwrap_or_default(), rpt.unwrap_or_default(), outf.unwrap_or_default());
-        let e = check_files(&inp, &rpt, &outf);
-        if e != 0 {
-            return e;
+        let (code, pending) = t.run_project(
+            &inp.unwrap_or_default(),
+            &rpt.unwrap_or_default(),
+            &outf.unwrap_or_default(),
+            &date,
+        );
+        if let ReportOutput::Stdout(text) = pending {
+            let mut out = std::io::stdout();
+            let _ = out.write_all(text.as_bytes());
+            let _ = out.flush();
         }
-        let Ok(bytes) = std::fs::read(&inp) else { return 302 };
-        let r = ws_io::read_inp(&String::from_utf8_lossy(&bytes));
-        if r.errors().next().is_some() {
-            return 200;
-        }
-        let opts = ws_solver::RunOptions {
-            inp_name: inp.clone(),
-            date: ctime_now(),
-            report: !rpt.is_empty(),
-            status_log: false,
-        };
-        let run = match ws_solver::run_epanet(&r.model, &opts, |_| {}) {
-            Ok(run) => run,
-            Err(e) => return e.code,
-        };
-        if let Some(text) = run.report()
-            && std::fs::write(&rpt, text).is_err()
-        {
-            return 303;
-        }
-        if !outf.is_empty() && std::fs::write(&outf, run.out_file()).is_err() {
-            return 304;
-        }
-        run.warning()
+        code
     })
 }
 

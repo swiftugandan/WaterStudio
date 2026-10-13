@@ -1,0 +1,17 @@
+[TITLE]
+A pattern ID longer than 31 characters stops EPANET before it reads anything
+
+[JUNCTIONS]
+ J1  10  5  x
+ J1  10
+
+[RESERVOIRS]
+ R1  100
+
+[PIPES]
+ P1  R1  J1  1000  12  100
+
+[PATTERNS]
+ APatternWithAnIDLongerThan31Chars  1  2
+
+[END]

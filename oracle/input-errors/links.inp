@@ -1,0 +1,84 @@
+[TITLE]
+Pipe, pump and valve errors
+
+[JUNCTIONS]
+ J1  10  5
+ J2  10  5
+ J3  10  5
+ J4  10  5
+ J5  10  5
+ J6  10  5
+ J7  10  5
+ J8  10  5
+ J9  10  5
+
+[RESERVOIRS]
+ R1  100
+
+[TANKS]
+ T1  50  5  1  10  20
+
+[PIPES]
+;ID  N1  N2  Len   Diam  Rough  Minor  Status
+ P1  R1  J1  1000  12    100
+ P2  J1  JX  1000  12    100            ;undefined end node
+ P3  JX  J1  1000  12    100
+ P4  J1  J1  1000  12    100            ;same ends
+ P1  J1  J2  1000  12    100            ;duplicate
+ P5  J1  J2  x     12    100            ;bad length
+ P6  J2  J3  1000  -12   100            ;bad diameter
+ P7  J3  J4  1000  12    0              ;bad roughness
+ P8  J4  J5  1000  12    100    -1      ;bad minor loss
+ P9  J5  J6  1000  12    100    CV      OPEN
+ P10 J6  J7  1000  12    100    0.5     MAYBE
+ P11 J7  J8  1000  12    100    0.5     CV
+ P12 J8  J9
+ P13 J9  T1  1000  12    100    CLOSED
+ P14 J9  T1  1000  12    100    2       CLOSED
+ PipeWithAnIDLongerThan31Characters J1 J2
+ P15 J1
+
+[PUMPS]
+;ID  N1  N2  Keywords
+ U1  R1  J2  HEAD  Curve1
+ U2  R1  J3  POWER -5
+ U3  R1  J4  SPEED 1.2  HEAD NoCurve
+ U4  R1  J5  HEAD Curve1  PATTERN NoPat
+ U5  R1  J6  HEAD Curve1  SPEED x
+ U6  R1  J7  HEAD Curve1  EFFIC Curve1
+ U7  R1  R1  HEAD Curve1
+ U8  R1  JX  HEAD Curve1
+ U1  R1  J8  HEAD Curve1
+ U9  R1  J8  POWER 5  PATTERN Pat1
+
+[VALVES]
+;ID  N1  N2  Diam  Type  Setting  Minor  Curve
+ V1  J2  J3  12    PRV   50
+ V2  J3  J4  12    XYZ   50
+ V3  T1  J4  12    PRV   50
+ V4  J4  T1  12    FCV   50
+ V5  J5  J3  12    PRV   50
+ V6  J6  J7  -1    TCV   5
+ V7  J7  J8  12    GPV   NoCurve
+ V8  J8  J9  12    PBV   x
+ V9  J8  J9  12    PBV   5      -3
+ V10 J8  J9  12    PCV   50     1      NoCurve
+ V11 J8  J9  12    PCV   50     1      Curve2
+ V12 J8  J9  12    GPV   Curve2
+ V1  J8  J9  12    PBV   5
+ V13 J8  J9
+ V14 J9  J9  12    TCV   5
+ V15 J1  J2  12    PSV   50
+ V16 J1  J5  12    PSV   50
+ V17 J7  J8  12    FCV   50
+ V18 J8  J9  12    PSV   50
+
+[CURVES]
+ Curve1  1000  100
+ Curve2  0     0
+ Curve2  100   10
+
+[PATTERNS]
+ Pat1  1  1.2
+
+[END]

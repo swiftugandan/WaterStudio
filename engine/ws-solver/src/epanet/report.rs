@@ -64,6 +64,42 @@ fn open_report(rpt_file: &str) -> Result<ReportTarget, i32> {
     Ok(ReportTarget::File(rpt_file.to_string()))
 }
 
+/// The report EPANET writes for a file it refuses to open (`openproject` failing, in
+/// `EN_open` or a whole run): the logo, every input error, and the error `code` unless
+/// the file says [REPORT] MESSAGES NO. `date` is the clock time in C's `ctime` form.
+pub fn refused_report(check: &ws_io::Check, date: &str, code: i32) -> String {
+    let mut pr = Project::default();
+    pr.rpt.file = Some(ReportFile::default());
+    pr.rpt.date = date.to_string();
+    write_logo_and_errors(&mut pr, check);
+    pr.rpt.page_size = check.page_size;
+    pr.rpt.title0.clone_from(&check.title);
+    if check.messages {
+        let s = format!("Error {code}: {}", errmsg_text(code));
+        report::writeline(&mut pr, &s);
+    }
+    pr.rpt.file.take().map(|f| f.text).unwrap_or_default()
+}
+
+/// The report as EPANET writes it while opening a file: the logo (`openfiles`, before
+/// any data is read, so with no page breaks or title), then `inperrmsg` (and
+/// `ruleerrmsg`) for each input error with the page size and title read before it.
+fn write_logo_and_errors(pr: &mut Project, check: &ws_io::Check) {
+    let (page_size, title0) = (pr.rpt.page_size, pr.rpt.title0.clone());
+    pr.rpt.page_size = 0;
+    pr.rpt.title0.clear();
+    report::writelogo(pr);
+    for e in &check.errors {
+        pr.rpt.page_size = e.page_size;
+        pr.rpt.title0.clone_from(&e.title);
+        for line in e.report_lines() {
+            report::writeline(pr, &line);
+        }
+    }
+    pr.rpt.page_size = page_size;
+    pr.rpt.title0 = title0;
+}
+
 /// Report text the caller must deliver.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ReportOutput {
@@ -95,6 +131,30 @@ impl Toolkit {
         out_file: &str,
         date: &str,
     ) -> i32 {
+        self.openproject(inp_file, rpt_file, out_file, date, false)
+    }
+
+    /// `EN_openX`: as [`Self::open_files`], but a file with input errors still opens,
+    /// with the network EPANET read from it, and returns 200.
+    pub fn open_files_x(
+        &mut self,
+        inp_file: &str,
+        rpt_file: &str,
+        out_file: &str,
+        date: &str,
+    ) -> i32 {
+        self.openproject(inp_file, rpt_file, out_file, date, true)
+    }
+
+    /// `openproject`
+    fn openproject(
+        &mut self,
+        inp_file: &str,
+        rpt_file: &str,
+        out_file: &str,
+        date: &str,
+        allow_errors: bool,
+    ) -> i32 {
         self.close();
         // openfiles: the input file is opened before the report, so without one there
         // is no report either.
@@ -109,32 +169,32 @@ impl Toolkit {
             Err(e) => return e,
         };
         let text = String::from_utf8_lossy(&bytes).into_owned();
-        let r = ws_io::read_inp(&text);
-        let code = if r.errors().next().is_some() {
-            200
-        } else {
-            let title = r.model.title.clone();
-            match self.open_model(r.model) {
-                0 => {
-                    if let Some(o) = self.p.as_deref_mut() {
-                        o.inp_name = inp_file.to_string();
-                        o.rpt1 = rpt_file.to_string();
-                        o.out_path = out_file.to_string();
-                        o.target = target.clone();
-                        let pr = &mut o.pr;
-                        pr.rpt.file = Some(ReportFile::default());
-                        pr.rpt.date = date.to_string();
-                        report::writelogo(pr);
-                        if pr.rpt.summaryflag {
-                            report::writesummary(pr, &title, inp_file);
-                        }
-                    }
-                    return 0;
-                }
-                e => e,
+        let (check, model) = ws_io::read_as_epanet(&text);
+        let code = i32::from(check.code());
+        if !(code == 0 || (allow_errors && code == 200)) {
+            self.failed_open_report(&target, date, &check, code);
+            return code;
+        }
+        let title = model.title.clone();
+        let built = self.open_model(model);
+        if built != 0 {
+            self.failed_open_report(&target, date, &check, built);
+            return built;
+        }
+        if let Some(o) = self.p.as_deref_mut() {
+            o.inp_name = inp_file.to_string();
+            o.rpt1 = rpt_file.to_string();
+            o.out_path = out_file.to_string();
+            o.target = target;
+            let pr = &mut o.pr;
+            pr.rpt.file = Some(ReportFile::default());
+            pr.rpt.date = date.to_string();
+            write_logo_and_errors(pr, &check);
+            if pr.rpt.summaryflag {
+                report::writesummary(pr, &title, inp_file);
             }
-        };
-        self.failed_open_report(&target, date, code);
+            o.errmsg(code);
+        }
         code
     }
 
@@ -187,16 +247,41 @@ impl Toolkit {
         0
     }
 
-    /// The report of an `EN_open` that failed: the logo and the error.
-    fn failed_open_report(&mut self, target: &ReportTarget, date: &str, code: i32) {
-        let mut pr = Project::default();
-        pr.rpt.file = Some(ReportFile::default());
-        pr.rpt.date = date.to_string();
-        report::writelogo(&mut pr);
-        let s = format!("Error {code}: {}", errmsg_text(code));
-        report::writeline(&mut pr, &s);
-        let text = pr.rpt.file.take().map(|f| f.text).unwrap_or_default();
+    /// The report of an `EN_open` that failed.
+    fn failed_open_report(
+        &mut self,
+        target: &ReportTarget,
+        date: &str,
+        check: &ws_io::Check,
+        code: i32,
+    ) {
+        let text = refused_report(check, date, code);
         self.pending_failed = Some((target.clone(), text));
+    }
+
+    /// `EN_runproject`: open a file, solve its hydraulics and water quality, write the
+    /// report and close, as `runepanet` does. A file that will not open or a network
+    /// that will not solve leaves the report EPANET writes up to the failure. Returns
+    /// the error or warning code, and report text still to deliver (to standard output
+    /// when no report name was given).
+    pub fn run_project(
+        &mut self,
+        inp_file: &str,
+        rpt_file: &str,
+        out_file: &str,
+        date: &str,
+    ) -> (i32, ReportOutput) {
+        // ERRCODE: a later step runs only while there is no error (a warning is not one).
+        let mut errcode = self.open_files(inp_file, rpt_file, out_file, date);
+        for step in [Self::solve_h, Self::solve_q, Self::report] {
+            if errcode <= 100 {
+                errcode = step(self);
+            }
+        }
+        let warn = self.o().map_or(0, |o| o.pr.warnflag);
+        let pending = self.flush_report();
+        self.close();
+        (errcode.max(warn), pending)
     }
 
     /// Report text written since the last call, for the caller to deliver; a report

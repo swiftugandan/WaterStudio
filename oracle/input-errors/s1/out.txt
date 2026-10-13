@@ -1,0 +1,2 @@
+/tmp/claude-0/x/cmp.sh: line 4: ../pr: No such file or directory
+exit 127

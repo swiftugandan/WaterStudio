@@ -1,0 +1,41 @@
+[TITLE]
+Options before the network: SI pipe defaults, and a zero-diameter tank's levels
+
+[OPTIONS]
+ UNITS     LPS
+ HEADLOSS  D-W
+
+[JUNCTIONS]
+;ID   Elev  Demand
+ J1   10    2
+ J2   12    3
+ J3   8     1
+
+[RESERVOIRS]
+ R1   60
+
+[TANKS]
+;ID  Elev  Init  Min  Max  Diam
+ T1   40    5     0    0    0
+ T2   35    4     1    8    15
+
+[PIPES]
+;ID  N1  N2  Length  Diam  Rough
+ P1   R1  J1
+ P2   J1  J2  250
+ P3   J2  J3  300     200
+ P4   J3  T2  150     150   0.1
+ P5   T1  J2  200     150   0.05
+
+[VALVES]
+ V1   J1  J3  150     TCV   2
+
+[TIMES]
+ DURATION  6
+ HYDRAULIC TIMESTEP 1
+
+[REPORT]
+ NODES ALL
+ LINKS ALL
+
+[END]

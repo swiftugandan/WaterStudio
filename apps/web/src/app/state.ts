@@ -393,7 +393,9 @@ export class AppState extends Emitter {
         (issues.length > 0 ? `, ${issues.length} input issues` : ''),
     );
     for (const i of issues.slice(0, 50)) {
-      this.log(i.severity === 'error' ? 'error' : 'warning', `Line ${i.line} [${i.section}]: ${i.message}`);
+      // Sections arrive bracketed ([PIPES]); imports name their source.
+      const where = i.section.startsWith('[') ? i.section : `[${i.section}]`;
+      this.log(i.severity === 'error' ? 'error' : 'warning', `Line ${i.line} ${where}: ${i.message}`);
     }
     this.emit();
   }

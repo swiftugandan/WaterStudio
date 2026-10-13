@@ -1,0 +1,38 @@
+[TITLE]
+References to elements defined later in the file
+
+[OPTIONS]
+ UNITS LPS
+ HEADLOSS D-W
+
+[CONTROLS]
+ LINK P1 CLOSED AT TIME 2
+
+[PIPES]
+ P1  R1  J1
+ P2  J1  J2
+ P3  J2  J3  500  300
+
+[RESERVOIRS]
+ R1  100
+
+[JUNCTIONS]
+ J1  10  5
+ J2  10  5
+ J3  10  5
+
+[PIPES]
+ P4  R1  J1
+ P5  J1  J2  100
+ P6  J2  J3  100  200
+
+[VALVES]
+ V1  J1  J3  x  TCV  5
+
+[STATUS]
+ P4  CLOSED
+
+[REPORT]
+ MESSAGES NO
+
+[END]

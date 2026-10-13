@@ -18,6 +18,7 @@ release. The reference only checks our results; it is never part of what we ship
 | `report.py` | Writes `docs/PARITY.md` |
 | `roundtrip.py`, `roundtrip.sh` | Rewrites every network canonically and requires bit-identical OWA-EPANET results (ADR 0005) |
 | `fixtures/` | Our own networks covering features the corpus does not, and MSX inputs in `fixtures/msx/` (licensed with the repository) |
+| `input-errors/` | Files with input errors, for `toolkit.sh`: EPANET's report of each error and `EN_openX`'s partly read network |
 
 `compare.py --accuracy 1e-8` rewrites ACCURACY in both engines before solving. Use it to tell apart differences
 caused by where each solver stops iterating from differences in the algorithm itself.

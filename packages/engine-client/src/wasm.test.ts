@@ -52,7 +52,9 @@ describe.skipIf(!have)('WebAssembly engine', async () => {
 
   it('reports input problems as issues', () => {
     const { issues } = e().readInp(NET.replace(' P2 J1 J2', ' P2 J1 J9'));
-    expect(issues.some((i) => i.severity === 'error' && i.message.includes('J9'))).toBe(true);
+    expect(issues.some((i) => i.severity === 'error' && i.code === 203 && i.message.includes('J9'))).toBe(
+      true,
+    );
   });
 
   it('runs an EPANET-MSX analysis and adds each species to the results', () => {

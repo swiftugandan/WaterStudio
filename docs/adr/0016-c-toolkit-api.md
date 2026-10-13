@@ -122,6 +122,22 @@ holds that same `Project`, field by field.
   output and files. On the way, `openhyd` now leaves link statuses zeroed as `calloc` does, and a curve of fewer
   than two points no longer panics (both only reachable by running the solver without `EN_initH`, which reads
   uninitialised memory in the reference).
-- Not yet: `EN_openX` and `ENopenX`, which need EPANET's input error messages and its partly read networks.
+- **Stage 10.** Input errors as EPANET reports them, and `EN_openX`/`ENopenX`. `ws_io::check_inp` ports
+  `netsize`, `readdata`, every section parser of `input3.c` and `ruledata`'s checks: the same codes, blamed tokens
+  and order, with C's quirks (a time token cut at its colon by `hour`'s `strtok`, the coefficient blamed for a
+  negative leakage expansion, the last link read escaping `valvecheck`, every rule after a bad one ignored, lines
+  over 1,023 characters read as several). `EN_open` writes each error as `inperrmsg` and `ruleerrmsg` do, with the
+  page size and title read before it, after a logo written before any data. `EN_openX` opens the network EPANET
+  keeps: `Check::repaired` is the file with each bad line cut to what C's parser had already taken from it (a
+  junction or pipe keeps the values before the bad one, a tank with a bad level becomes the reservoir C makes of
+  it, a pattern keeps C's padding of 1.0), so the ordinary reader builds it. `read_inp` reports exactly these
+  errors, with their codes, so the editor shows what EPANET would. `validateproject` now checks every tank, pump,
+  pattern and curve and reports each as C does, and `EN_runproject` (and `ws run`) runs the toolkit's own
+  sequence, so a file or network that will not run leaves C's report. `oracle/input-errors/` holds files that
+  reach every error and partial line; `toolkit.sh` requires both libraries' reports, partly read networks, saved
+  files and solutions to be identical.
 
-  A program calling them fails to link rather than misbehaving. They follow under the same harness.
+  Two things differ on purpose. A [PIPES] line before [OPTIONS] UNITS is no longer read with US defaults: the
+  reader follows the unit system read so far, as C does (a valid-file fix; `oracle/fixtures/options-first.inp`).
+  And where C keeps an undefined pattern on a junction or reservoir line as index -1, which crashes its solver,
+  the partly read network has no pattern there.

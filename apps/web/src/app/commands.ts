@@ -209,7 +209,13 @@ export function createCommands(state: AppState): CommandBus<AppState> {
           s.openModel(
             model,
             main.name.replace(/\.(geo)?json$|\.dxf$|\.zip$|\.shp$/i, '.inp'),
-            issues.map((message) => ({ line: 0, section: 'IMPORT', severity: 'warning' as const, message })),
+            issues.map((message) => ({
+              line: 0,
+              section: 'IMPORT',
+              severity: 'warning' as const,
+              code: null,
+              message,
+            })),
           );
           s.view?.fit();
         }),

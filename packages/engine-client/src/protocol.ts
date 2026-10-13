@@ -23,6 +23,8 @@ export interface InpIssue {
   line: number;
   section: string;
   severity: 'error' | 'warning';
+  /** EPANET's error code, for an error (the code `EN_open` reports for that line). */
+  code: number | null;
   message: string;
 }
 

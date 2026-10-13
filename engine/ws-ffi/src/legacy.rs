@@ -88,6 +88,16 @@ pub unsafe extern "C" fn ENopen(
     unsafe { crate::EN_open(default_project(), inp_file, rpt_file, out_file) }
 }
 
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ENopenX(
+    inp_file: *const c_char,
+    rpt_file: *const c_char,
+    out_file: *const c_char,
+) -> c_int {
+    // SAFETY: forwarded as given.
+    unsafe { crate::EN_openX(default_project(), inp_file, rpt_file, out_file) }
+}
+
 /// `ENclose`: always 0.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn ENclose() -> c_int {

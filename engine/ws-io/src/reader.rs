@@ -10,6 +10,7 @@ use ws_model::{
     ValveType, keyword_matches as kw,
 };
 
+use crate::check::{Check, check_inp, input_error_text};
 use crate::tokens::{Line, MAX_LINE, tokenize};
 use crate::{Issue, ReadResult, Severity};
 
@@ -19,7 +20,7 @@ const MAX_ID: usize = 31;
 const MAX_MSG: usize = 255;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Sect {
+pub(crate) enum Sect {
     Title,
     Junctions,
     Reservoirs,
@@ -52,7 +53,7 @@ enum Sect {
     End,
 }
 
-const SECTIONS: &[(&str, Sect)] = &[
+pub(crate) const SECTIONS: &[(&str, Sect)] = &[
     ("[TITLE]", Sect::Title),
     ("[JUNCTIONS]", Sect::Junctions),
     ("[RESERVOIRS]", Sect::Reservoirs),
@@ -85,14 +86,14 @@ const SECTIONS: &[(&str, Sect)] = &[
     ("[END]", Sect::End),
 ];
 
-fn find_section(token: &str) -> Option<Sect> {
+pub(crate) fn find_section(token: &str) -> Option<Sect> {
     SECTIONS
         .iter()
         .find(|(name, _)| kw(token, name))
         .map(|(_, s)| *s)
 }
 
-fn section_name(s: Sect) -> &'static str {
+pub(crate) fn section_name(s: Sect) -> &'static str {
     SECTIONS
         .iter()
         .find(|(_, x)| *x == s)
@@ -116,14 +117,48 @@ enum Formula {
 }
 
 /// Parse `.inp` text into the canonical model.
+///
+/// Its errors are EPANET's own ([`check_inp`]); its warnings point out what EPANET
+/// accepts but the author probably did not mean.
 pub fn read_inp(text: &str) -> ReadResult {
+    let check = check_inp(text);
+    let mut issues: Vec<Issue> = Vec::new();
+    if let Some(code) = check.fatal {
+        issues.push(Issue {
+            line: 0,
+            section: String::new(),
+            severity: Severity::Error,
+            code: Some(code),
+            message: format!("Error {code}: {}", input_error_text(code)),
+        });
+    }
+    issues.extend(check.errors.iter().map(|e| Issue {
+        line: e.line,
+        section: e.section.unwrap_or_default().to_string(),
+        severity: Severity::Error,
+        code: Some(e.code),
+        message: e.message(),
+    }));
+    let model = read_model(text, &mut issues);
+    issues.sort_by_key(|i| i.line);
+    ReadResult { model, issues }
+}
+
+/// The model a file describes, with the reader's warnings.
+fn read_model(text: &str, issues: &mut Vec<Issue>) -> Model {
     let mut r = Reader::new();
     r.prepass(text);
     r.read(text);
-    ReadResult {
-        model: r.model,
-        issues: r.issues,
-    }
+    issues.append(&mut r.issues);
+    r.model
+}
+
+/// What EPANET makes of a file: its verdict, and the network it keeps when errors are
+/// allowed (`EN_openX`). With no errors the model is the file's.
+pub fn read_as_epanet(text: &str) -> (Check, Model) {
+    let check = check_inp(text);
+    let model = read_model(&check.repaired(), &mut Vec::new());
+    (check, model)
 }
 
 struct Reader {
@@ -132,6 +167,8 @@ struct Reader {
     line_no: usize,
     place: Place,
     formula: Formula,
+    /// EPANET's unit system as read so far (SI after an [OPTIONS] UNITS line in SI units).
+    si: bool,
     nodes: HashMap<String, usize>,
     links: HashMap<String, usize>,
     patterns: HashMap<String, usize>,
@@ -144,8 +181,9 @@ struct Reader {
     line_comment: Option<String>,
 }
 
+/// A number as EPANET's `getfloat` reads it; the model keeps only finite values.
 fn parse_f64(s: &str) -> Option<f64> {
-    s.parse::<f64>().ok().filter(|v| v.is_finite())
+    crate::check::getfloat(s).filter(|v| v.is_finite())
 }
 
 /// C's `atol`: leading whitespace, optional sign, then digits; 0 if none.
@@ -189,6 +227,7 @@ impl Reader {
             line_no: 0,
             place: Place::Before,
             formula: Formula::HazenWilliams,
+            si: false,
             nodes: HashMap::new(),
             links: HashMap::new(),
             patterns: HashMap::new(),
@@ -212,12 +251,9 @@ impl Reader {
             line: self.line_no,
             section: self.section_label(),
             severity,
+            code: None,
             message: message.into(),
         });
-    }
-
-    fn error(&mut self, message: impl Into<String>) {
-        self.issue(Severity::Error, message);
     }
 
     fn warn(&mut self, message: impl Into<String>) {
@@ -316,10 +352,6 @@ impl Reader {
                             header: raw.trim().to_string(),
                             lines: Vec::new(),
                         });
-                        self.error(format!(
-                            "unknown section {}; EPANET refuses the file (error 299)",
-                            line.tokens[0]
-                        ));
                     }
                 }
                 continue;
@@ -377,24 +409,14 @@ impl Reader {
         }
     }
 
-    fn check_id(&mut self, id: &str) {
-        if id.chars().count() > MAX_ID {
-            self.error(format!(
-                "ID '{id}' is longer than {MAX_ID} characters (EPANET error 252)"
-            ));
-        }
-    }
-
     fn comment(c: Option<String>) -> Option<String> {
         c.map(|c| truncate(&c, MAX_MSG))
     }
 
     fn add_node(&mut self, id: &str, kind: NodeKind, comment: Option<String>) -> Option<usize> {
         if self.nodes.contains_key(id) {
-            self.error(format!("duplicate node ID '{id}' (EPANET error 215)"));
             return None;
         }
-        self.check_id(id);
         let idx = self.model.nodes.len();
         self.nodes.insert(id.to_string(), idx);
         self.model.nodes.push(Node {
@@ -413,7 +435,6 @@ impl Reader {
         if self.patterns.contains_key(tok) {
             Some(tok.to_string())
         } else {
-            self.error(format!("undefined pattern '{tok}' (EPANET error 205)"));
             None
         }
     }
@@ -422,28 +443,23 @@ impl Reader {
         if self.curves.contains_key(tok) {
             Some(tok.to_string())
         } else {
-            self.error(format!("undefined curve '{tok}' (EPANET error 206)"));
             None
         }
     }
 
-    fn number(&mut self, tok: &str, what: &str) -> Option<f64> {
-        let v = parse_f64(tok);
-        if v.is_none() {
-            self.error(format!("{what} '{tok}' is not a number (EPANET error 202)"));
-        }
-        v
+    fn number(tok: &str) -> Option<f64> {
+        parse_f64(tok)
     }
 
     // [JUNCTIONS] ID Elev [Demand [Pattern]]
     fn junction(&mut self, line: Line) {
         let t = &line.tokens;
         let elevation = match t.get(1) {
-            Some(s) => self.number(s, "elevation").unwrap_or(0.0),
+            Some(s) => Self::number(s).unwrap_or(0.0),
             None => 0.0,
         };
         let base = match t.get(2) {
-            Some(s) => self.number(s, "demand").unwrap_or(0.0),
+            Some(s) => Self::number(s).unwrap_or(0.0),
             None => 0.0,
         };
         let pattern = t.get(3).and_then(|p| self.pattern_ref(p));
@@ -465,13 +481,7 @@ impl Reader {
     fn tank(&mut self, line: Line) {
         let t = &line.tokens;
         let n = t.len();
-        if n < 2 {
-            self.error("too few items (EPANET error 201)");
-        }
-        let elevation = t
-            .get(1)
-            .and_then(|s| self.number(s, "elevation"))
-            .unwrap_or(0.0);
+        let elevation = t.get(1).and_then(|s| Self::number(s)).unwrap_or(0.0);
         let mut pattern = None;
         let mut tank = Tank {
             elevation,
@@ -481,31 +491,14 @@ impl Reader {
             if n == 3 {
                 pattern = self.pattern_ref(&t[2]);
             }
-        } else if n < 6 {
-            self.error("too few items for a tank (EPANET error 201)");
-        } else {
-            let nonneg = |r: &mut Self, i: usize, what: &str| -> f64 {
-                match parse_f64(&t[i]) {
-                    Some(v) if v >= 0.0 => v,
-                    Some(_) => {
-                        r.error(format!("{what} must not be negative (EPANET error 209)"));
-                        0.0
-                    }
-                    None => {
-                        r.error(format!(
-                            "{what} '{}' is not a number (EPANET error 202)",
-                            t[i]
-                        ));
-                        0.0
-                    }
-                }
-            };
-            tank.init_level = nonneg(self, 2, "initial level");
-            tank.min_level = nonneg(self, 3, "minimum level");
-            tank.max_level = nonneg(self, 4, "maximum level");
-            tank.diameter = nonneg(self, 5, "diameter");
+        } else if n >= 6 {
+            let nonneg = |i: usize| parse_f64(&t[i]).filter(|v| *v >= 0.0).unwrap_or(0.0);
+            tank.init_level = nonneg(2);
+            tank.min_level = nonneg(3);
+            tank.max_level = nonneg(4);
+            tank.diameter = nonneg(5);
             if n >= 7 {
-                tank.min_volume = nonneg(self, 6, "minimum volume");
+                tank.min_volume = nonneg(6);
             }
             if n >= 8 && !t[7].is_empty() && !t[7].starts_with('*') {
                 tank.volume_curve = self.curve_ref(&t[7]);
@@ -515,11 +508,6 @@ impl Reader {
                     tank.overflow = Some(true);
                 } else if kw(&t[8], "NO") {
                     tank.overflow = Some(false);
-                } else {
-                    self.error(format!(
-                        "overflow must be YES or NO, not '{}' (EPANET error 213)",
-                        t[8]
-                    ));
                 }
             }
         }
@@ -543,22 +531,12 @@ impl Reader {
         kind: LinkKind,
         comment: Option<String>,
     ) -> Option<usize> {
-        for end in [from, to] {
-            if !self.nodes.contains_key(end) {
-                self.error(format!("undefined node '{end}' (EPANET error 203)"));
-            }
-        }
         if from == to {
-            self.error(format!(
-                "link '{id}' connects node '{from}' to itself (EPANET error 222)"
-            ));
             return None;
         }
         if self.links.contains_key(id) {
-            self.error(format!("duplicate link ID '{id}' (EPANET error 215)"));
             return None;
         }
-        self.check_id(id);
         let idx = self.model.links.len();
         self.links.insert(id.to_string(), idx);
         self.model.links.push(Link {
@@ -581,10 +559,10 @@ impl Reader {
             self.warn("pipe line with fewer than 3 items is ignored, as EPANET does");
             return;
         }
-        // While reading, EPANET's unit system is always US, so these are its defaults.
+        // EPANET's defaults depend on the unit system and head loss formula read so far.
         let mut p = Pipe {
-            length: 330.0,
-            diameter: 10.0,
+            length: if self.si { 100.0 } else { 330.0 },
+            diameter: if self.si { 254.0 } else { 10.0 },
             roughness: match self.formula {
                 Formula::HazenWilliams => 130.0,
                 Formula::DarcyWeisbach => 0.0005,
@@ -596,26 +574,9 @@ impl Reader {
             bulk_coeff: None,
             wall_coeff: None,
         };
+        // As in pipedata, the values read before a bad one are kept.
         let positive = |s: &str| parse_f64(s).filter(|v| *v > 0.0);
-        let mut bad: Option<(usize, &str)> = None;
-        if n > 3 {
-            match positive(&t[3]) {
-                Some(v) => p.length = v,
-                None => bad = Some((3, "length")),
-            }
-        }
-        if bad.is_none() && n > 4 {
-            match positive(&t[4]) {
-                Some(v) => p.diameter = v,
-                None => bad = Some((4, "diameter")),
-            }
-        }
-        if bad.is_none() && n > 5 {
-            match positive(&t[5]) {
-                Some(v) => p.roughness = v,
-                None => bad = Some((5, "roughness")),
-            }
-        }
+        let nonneg = |s: &str| parse_f64(s).filter(|v| *v >= 0.0);
         let status_kw = |s: &str| {
             if kw(s, "CV") {
                 Some(PipeStatus::CheckValve)
@@ -627,32 +588,29 @@ impl Reader {
                 None
             }
         };
-        if bad.is_none() && n > 6 {
-            match status_kw(&t[6]) {
-                Some(s) => p.status = s,
-                None => match parse_f64(&t[6]).filter(|v| *v >= 0.0) {
-                    Some(v) => p.minor_loss = v,
-                    None => bad = Some((6, "minor loss")),
-                },
+        let read = |p: &mut Pipe| -> Option<()> {
+            if n > 3 {
+                p.length = positive(&t[3])?;
             }
-        }
-        if bad.is_none() && n > 7 {
-            match parse_f64(&t[6]).filter(|v| *v >= 0.0) {
-                Some(v) => p.minor_loss = v,
-                None => bad = Some((6, "minor loss")),
+            if n > 4 {
+                p.diameter = positive(&t[4])?;
             }
-            if bad.is_none() {
-                match status_kw(&t[7]) {
+            if n > 5 {
+                p.roughness = positive(&t[5])?;
+            }
+            if n > 6 {
+                match status_kw(&t[6]) {
                     Some(s) => p.status = s,
-                    None => {
-                        self.error(format!("unknown pipe status '{}' (EPANET error 213)", t[7]))
-                    }
+                    None => p.minor_loss = nonneg(&t[6])?,
                 }
             }
-        }
-        if let Some((i, what)) = bad {
-            self.error(format!("{what} '{}' is invalid (EPANET error 202)", t[i]));
-        }
+            if n > 7 {
+                p.minor_loss = nonneg(&t[6])?;
+                p.status = status_kw(&t[7])?;
+            }
+            Some(())
+        };
+        let _ = read(&mut p);
         self.add_link(&t[0], &t[1], &t[2], LinkKind::Pipe(p), line.comment);
     }
 
@@ -680,7 +638,6 @@ impl Reader {
                 match parse_f64(val).filter(|v| *v > 0.0) {
                     Some(v) => p.curve = Some(PumpCurve::Power(v)),
                     None => {
-                        self.error(format!("pump power '{val}' is invalid (EPANET error 202)"));
                         break;
                     }
                 }
@@ -698,12 +655,10 @@ impl Reader {
                 match parse_f64(val).filter(|v| *v >= 0.0) {
                     Some(v) => p.speed = v,
                     None => {
-                        self.error(format!("pump speed '{val}' is invalid (EPANET error 202)"));
                         break;
                     }
                 }
             } else {
-                self.error(format!("unknown pump keyword '{key}' (EPANET error 201)"));
                 break;
             }
             m += 2;
@@ -729,42 +684,33 @@ impl Reader {
             ("PCV", ValveType::Pcv),
         ];
         let Some(valve_type) = types.iter().find(|(k, _)| kw(&t[4], k)).map(|(_, v)| *v) else {
-            self.error(format!("unknown valve type '{}' (EPANET error 213)", t[4]));
             return;
         };
-        // EPANET defaults the diameter to 10 (US) and the setting and loss to 0.
+        // EPANET defaults the diameter to 10 (US) or 254 (SI) and the setting and loss to 0.
         let mut v = Valve {
             valve_type,
-            diameter: 10.0,
+            diameter: if self.si { 254.0 } else { 10.0 },
             setting: ValveSetting::Value(0.0),
             minor_loss: 0.0,
             pcv_curve: None,
             fixed_status: None,
         };
-        match parse_f64(&t[3]).filter(|d| *d > 0.0) {
-            Some(d) => v.diameter = d,
-            None => self.error(format!(
-                "valve diameter '{}' is invalid (EPANET error 202)",
-                t[3]
-            )),
+        if let Some(d) = parse_f64(&t[3]).filter(|d| *d > 0.0) {
+            v.diameter = d;
         }
         if n > 5 {
             if valve_type == ValveType::Gpv {
                 if let Some(c) = self.curve_ref(&t[5]) {
                     v.setting = ValveSetting::Curve(c);
                 }
-            } else if let Some(x) = self.number(&t[5], "valve setting") {
+            } else if let Some(x) = Self::number(&t[5]) {
                 v.setting = ValveSetting::Value(x);
             }
         }
-        if n > 6 {
-            match parse_f64(&t[6]).filter(|x| *x >= 0.0) {
-                Some(x) => v.minor_loss = x,
-                None => self.error(format!(
-                    "minor loss '{}' is invalid (EPANET error 202)",
-                    t[6]
-                )),
-            }
+        if n > 6
+            && let Some(x) = parse_f64(&t[6]).filter(|x| *x >= 0.0)
+        {
+            v.minor_loss = x;
         }
         if n > 7 && valve_type == ValveType::Pcv {
             v.pcv_curve = self.curve_ref(&t[7]);
@@ -781,29 +727,20 @@ impl Reader {
             });
         } else if let Some(rule) = self.model.rules.last_mut() {
             rule.lines.push(text);
-        } else {
-            self.error("rule clause before any RULE line (EPANET error 201)");
         }
     }
 
-    fn node_index(&mut self, id: &str) -> Option<usize> {
-        match self.nodes.get(id) {
-            Some(&j) => Some(j),
-            None => {
-                self.error(format!("undefined node '{id}' (EPANET error 203)"));
-                None
-            }
-        }
+    fn node_index(&self, id: &str) -> Option<usize> {
+        self.nodes.get(id).copied()
     }
 
     // [DEMANDS] Junction Base [Pattern] [;Category]
     fn demand(&mut self, line: Line) {
         let t = &line.tokens;
         if t.len() < 2 {
-            self.error("too few items (EPANET error 201)");
             return;
         }
-        let Some(base) = self.number(&t[1], "demand") else {
+        let Some(base) = Self::number(&t[1]) else {
             return;
         };
         let Some(j) = self.node_index(&t[0]) else {
@@ -841,7 +778,6 @@ impl Reader {
     fn source(&mut self, line: Line) {
         let t = &line.tokens;
         if t.len() < 2 {
-            self.error("too few items (EPANET error 201)");
             return;
         }
         let Some(j) = self.node_index(&t[0]) else {
@@ -858,7 +794,6 @@ impl Reader {
             None => (SourceKind::Concen, 1),
         };
         let Some(strength) = t.get(i).and_then(|s| parse_f64(s)) else {
-            self.error("source strength is missing or not a number (EPANET error 202)");
             return;
         };
         let pattern = match t.get(i + 1) {
@@ -879,17 +814,15 @@ impl Reader {
     fn emitter(&mut self, line: Line) {
         let t = &line.tokens;
         if t.len() < 2 {
-            self.error("too few items (EPANET error 201)");
             return;
         }
         let Some(j) = self.node_index(&t[0]) else {
             return;
         };
-        let Some(k) = self.number(&t[1], "emitter coefficient") else {
+        let Some(k) = Self::number(&t[1]) else {
             return;
         };
         if k < 0.0 {
-            self.error("emitter coefficient must not be negative (EPANET error 209)");
             return;
         }
         if let NodeKind::Junction(junction) = &mut self.model.nodes[j].kind {
@@ -901,21 +834,15 @@ impl Reader {
     fn leakage(&mut self, line: Line) {
         let t = &line.tokens;
         if t.len() < 3 {
-            self.error("too few items (EPANET error 201)");
             return;
         }
         let Some(&l) = self.links.get(&t[0]) else {
-            self.error(format!("undefined link '{}' (EPANET error 203)", t[0]));
             return;
         };
-        let (Some(c1), Some(c2)) = (
-            self.number(&t[1], "leak area"),
-            self.number(&t[2], "leak expansion"),
-        ) else {
+        let (Some(c1), Some(c2)) = (Self::number(&t[1]), Self::number(&t[2])) else {
             return;
         };
         if c1 < 0.0 || c2 < 0.0 {
-            self.error("leakage coefficients must not be negative (EPANET error 209)");
             return;
         }
         if let LinkKind::Pipe(p) = &mut self.model.links[l].kind {
@@ -929,38 +856,25 @@ impl Reader {
             return;
         };
         if t.len() < 2 {
-            self.error("pattern line without multipliers (EPANET error 201)");
             return;
         }
         let pat = &mut self.model.patterns[i];
         if pat.comment.is_none() {
             pat.comment = Self::comment(line.comment);
         }
-        let mut bad = None;
         for s in &t[1..] {
-            match parse_f64(s) {
-                Some(v) => self.model.patterns[i].multipliers.push(v),
-                None => {
-                    // EPANET has already extended the pattern with 1.0 for every token on the line.
-                    self.model.patterns[i].multipliers.push(1.0);
-                    bad.get_or_insert(s.clone());
-                }
-            }
-        }
-        if let Some(s) = bad {
-            self.error(format!(
-                "pattern multiplier '{s}' is not a number (EPANET error 202)"
-            ));
+            // EPANET has already extended the pattern with 1.0 for every token on the line.
+            let v = parse_f64(s).unwrap_or(1.0);
+            self.model.patterns[i].multipliers.push(v);
         }
     }
 
     fn curve(&mut self, line: Line) {
         let t = &line.tokens;
         if t.len() < 3 {
-            self.error("curve point needs X and Y (EPANET error 201)");
             return;
         }
-        let (Some(x), Some(y)) = (self.number(&t[1], "X"), self.number(&t[2], "Y")) else {
+        let (Some(x), Some(y)) = (Self::number(&t[1]), Self::number(&t[2])) else {
             return;
         };
         let kind = t.get(3).and_then(|k| {
@@ -998,21 +912,19 @@ impl Reader {
                 let Some(j) = self.node_index(&t[0]) else {
                     return;
                 };
-                let Some(c) = self.number(&t[1], "initial quality") else {
+                let Some(c) = Self::number(&t[1]) else {
                     return;
                 };
                 if c < 0.0 {
-                    self.error("initial quality must not be negative (EPANET error 209)");
                     return;
                 }
                 self.model.nodes[j].initial_quality = Some(c);
             }
             _ => {
-                let Some(c) = self.number(&t[2], "initial quality") else {
+                let Some(c) = Self::number(&t[2]) else {
                     return;
                 };
                 if c < 0.0 {
-                    self.error("initial quality must not be negative (EPANET error 209)");
                     return;
                 }
                 for node in &mut self.model.nodes {
@@ -1028,7 +940,6 @@ impl Reader {
     fn status(&mut self, line: Line) {
         let t = &line.tokens;
         if t.len() < 2 {
-            self.error("too few items (EPANET error 201)");
             return;
         }
         let last = &t[t.len() - 1];
@@ -1046,13 +957,9 @@ impl Reader {
             match parse_f64(last) {
                 Some(v) if v >= 0.0 => S::Value(v),
                 Some(_) => {
-                    self.error("status setting must not be negative (EPANET error 211)");
                     return;
                 }
                 None => {
-                    self.error(format!(
-                        "status '{last}' is not OPEN, CLOSED or a number (EPANET error 202)"
-                    ));
                     return;
                 }
             }
@@ -1093,7 +1000,6 @@ impl Reader {
         };
         if t.len() == 2 {
             let Some(&l) = self.links.get(&t[0]) else {
-                self.error(format!("undefined link '{}' (EPANET error 204)", t[0]));
                 return;
             };
             let link = &mut self.model.links[l];
@@ -1103,10 +1009,6 @@ impl Reader {
                 LinkKind::Pump(_) => false,
             };
             if refused {
-                self.error(format!(
-                    "illegal status for link '{}' (EPANET error 207)",
-                    t[0]
-                ));
                 return;
             }
             apply(link);
@@ -1123,7 +1025,6 @@ impl Reader {
         let t = &line.tokens;
         let n = t.len();
         if n < 3 {
-            self.error("too few items (EPANET error 201)");
             return;
         }
         if kw(&t[0], "DEMAN") || kw(&t[0], "GLOB") {
@@ -1131,18 +1032,12 @@ impl Reader {
             return;
         }
         if !kw(&t[0], "Pump") {
-            self.error(format!(
-                "unknown energy keyword '{}' (EPANET error 213)",
-                t[0]
-            ));
             return;
         }
         if n < 4 {
-            self.error("too few items (EPANET error 201)");
             return;
         }
         let Some(&l) = self.links.get(&t[1]) else {
-            self.error(format!("'{}' is not a pump (EPANET error 216)", t[1]));
             return;
         };
         let (key, val) = (&t[n - 2], &t[n - 1]);
@@ -1157,26 +1052,18 @@ impl Reader {
             None
         };
         let LinkKind::Pump(p) = &mut self.model.links[l].kind else {
-            self.error(format!("'{}' is not a pump (EPANET error 216)", t[1]));
             return;
         };
         if kw(key, "PRICE") {
-            match parse_f64(val).filter(|v| *v >= 0.0) {
-                Some(v) => p.price = Some(v),
-                None => self.error("pump energy price is invalid (EPANET error 217)"),
+            if let Some(v) = parse_f64(val).filter(|v| *v >= 0.0) {
+                p.price = Some(v);
             }
         } else if kw(key, "PATT") {
             if pattern.is_some() {
                 p.price_pattern = pattern;
             }
-        } else if kw(key, "EFFI") {
-            if curve.is_some() {
-                p.efficiency_curve = curve;
-            }
-        } else {
-            self.error(format!(
-                "unknown pump energy keyword '{key}' (EPANET error 201)"
-            ));
+        } else if kw(key, "EFFI") && curve.is_some() {
+            p.efficiency_curve = curve;
         }
     }
 
@@ -1197,13 +1084,9 @@ impl Reader {
         } else if kw(&t[0], "Tank") {
             3
         } else {
-            self.error(format!(
-                "unknown reaction keyword '{}' (EPANET error 213)",
-                t[0]
-            ));
             return;
         };
-        let Some(y) = self.number(&t[n - 1], "reaction coefficient") else {
+        let Some(y) = Self::number(&t[n - 1]) else {
             return;
         };
         if item == 3 {
@@ -1263,10 +1146,6 @@ impl Reader {
             ("LIFO", MixModel::Lifo),
         ];
         let Some(model) = models.iter().find(|(k, _)| kw(&t[1], k)).map(|(_, m)| *m) else {
-            self.error(format!(
-                "unknown mixing model '{}' (EPANET error 213)",
-                t[1]
-            ));
             return;
         };
         let mut fraction = 1.0;
@@ -1274,7 +1153,6 @@ impl Reader {
             match parse_f64(&t[2]) {
                 Some(v) => fraction = v,
                 None => {
-                    self.error("mixing fraction is not a number (EPANET error 202)");
                     return;
                 }
             }
@@ -1288,6 +1166,17 @@ impl Reader {
     }
 
     fn option(&mut self, line: Line) {
+        // getunitsoption: the unit system changes the defaults of the links read after it.
+        if let (Some(k), Some(v)) = (line.tokens.first(), line.tokens.get(1))
+            && kw(k, "UNIT")
+        {
+            let words = [
+                "CFS", "GPM", "AFD", "MGD", "IMGD", "LPS", "LPM", "CMH", "CMD", "MLD", "CMS", "SI",
+            ];
+            if let Some(i) = words.iter().position(|w| kw(v, w)) {
+                self.si = i >= 5;
+            }
+        }
         if let (Some(k), Some(v)) = (line.tokens.first(), line.tokens.get(1))
             && kw(k, "HEADL")
         {
@@ -1350,19 +1239,16 @@ impl Reader {
     fn tag(&mut self, line: Line) {
         let t = &line.tokens;
         if t.len() < 3 {
-            self.error("too few items (EPANET error 201)");
             return;
         }
         if kw(&t[0], "NODE") {
-            match self.nodes.get(&t[1]) {
-                Some(&j) => self.model.nodes[j].tag = Some(truncate(&t[2], MAX_MSG)),
-                None => self.error(format!("undefined node '{}' (EPANET error 203)", t[1])),
+            if let Some(&j) = self.nodes.get(&t[1]) {
+                self.model.nodes[j].tag = Some(truncate(&t[2], MAX_MSG));
             }
-        } else if kw(&t[0], "LINK") {
-            match self.links.get(&t[1]) {
-                Some(&l) => self.model.links[l].tag = Some(truncate(&t[2], MAX_MSG)),
-                None => self.error(format!("undefined link '{}' (EPANET error 203)", t[1])),
-            }
+        } else if kw(&t[0], "LINK")
+            && let Some(&l) = self.links.get(&t[1])
+        {
+            self.model.links[l].tag = Some(truncate(&t[2], MAX_MSG));
         }
     }
 }

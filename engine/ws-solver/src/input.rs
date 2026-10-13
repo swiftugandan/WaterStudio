@@ -1382,7 +1382,9 @@ fn convertunits(pr: &mut Project) {
     }
 }
 
-/// `validateproject` (validate.c), including pump curve processing.
+/// `validateproject` (validate.c), including pump curve processing. Like C it checks
+/// every tank, pump, pattern and curve, writing a report line for each bad one; it
+/// returns the first problem (C returns 110 for any of them).
 pub(crate) fn validateproject(pr: &mut Project) -> Result<(), SolverError> {
     if pr.net.nnodes < 2 {
         return Err(err(223, "not enough nodes in network"));
@@ -1391,6 +1393,11 @@ pub(crate) fn validateproject(pr: &mut Project) -> Result<(), SolverError> {
         return Err(err(224, "no tanks or reservoirs in network"));
     }
     let ucf = pr.units.ucf;
+    let mut first: Option<SolverError> = None;
+    let mut fail = |pr: &mut Project, e: SolverError, line: String| {
+        crate::report::writeline(pr, &line);
+        first.get_or_insert(e);
+    };
     // validatetanks
     for j in 1..=pr.net.ntanks {
         let tank = &pr.net.tank[j];
@@ -1409,13 +1416,12 @@ pub(crate) fn validateproject(pr: &mut Project) -> Result<(), SolverError> {
             }
         }
         if levelerr {
-            return Err(err(
-                225,
-                format!(
-                    "invalid lower/upper levels for tank {}",
-                    pr.net.node[tank.node].id
-                ),
-            ));
+            let id = pr.net.node[tank.node].id.clone();
+            fail(
+                pr,
+                err(225, format!("invalid lower/upper levels for tank {id}")),
+                format!("Error 225: invalid lower/upper levels for tank node {id}"),
+            );
         }
     }
     // validatepumps
@@ -1441,31 +1447,52 @@ pub(crate) fn validateproject(pr: &mut Project) -> Result<(), SolverError> {
             226
         };
         if code != 0 {
-            return Err(err(
-                code,
-                format!("invalid curve for pump {}", pr.net.link[k].id),
-            ));
+            let id = pr.net.link[k].id.clone();
+            let text = if code == 226 {
+                "no head curve or power rating for pump"
+            } else {
+                "invalid head curve for pump"
+            };
+            fail(
+                pr,
+                err(code, format!("invalid curve for pump {id}")),
+                format!("Error {code}: {text} {id}"),
+            );
         }
     }
     // validatepatterns
-    for p in &pr.net.pattern {
-        if p.f.is_empty() {
-            return Err(err(232, format!("pattern {} has no multipliers", p.id)));
+    for j in 0..pr.net.pattern.len() {
+        if pr.net.pattern[j].f.is_empty() {
+            let id = pr.net.pattern[j].id.clone();
+            fail(
+                pr,
+                err(232, format!("pattern {id} has no multipliers")),
+                format!("Error 232: no data provided for pattern {id}"),
+            );
         }
     }
     // validatecurves
-    for c in pr.net.curve.iter().skip(1) {
+    for j in 1..pr.net.curve.len() {
+        let c = &pr.net.curve[j];
+        let id = c.id.clone();
         if c.x.is_empty() {
-            return Err(err(231, format!("curve {} has no points", c.id)));
-        }
-        if c.x.windows(2).any(|w| w[0] >= w[1]) {
-            return Err(err(
-                230,
-                format!("curve {} has non-increasing X values", c.id),
-            ));
+            fail(
+                pr,
+                err(231, format!("curve {id} has no points")),
+                format!("Error 231: no data provided for curve {id}"),
+            );
+        } else if c.x.windows(2).any(|w| w[0] >= w[1]) {
+            fail(
+                pr,
+                err(230, format!("curve {id} has non-increasing X values")),
+                format!("Error 230: nonincreasing x-values for curve {id}"),
+            );
         }
     }
-    Ok(())
+    match first {
+        Some(e) => Err(e),
+        None => Ok(()),
+    }
 }
 
 /// `powerfuncpump` (validate.c).

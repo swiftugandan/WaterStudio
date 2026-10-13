@@ -1,0 +1,55 @@
+[TITLE]
+Junction, reservoir and tank errors
+
+[JUNCTIONS]
+;ID   Elev  Demand  Pattern
+ J1   10    5       DayPat     ;first
+ J2   x     5                  ;bad elevation
+ J3   20    y                  ;bad demand
+ J4   30    7       DayPat     ;fine
+ J1   40                       ;duplicate
+ J5   50    1       ""
+ JunctionWithAnIDLongerThan31Chars 1
+ J6   60    2
+
+[RESERVOIRS]
+ R1   100   DayPat
+ R2   x
+ J2   5
+
+[TANKS]
+;ID  Elev  Init  Min  Max  Diam  MinVol  Curve  Overflow
+ T1   80    5     1    10   20
+ T2   80    5     1    10
+ T3   80    x     1    10   20
+ T4   80    5     -1   10   20
+ T5   80    5     1    z    20
+ T6   80    5     1    10   q
+ T7   80    5     1    10   20    w
+ T8   80    5     1    10   20    0       NoCurve
+ T9   80    5     1    10   20    0       Vol      MAYBE
+ T10  80    5     1    10   20    0       *        YES
+ T11  x     5     1    10   20
+
+[PIPES]
+ P1   R1   J1   1000  12  100
+ P2   J1   J2   1000  12  100
+ P3   J2   J3   1000  12  100
+ P4   J3   J4   1000  12  100
+ P5   J4   J5   1000  12  100
+ P6   J5   J6   1000  12  100
+ P7   J6   T1   1000  12  100
+ P8   J1   T3   1000  12  100
+ P9   J2   T6   1000  12  100
+
+[PATTERNS]
+ DayPat  1.0  1.2  0.8
+
+[CURVES]
+ Vol  0  0
+ Vol  10 100
+
+[OPTIONS]
+ UNITS GPM
+
+[END]

@@ -16,6 +16,13 @@ fn model(text: &str) -> ws_model::Model {
     r.model
 }
 
+/// The model of a file EPANET refuses: the reader keeps what an editor needs.
+fn refused(text: &str, code: u16) -> ws_model::Model {
+    let r = ws_io::read_inp(text);
+    assert!(r.errors().any(|i| i.code == Some(code)), "{:?}", r.issues);
+    r.model
+}
+
 #[test]
 fn reports_every_period_and_conserves_flow() {
     let r = simulate(&model(NET)).unwrap();
@@ -53,7 +60,7 @@ fn rejects_a_malformed_rule_like_epanet() {
         "[END]",
         "[RULES]\nRULE 1\nTHEN LINK P1 STATUS IS OPEN\n[END]",
     );
-    let err: SolverError = simulate(&model(&text)).unwrap_err();
+    let err: SolverError = simulate(&refused(&text, 200)).unwrap_err();
     assert_eq!(err.code, 200);
 }
 
@@ -119,12 +126,12 @@ fn checks_a_model_without_solving() {
         "[END]",
         "[RULES]\nRULE 1\nIF TANK T LEVEL > 10\nTHEN PIPE P9 STATUS IS CLOSED\n[END]",
     );
-    let e = check(&model(&bad_rule)).unwrap_err();
+    let e = check(&refused(&bad_rule, 200)).unwrap_err();
     assert_eq!(e.code, 200);
     assert!(e.message.contains("undefined link P9"), "{e}");
     let bad_control = NET.replace(
         "[END]",
         "[CONTROLS]\nLINK P1 CLOSED IF NODE X9 ABOVE 3\n[END]",
     );
-    assert!(check(&model(&bad_control)).is_err());
+    assert!(check(&refused(&bad_control, 203)).is_err());
 }

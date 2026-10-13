@@ -81,6 +81,7 @@ pub unsafe extern "C" fn ws_read_inp(ptr: *const u8, len: usize) -> *mut u8 {
                     ws_io::Severity::Error => "error",
                     ws_io::Severity::Warning => "warning",
                 },
+                "code": i.code,
                 "message": i.message,
             })
         })

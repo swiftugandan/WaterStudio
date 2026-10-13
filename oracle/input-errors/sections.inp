@@ -1,0 +1,166 @@
+[TITLE]
+Errors in the per-element sections
+Second title line
+
+[JUNCTIONS]
+ J1  10  5   Pat1
+ J2  10  5
+ J3  10  5
+ J4  10  5
+
+[RESERVOIRS]
+ R1  100
+
+[TANKS]
+ T1  50  5  1  10  20
+ T2  50  5  1  10  0
+
+[PIPES]
+ P1  R1  J1  1000  12  100
+ P2  J1  J2  1000  12  100
+ P3  J2  J3  1000  12  100
+ P4  J3  J4  1000  12  100
+ P5  J4  T1  1000  12  100
+ P6  J4  T2  1000  12  100  0  CV
+
+[PUMPS]
+ U1  J2  J3  HEAD Curve1
+
+[VALVES]
+ V1  J3  J4  12  GPV  Curve2
+
+[PATTERNS]
+;Comment line
+ Pat1  1.0  1.2
+ Pat1  0.8  x   0.9
+ Pat2
+ Pat3  1  2
+"Quoted Pat" 1 2
+ Pat4;glued 1 2
+ Pat3  3
+
+[CURVES]
+ Curve1  1000  100
+ Curve2  0
+ Curve2  0     0
+ Curve2  x     5
+ Curve2  10    y
+ Curve2  100   10  HEADLOSS
+ Curve3  5     5
+"Quoted Curve" 1 1
+
+[DEMANDS]
+ J1  3
+ J2
+ J2  x
+ JX  3
+ T1  3
+ J3  3   NoPat
+ J3  4   Pat1   ;category
+
+[SOURCES]
+ J1  CONCEN  2
+ JX  CONCEN  2
+ J2  x
+ J3  MASS    y
+ J4  SETPOINT 5   NoPat
+ J4  FLOWPACED 5  *
+ J1
+
+[EMITTERS]
+ J1  0.5
+ JX  0.5
+ J2  x
+ J3  -1
+ T1  1
+ J4
+
+[LEAKAGE]
+ P1  0.1  0.2
+ PX  0.1  0.2
+ P2  x    0.2
+ P3  -1   0.2
+ P4  0.1  y
+ P5  0.1  -2
+ U1  0.1  0.2
+ P1
+
+[QUALITY]
+ J1  1
+ JX  1
+ J2  x
+ J3  -1
+ J1  J4  x
+ J1  J4  -2
+ J1  J4  3
+ J1
+
+[STATUS]
+ P1  CLOSED
+ PX  OPEN
+ P2  x
+ P3  -1
+ P6  OPEN
+ V1  1.5
+ U1  0.8
+ P1  P4  OPEN
+ P2
+
+[ENERGY]
+ GLOBAL  PRICE  0.1
+ GLOBAL  PRICE  x
+ GLOBAL  PRICE  -1
+ GLOBAL  PATTERN NoPat
+ GLOBAL  EFFIC  0
+ GLOBAL  EFFIC  z
+ PUMP    U1  EFFIC  NoCurve
+ PUMP    P1  PRICE  0.1
+ PUMP    UX  PRICE  0.1
+ PUMP    U1
+ DEMAND  CHARGE x
+ DEMAND  CHARGE -5
+ OTHER   PRICE  1
+ GLOBAL  OTHER  1
+ GLOBAL
+
+[REACTIONS]
+ ORDER  BULK  x
+ ORDER  WALL  2
+ ORDER  OTHER 1
+ GLOBAL BULK  y
+ GLOBAL OTHER 1
+ ROUGHNESS CORRELATION z
+ LIMITING  POTENTIAL  w
+ BULK   P1    v
+ TANK   T1    u
+ OTHER  P1    1
+ WALL   P1    -0.5
+ BULK
+
+[MIXING]
+ T1  2COMP  x
+ T1  WEIRD
+ TX  MIXED
+ J1  FIFO
+ T2  LIFO
+ T1  2COMP  0.4
+ T1
+
+[TAGS]
+ NODE  JX  tag
+ LINK  PX  tag
+ NODE  J1
+ NODE  J1  Main
+ OTHER J1  x
+
+[COORDINATES]
+ J1  1  2
+ JX  1  2
+ J2  x  2
+
+[VERTICES]
+ P1  1  1
+ PX  1  1
+ P1  y  1
+
+[END]

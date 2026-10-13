@@ -32,7 +32,9 @@ cc -O1 -Wall -o "$build/legacy-ref" "$here/toolkit/legacy.c" -I "$here/.build/sr
 cc -O1 -Wall -o "$build/legacy-ws" "$here/toolkit/legacy.c" -I "$here/.build/src/include" \
    -L "$ours" -lepanet2 -Wl,-rpath,"$ours" -lm
 
-mapfile -t networks < <(cd "$here/.corpus" && find . ../fixtures -name '*.inp' -not -path '*/msx-examples/*' -not -path '*/msx/*' | sort)
+# oracle/input-errors holds files with input errors, for EN_open's report of them and
+# EN_openX's partly read networks.
+mapfile -t networks < <(cd "$here/.corpus" && find . ../fixtures ../input-errors -name '*.inp' -not -path '*/msx-examples/*' -not -path '*/msx/*' | sort)
 if [[ ${#networks[@]} -eq 0 ]]; then
   echo "error: no networks in oracle/.corpus; run oracle/fetch-corpus.sh" >&2
   exit 1
@@ -46,7 +48,7 @@ trap 'rm -rf "$scratch"' EXIT
 # library with the report's clock times masked.
 files=(probe.rpt probe-copy.rpt probe.out probe.inp probe-mutated.inp probe.hyd probe-copy.hyd
        probe-use.rpt probe-use.out probe-use.inp probe-init.rpt probe-init.inp
-       legacy.rpt legacy.out legacy.inp legacy-run.rpt legacy-run.out)
+       legacy.rpt legacy.out legacy.inp legacy-run.rpt legacy-run.out probe-x.rpt probe-x.inp legacy-x.rpt)
 keep() {
   for f in "${files[@]}"; do
     if [[ -f "$scratch/$f" ]]; then

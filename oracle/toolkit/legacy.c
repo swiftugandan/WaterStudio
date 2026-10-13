@@ -184,6 +184,17 @@ static void quality(void) {
   printf("closeQ %d\n", ENcloseQ());
 }
 
+/* ENopenX: the default project opened with errors allowed. */
+static void openx(const char *inp, const char *scratch) {
+  char rpt[600];
+  snprintf(rpt, sizeof rpt, "%s/legacy-x.rpt", scratch);
+  int e = ENopenX(inp, rpt, "");
+  int n = -1, l = -1;
+  ENgetcount(EN_NODECOUNT, &n); ENgetcount(EN_LINKCOUNT, &l);
+  printf("openX %d nodes %d links %d\n", e, n, l);
+  printf("close %d\n", ENclose());
+}
+
 int main(int argc, char **argv) {
   char scratch[512] = ".", rpt[600], out[600], inp[600];
   if (argc < 2) { fprintf(stderr, "usage: legacy <net.inp> [scratch-dir]\n"); return 2; }
@@ -196,7 +207,7 @@ int main(int argc, char **argv) {
   snprintf(out, sizeof out, "%s/legacy.out", scratch);
   int e = ENopen(argv[1], rpt, out);
   printf("open %d\n", e);
-  if (e > 100) return 0;
+  if (e > 100) { openx(argv[1], scratch); return 0; }
   counts();
   statics();
   /* (Running without ENinitH, after an ENinitH before ENopenH, reads uninitialised
@@ -240,5 +251,6 @@ int main(int argc, char **argv) {
   snprintf(rpt, sizeof rpt, "%s/legacy-run.rpt", scratch);
   snprintf(out, sizeof out, "%s/legacy-run.out", scratch);
   printf("epanet %d\n", ENepanet(argv[1], rpt, out, NULL));
+  openx(argv[1], scratch);
   return 0;
 }

@@ -10,7 +10,7 @@
 
 use std::process::ExitCode;
 
-use ws_io::{Severity, read_inp, write_inp};
+use ws_io::{Severity, input_error_text, read_as_epanet, read_inp, write_inp};
 
 fn read_text(path: &str) -> Result<String, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("{path}: {e}"))?;
@@ -77,33 +77,30 @@ fn ctime_now() -> String {
 }
 
 fn run(input: &str, rpt: &str, out: Option<&str>) -> Result<bool, String> {
-    let r = read_inp(&read_text(input)?);
-    if let Some(issue) = r.errors().next() {
-        return Err(format!("{input}:{}: {}", issue.line, issue.message));
-    }
-    let opts = ws_solver::RunOptions {
-        inp_name: input.to_string(),
-        date: ctime_now(),
-        report: true,
-        status_log: false,
-    };
-    let run = ws_solver::run_epanet(&r.model, &opts, |_| {}).map_err(|e| e.to_string())?;
-    std::fs::write(rpt, run.report().unwrap_or_default()).map_err(|e| format!("{rpt}: {e}"))?;
-    if let Some(out) = out {
-        std::fs::write(out, run.out_file()).map_err(|e| format!("{out}: {e}"))?;
+    // As runepanet: EN_runproject, whose report also tells of a file or network that
+    // will not run.
+    let mut tk = ws_solver::epanet::Toolkit::new();
+    let (code, _) = tk.run_project(input, rpt, out.unwrap_or_default(), &ctime_now());
+    if code > 100 {
+        let mut msg = String::new();
+        ws_solver::epanet::geterror(code, &mut msg, 255);
+        return Err(format!("{input}: {msg}"));
     }
     Ok(true)
 }
 
 fn msx(input: &str, msx_path: &str, rpt: &str, out: Option<&str>) -> Result<bool, String> {
-    let r = read_inp(&read_text(input)?);
-    if let Some(issue) = r.errors().next() {
-        return Err(format!("{input}:{}: {}", issue.line, issue.message));
+    let (check, model) = read_as_epanet(&read_text(input)?);
+    if let Some(e) = check.errors.first() {
+        return Err(format!("{input}:{}: {}", e.line, e.message()));
+    }
+    if let Some(code) = check.fatal {
+        return Err(format!("{input}: Error {code}: {}", input_error_text(code)));
     }
     let text = read_text(msx_path)?;
     let mut lines = String::new();
     let write = |lines: &String| std::fs::write(rpt, lines).map_err(|e| format!("{rpt}: {e}"));
-    let mut run = match ws_msx::Msx::from_model(&r.model, &text, msx_path) {
+    let mut run = match ws_msx::Msx::from_model(&model, &text, msx_path) {
         Ok(run) => run,
         Err(e) => {
             for m in &e.messages {

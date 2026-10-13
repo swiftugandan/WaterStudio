@@ -28,6 +28,8 @@ static int nnodes, nlinks, npats, ncurves, ncontrols, nrules;
 /* A source made by EN_setnodevalue has no mass until a quality run sets it: OWA-EPANET
    leaves the field uninitialised, so EN_SOURCEMASS is not read after the setters. */
 static int mutated;
+/* So is it in a second project opened after the first is deleted (freed memory reused). */
+static int reopened;
 static void dumprules(const char *tag);
 
 static void nodeprop(const char *tag, int prop) {
@@ -161,7 +163,7 @@ static void statics(void) {
   for (int p = 0; p <= EN_FULLDEMAND; p++) {
     int dyn = 0;
     for (size_t i = 0; i < sizeof DYN_NODE / sizeof *DYN_NODE; i++) dyn |= DYN_NODE[i] == p;
-    if (!dyn && !(mutated && p == EN_SOURCEMASS)) nodeprop("static", p);
+    if (!dyn && !((mutated || reopened) && p == EN_SOURCEMASS)) nodeprop("static", p);
   }
 
   hinit(&x);
@@ -716,6 +718,32 @@ static void built(void) {
   printf("close %d\n", EN_close(ph));
 }
 
+/* EN_openX: a file with input errors opens anyway with the network EPANET read from it
+   (and a clean one exactly as EN_open opens it). Read everything, save it and solve it. */
+static void openx(const char *inp) {
+  char rpt[600], saved[600];
+  snprintf(rpt, sizeof rpt, "%s/probe-x.rpt", scratch);
+  snprintf(saved, sizeof saved, "%s/probe-x.inp", scratch);
+  EN_createproject(&ph);
+  int e = EN_openX(ph, inp, rpt, "");
+  printf("openX %d\n", e);
+  if (e <= 200) {
+    mutated = 0;
+    reopened = 1;
+    counts();
+    statics();
+    SET(EN_saveinpfile(ph, saved));
+    int h = EN_solveH(ph);
+    printf("openX solveH %d\n", h);
+    if (h <= 100) {
+      dynamic("openX");
+      SET(EN_solveQ(ph));
+      SET(EN_report(ph));
+    }
+  }
+  EN_deleteproject(ph);
+}
+
 int main(int argc, char **argv) {
   if (argc < 2) { fprintf(stderr, "usage: probe <net.inp> [scratch-dir]\n"); return 2; }
   if (argc > 2) snprintf(scratch, sizeof scratch, "%s", argv[2]);
@@ -734,7 +762,7 @@ int main(int argc, char **argv) {
   printf("before-open %d %d\n", EN_getcount(ph, EN_NODECOUNT, &(int){0}), EN_openH(ph));
   int e = EN_open(ph, argv[1], rpt, out);
   printf("open %d\n", e);
-  if (e > 100) { EN_deleteproject(ph); return 0; }
+  if (e > 100) { EN_deleteproject(ph); openx(argv[1]); return 0; }
   counts();
   statics();
   char inp[600];
@@ -826,5 +854,6 @@ int main(int argc, char **argv) {
     printf("use openQ %d\n", EN_openQ(ph));
   }
   EN_deleteproject(ph);
+  openx(argv[1]);
   return 0;
 }
