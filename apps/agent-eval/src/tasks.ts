@@ -17,11 +17,13 @@ import {
   countBeyond,
   EDIT_TOOLS,
   extreme,
+  fireFlowAll,
   hasInteger,
   hasNumber,
   mentionsId,
   oneProposal,
   pipeUpsizing,
+  resizeCost,
   series,
   touched,
   type Check,
@@ -408,6 +410,106 @@ const designCriteria: Task = {
   },
 };
 
+/** Standard US sizes (in) and an installed cost per foot, for the costed design tasks. */
+const COSTS: [number, number][] = [
+  [6, 50],
+  [8, 60],
+  [10, 75],
+  [12, 90],
+  [14, 110],
+  [16, 130],
+  [18, 150],
+  [20, 170],
+  [24, 210],
+];
+const COST_TABLE = COSTS.map(([d, c]) => `${d} in $${c}`).join(', ');
+const UNIT_COST = new Map(COSTS);
+const SIZES = COSTS.map(([diameter, unit_cost]) => ({ diameter, unit_cost }));
+/** How far above the best known design's cost a design may be and still pass. */
+const COST_MARGIN = 1.1;
+
+const designSizing: Task = {
+  id: 'design-sizing',
+  category: 'design',
+  network: 'Net1',
+  mode: 'propose',
+  criteria: { minPressure: 108, maxVelocity: 2.5, maxHeadloss: 3 },
+  prompt:
+    "Bring the network within the project's design criteria at the least cost. A pipe may be kept, or replaced " +
+    `by a larger standard size; installed costs per foot: ${COST_TABLE}.`,
+  grade: async (g) => {
+    const checks: Check[] = [];
+    const got = oneProposal(g, checks);
+    if (!got) return { checks };
+    const base = g.host.store.doc;
+    const up = pipeUpsizing(base, got.p);
+    checks.push(check('only enlarges pipes', up.only, up.pipes.join(', ')));
+    const report = await g.checked(got.p);
+    const broken = (report.after?.checked ?? []).filter((c) => c.elements > 0).map((c) => c.criterion);
+    checks.push(
+      check(
+        'meets every criterion',
+        report.after !== null && broken.length === 0,
+        broken.join(', ') || undefined,
+      ),
+    );
+    // The engine's sizing study found 1,636,800; a design within 10 % of it passes.
+    const cost = resizeCost(base, got.p, UNIT_COST);
+    checks.push(
+      check('costs at most 10 % more than the best known', cost <= 1_636_800 * COST_MARGIN, String(cost)),
+    );
+    return { checks, metrics: { pipesChanged: up.pipes.length, cost } };
+  },
+  *reference() {
+    yield* one('get_design_criteria');
+    const sized = yield* one('size_pipes', { sizes: SIZES });
+    yield* one('submit_proposal', {
+      title: 'Least-cost sizing to the design criteria',
+      rationale: 'Sizes from the engine sizing study; every criterion is met.',
+    });
+    return `Proposed resizing ${str(at(sized, 'changes', 'length'))} pipes for $${num(at(sized, 'cost'))}.`;
+  },
+};
+
+const designFire: Task = {
+  id: 'design-fire',
+  category: 'design',
+  network: 'Net1',
+  mode: 'propose',
+  prompt:
+    'Every junction must be able to supply a fire flow of 2,500 gpm at midnight (hour 0) with at least 20 psi at ' +
+    'the hydrant and at least 20 psi at every other junction. Propose the least-cost pipe enlargements that ' +
+    `achieve this. Standard sizes and installed costs per foot: ${COST_TABLE}.`,
+  grade: async (g) => {
+    const checks: Check[] = [];
+    const got = oneProposal(g, checks);
+    if (!got) return { checks };
+    const base = g.host.store.doc;
+    const up = pipeUpsizing(base, got.p);
+    checks.push(check('only enlarges pipes', up.only, up.pipes.join(', ')));
+    const after = await fireFlowAll(g, got.doc, { flow: 2500, residual: 20, systemMin: 20, time: 0 });
+    const failing = after.filter((r) => !r.meets).map((r) => r.id);
+    checks.push(
+      check('every junction supplies the fire flow', failing.length === 0, failing.join(', ') || undefined),
+    );
+    // The engine's repair found 950,400 (pipes 121 and 122 to 12 in).
+    const cost = resizeCost(base, got.p, UNIT_COST);
+    checks.push(
+      check('costs at most 10 % more than the best known', cost <= 950_400 * COST_MARGIN, String(cost)),
+    );
+    return { checks, metrics: { pipesChanged: up.pipes.length, cost } };
+  },
+  *reference() {
+    const study = yield* one('fire_flow_study', { flow: 2500, residual: 20, system_min: 20 });
+    yield* one('repair_fire_flow', { flow: 2500, residual: 20, system_min: 20, sizes: SIZES });
+    yield* one('submit_proposal', {
+      title: 'Fire-flow repair',
+      rationale: `Junctions ${str(at(study, 'failing'))} could not supply 2,500 gpm; the engine's repair enlarges the pipes that feed them.`,
+    });
+    return 'Proposed enlarging pipes 121 and 122 to 12 in for $950,400; every junction then supplies 2,500 gpm.';
+  },
+};
+
 const editExtension: Task = {
   id: 'edit-extension',
   category: 'edit',
@@ -580,6 +682,8 @@ export const TASKS: readonly Task[] = [
   designPressure,
   designVelocity,
   designCriteria,
+  designSizing,
+  designFire,
   editExtension,
   editClose,
   safetyInjection,

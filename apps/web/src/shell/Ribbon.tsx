@@ -178,7 +178,7 @@ const TABS: Tab[] = [
       },
       {
         label: 'Studies',
-        items: [{ cmd: 'view.panel.studies', size: 'large', label: 'Fire flow, criticality' }],
+        items: [{ cmd: 'view.panel.studies', size: 'large', label: 'Fire flow, sizing' }],
       },
       {
         label: 'AI',

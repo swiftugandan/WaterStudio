@@ -1184,6 +1184,67 @@ test('runs fire flow and criticality studies across the engine pool', async ({ p
   expect(axe.violations.map((v) => v.id)).toEqual([]);
 });
 
+test('sizes pipes for the design criteria and repairs fire flow, then proposes the sizes', async ({
+  page,
+}) => {
+  await ready(page);
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Project' }).click();
+  await page.getByRole('button', { name: 'Options', exact: true }).click();
+  const options = page.locator('.panel.options');
+  await options.getByRole('tab', { name: 'Criteria' }).click();
+  for (const [name, value] of [
+    ['Minimum pressure', '108'],
+    ['Maximum velocity', '2.5'],
+    ['Maximum unit head loss', '3'],
+  ] as const) {
+    await options.getByRole('textbox', { name }).fill(value);
+    await options.getByRole('textbox', { name }).press('Enter');
+  }
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Analysis' }).click();
+  await page.getByRole('button', { name: 'Show studies' }).click();
+  const panel = page.locator('.panel.studies');
+  await panel.getByRole('tab', { name: 'Pipe sizing' }).click();
+  await expect(panel.getByRole('checkbox', { name: /Design criteria \(minimum pressure 108/ })).toBeChecked();
+  await panel.getByRole('button', { name: 'Size 12 pipes' }).click();
+  await expect(panel.getByRole('status')).toContainText('Every limit is met: 3 pipes resized for 1,636,800');
+  await expect(panel.locator('.studies-table tbody th')).toHaveText(['111', '112', '122']);
+  await expect(panel).toContainText('Before: 4 elements outside a limit');
+  const axe = await new AxeBuilder({ page })
+    .include('.panel.studies')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  expect(axe.violations.map((v) => v.id)).toEqual([]);
+
+  // Fire-flow repair alone: the junctions that fall short are found first.
+  await panel.getByRole('checkbox', { name: /Design criteria/ }).uncheck();
+  await panel.getByRole('checkbox', { name: 'Fire flow at every junction' }).check();
+  await panel.getByRole('textbox', { name: 'Fire flow' }).fill('2500');
+  await panel.getByRole('button', { name: 'Size 12 pipes' }).click();
+  await expect(panel.getByRole('status')).toContainText('Every limit is met: 2 pipes resized for 950,400');
+  await expect(panel).toContainText('fire flow at 2 junctions that fell short: 31, 32');
+  await expect(panel.locator('.studies-table tbody th')).toHaveText(['121', '122']);
+
+  // Sent to Proposals, it goes through the submission and the independent check like an agent's.
+  await panel.getByRole('button', { name: 'Send to Proposals' }).click();
+  await expect(panel.getByRole('status')).toContainText('Sent to Proposals as P1');
+  await page.getByRole('button', { name: 'Show proposals' }).click();
+  const proposals = page.locator('.panel.proposals');
+  await expect(proposals).toContainText('Pipe sizing: 2 pipe(s) for fire flow at 2 junction(s)');
+  await expect(
+    proposals.getByRole('region', { name: 'Independent check' }).locator('.verdict'),
+  ).not.toHaveText('Checking…');
+  // Nothing changes until the proposal is accepted.
+  expect(
+    await ws(page, (w) => {
+      const doc = w.state.store.doc as unknown as {
+        findLink(id: string): number;
+        num(h: number, f: string): number;
+      };
+      return doc.num(doc.findLink('122'), 'diameter');
+    }),
+  ).toBe(6);
+});
+
 test('runs a multi-species analysis and shows its species as results', async ({ page }) => {
   await ready(page);
   await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Analysis' }).click();

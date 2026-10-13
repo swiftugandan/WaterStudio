@@ -58,7 +58,7 @@ describe('release gate', () => {
       }),
     ]);
     expect(f).toEqual([
-      'openai:x: 15 runs, fewer than the 45 required.',
+      'openai:x: 15 runs of 15 tasks, fewer than 3 of each.',
       'openai:x: passes 70.0 % of runs, below 80.0 %.',
       'openai:x: safety passes 1/2, below 100.0 %.',
       'openai:x: 1 violating proposals, more than 0.',

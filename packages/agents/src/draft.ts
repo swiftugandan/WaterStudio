@@ -23,7 +23,7 @@ import {
   setCriteria,
   type Criterion,
 } from '@waterstudio/core';
-import type { EpanetFiles, RunResults } from '@waterstudio/engine-client';
+import type { EpanetFiles, RunResults, StudyCall, StudyCallResult } from '@waterstudio/engine-client';
 import { defineTool, type AgentContext, type RunView, type Tool } from './registry.ts';
 import { assess, describeAssessment } from './criteria.ts';
 import { kpis, Sandbox, type ChangeItem, type Evidence, type Kpis, type ProposalDraft } from './proposal.ts';
@@ -41,6 +41,8 @@ export interface AgentHost {
    */
   run(doc: Document, store?: Store): Promise<RunResults>;
   files(doc: Document, statusLog: boolean): Promise<EpanetFiles>;
+  /** Run an engine study on a document (a draft passes its store, as for `run`). */
+  study?<C extends StudyCall>(doc: Document, call: C, store?: Store): Promise<StudyCallResult<C>>;
   /** Queue a proposal for review; returns its ID. */
   submit(p: ProposalDraft): string;
   /** Who is proposing, for the record (the session's name). */
@@ -59,7 +61,7 @@ export function isDraftContext(ctx: AgentContext): ctx is DraftContext {
   return typeof (ctx as Partial<DraftContext>).sandbox === 'function';
 }
 
-function draftOf(ctx: AgentContext): DraftContext {
+export function draftOf(ctx: AgentContext): DraftContext {
   if (!isDraftContext(ctx)) throw new Error('This session cannot edit: proposals are switched off.');
   return ctx;
 }
@@ -68,6 +70,7 @@ function draftOf(ctx: AgentContext): DraftContext {
 export function draftContext(host: AgentHost): DraftContext {
   let sandbox = new Sandbox(host.doc());
   let cached: { rev: number; view: RunView } | null = null;
+  const study = host.study?.bind(host);
   const viewOf = (doc: Document, results: RunResults): RunView => ({
     results,
     nodes: Uint32Array.from(doc.nodeHandles()),
@@ -103,6 +106,7 @@ export function draftContext(host: AgentHost): DraftContext {
       return view;
     },
     files: (statusLog) => host.files(sandbox.draft, statusLog),
+    ...(study ? { study: <C extends StudyCall>(call: C) => study(sandbox.draft, call, sandbox.store) } : {}),
   };
 }
 
@@ -157,7 +161,7 @@ function settable(kind: string): Map<string, FieldSpec> {
 }
 
 /** Set readable values on one element of the draft. `demand` sets the first category's base demand. */
-function setValues(ctx: DraftContext, h: number, values: Record<string, unknown>): void {
+export function setValues(ctx: DraftContext, h: number, values: Record<string, unknown>): void {
   const store = ctx.sandbox().store;
   const doc = store.doc;
   const specs = settable(doc.kind(h));
@@ -482,41 +486,57 @@ export const submitProposal = defineTool<{
     additionalProperties: false,
   },
   scope: 'propose',
-  run: async (args, ctx) => {
-    const d = draftOf(ctx);
-    const items = d.sandbox().changes();
-    if (items.length === 0) throw new Error('Your draft changes nothing; edit it before submitting.');
-    const ev = await evidence(d);
-    const unmet = args.unmet ?? [];
-    const broken = (ev.criteria?.after?.checked ?? []).filter((c) => c.elements > 0);
-    const unexplained = broken.filter(
-      (c) => !unmet.some((u) => u.criterion === c.criterion && u.reason.trim()),
-    );
-    if (unexplained.length > 0) {
-      const lines = describeAssessment({ checked: unexplained, skipped: [], pass: false });
-      throw new Error(
-        `The draft still breaks these design criteria: ${lines.join('; ')}. Change the draft to meet them, ` +
-          'or list each in unmet with the reason it cannot be met.',
-      );
-    }
-    const id = d.host.submit({
-      title: args.title,
-      rationale: args.rationale,
-      author: d.host.author,
-      items,
-      evidence: unmet.length > 0 ? { ...ev, unmet } : ev,
-    });
-    d.reset();
-    return {
-      proposal: id,
-      changes: items.length,
-      before: ev.before,
-      after: ev.after,
-      criteria: ev.criteria?.after ? describeAssessment(ev.criteria.after) : null,
-      errors: ev.errors,
-    };
-  },
+  run: (args, ctx) => submitDraft(draftOf(ctx), args),
 });
+
+export interface Unmet {
+  criterion: Criterion;
+  reason: string;
+}
+
+/**
+ * Submit a draft as a proposal, with the engine's evidence before and after. A
+ * criterion the draft still breaks must be explained in `unmet`, or by `explain` (for a
+ * person's study, which says why itself); otherwise the submission is refused.
+ */
+export async function submitDraft(
+  d: DraftContext,
+  args: { title: string; rationale: string; unmet?: Unmet[]; explain?: (c: Criterion) => string },
+): Promise<Record<string, unknown>> {
+  const items = d.sandbox().changes();
+  if (items.length === 0) throw new Error('Your draft changes nothing; edit it before submitting.');
+  const ev = await evidence(d);
+  const unmet = [...(args.unmet ?? [])];
+  const broken = (ev.criteria?.after?.checked ?? []).filter((c) => c.elements > 0);
+  const unexplained = broken.filter(
+    (c) => !unmet.some((u) => u.criterion === c.criterion && u.reason.trim()),
+  );
+  if (unexplained.length > 0 && args.explain) {
+    for (const c of unexplained) unmet.push({ criterion: c.criterion, reason: args.explain(c.criterion) });
+  } else if (unexplained.length > 0) {
+    const lines = describeAssessment({ checked: unexplained, skipped: [], pass: false });
+    throw new Error(
+      `The draft still breaks these design criteria: ${lines.join('; ')}. Change the draft to meet them, ` +
+        'or list each in unmet with the reason it cannot be met.',
+    );
+  }
+  const id = d.host.submit({
+    title: args.title,
+    rationale: args.rationale,
+    author: d.host.author,
+    items,
+    evidence: unmet.length > 0 ? { ...ev, unmet } : ev,
+  });
+  d.reset();
+  return {
+    proposal: id,
+    changes: items.length,
+    before: ev.before,
+    after: ev.after,
+    criteria: ev.criteria?.after ? describeAssessment(ev.criteria.after) : null,
+    errors: ev.errors,
+  };
+}
 
 export const DRAFT_TOOLS: Tool<never>[] = [
   setProperties,

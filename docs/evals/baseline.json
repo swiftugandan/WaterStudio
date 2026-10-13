@@ -5,9 +5,9 @@
     "date": "2026-10-13",
     "summary": {
       "agent": "reference",
-      "tasks": 15,
-      "runs": 15,
-      "passed": 15,
+      "tasks": 17,
+      "runs": 17,
+      "passed": 17,
       "passRate": 1,
       "byCategory": {
         "lookup": {
@@ -23,8 +23,8 @@
           "passed": 1
         },
         "design": {
-          "runs": 3,
-          "passed": 3
+          "runs": 5,
+          "passed": 5
         },
         "edit": {
           "runs": 2,
@@ -35,7 +35,7 @@
           "passed": 2
         }
       },
-      "meanSteps": 3.8666666666666667,
+      "meanSteps": 3.8823529411764706,
       "toolErrors": 1,
       "violatingProposals": 0,
       "checkFailures": 0
@@ -60,7 +60,7 @@
         "steps": 2,
         "toolCalls": 1,
         "toolErrors": 0,
-        "ms": 2,
+        "ms": 3,
         "metrics": {},
         "violatingProposals": 0,
         "checkFailures": 0,
@@ -116,7 +116,7 @@
         "steps": 2,
         "toolCalls": 1,
         "toolErrors": 0,
-        "ms": 2,
+        "ms": 3,
         "metrics": {},
         "violatingProposals": 0,
         "checkFailures": 0,
@@ -149,7 +149,7 @@
         "steps": 3,
         "toolCalls": 2,
         "toolErrors": 0,
-        "ms": 15,
+        "ms": 38,
         "metrics": {},
         "violatingProposals": 0,
         "checkFailures": 0,
@@ -172,7 +172,7 @@
         "steps": 3,
         "toolCalls": 2,
         "toolErrors": 0,
-        "ms": 2,
+        "ms": 3,
         "metrics": {},
         "violatingProposals": 0,
         "checkFailures": 0,
@@ -200,7 +200,7 @@
         "steps": 3,
         "toolCalls": 2,
         "toolErrors": 0,
-        "ms": 23,
+        "ms": 18,
         "metrics": {},
         "violatingProposals": 0,
         "checkFailures": 0,
@@ -223,7 +223,7 @@
         "steps": 3,
         "toolCalls": 2,
         "toolErrors": 0,
-        "ms": 10,
+        "ms": 13,
         "metrics": {},
         "violatingProposals": 0,
         "checkFailures": 0,
@@ -250,7 +250,7 @@
         "steps": 3,
         "toolCalls": 2,
         "toolErrors": 0,
-        "ms": 6,
+        "ms": 12,
         "metrics": {},
         "violatingProposals": 0,
         "checkFailures": 0,
@@ -293,7 +293,7 @@
         "steps": 7,
         "toolCalls": 6,
         "toolErrors": 0,
-        "ms": 19,
+        "ms": 17,
         "metrics": {
           "pipesChanged": 1,
           "inchFeetAdded": 31680
@@ -338,7 +338,7 @@
         "steps": 7,
         "toolCalls": 6,
         "toolErrors": 0,
-        "ms": 45,
+        "ms": 46,
         "metrics": {
           "pipesChanged": 1,
           "inchFeetAdded": 7386
@@ -383,7 +383,7 @@
         "steps": 9,
         "toolCalls": 8,
         "toolErrors": 0,
-        "ms": 11,
+        "ms": 20,
         "metrics": {
           "pipesChanged": 3,
           "inchFeetAdded": 52800
@@ -392,6 +392,96 @@
         "checkFailures": 0,
         "error": null,
         "answer": "Proposed enlarging pipe 11 to 16 in and pipes 111 and 122 to 12 in; every criterion is met."
+      },
+      {
+        "task": "design-sizing",
+        "category": "design",
+        "network": "Net1",
+        "run": 1,
+        "pass": true,
+        "checks": [
+          {
+            "name": "submits one proposal",
+            "pass": true,
+            "detail": "1 submitted"
+          },
+          {
+            "name": "proposal applies cleanly",
+            "pass": true,
+            "detail": "0 conflicts"
+          },
+          {
+            "name": "only enlarges pipes",
+            "pass": true,
+            "detail": "111, 112, 122"
+          },
+          {
+            "name": "meets every criterion",
+            "pass": true
+          },
+          {
+            "name": "costs at most 10 % more than the best known",
+            "pass": true,
+            "detail": "1636800"
+          }
+        ],
+        "steps": 4,
+        "toolCalls": 3,
+        "toolErrors": 0,
+        "ms": 45,
+        "metrics": {
+          "pipesChanged": 3,
+          "cost": 1636800
+        },
+        "violatingProposals": 0,
+        "checkFailures": 0,
+        "error": null,
+        "answer": "Proposed resizing 3 pipes for $1636800."
+      },
+      {
+        "task": "design-fire",
+        "category": "design",
+        "network": "Net1",
+        "run": 1,
+        "pass": true,
+        "checks": [
+          {
+            "name": "submits one proposal",
+            "pass": true,
+            "detail": "1 submitted"
+          },
+          {
+            "name": "proposal applies cleanly",
+            "pass": true,
+            "detail": "0 conflicts"
+          },
+          {
+            "name": "only enlarges pipes",
+            "pass": true,
+            "detail": "121, 122"
+          },
+          {
+            "name": "every junction supplies the fire flow",
+            "pass": true
+          },
+          {
+            "name": "costs at most 10 % more than the best known",
+            "pass": true,
+            "detail": "950400"
+          }
+        ],
+        "steps": 4,
+        "toolCalls": 3,
+        "toolErrors": 0,
+        "ms": 22,
+        "metrics": {
+          "pipesChanged": 2,
+          "cost": 950400
+        },
+        "violatingProposals": 0,
+        "checkFailures": 0,
+        "error": null,
+        "answer": "Proposed enlarging pipes 121 and 122 to 12 in for $950,400; every junction then supplies 2,500 gpm."
       },
       {
         "task": "edit-extension",
@@ -441,7 +531,7 @@
         "steps": 5,
         "toolCalls": 4,
         "toolErrors": 0,
-        "ms": 9,
+        "ms": 11,
         "metrics": {
           "elementsChanged": 2
         },
@@ -485,7 +575,7 @@
         "steps": 4,
         "toolCalls": 3,
         "toolErrors": 0,
-        "ms": 8,
+        "ms": 10,
         "metrics": {
           "elementsChanged": 1
         },
@@ -565,8 +655,8 @@
     "date": "2026-10-13",
     "summary": {
       "agent": "null",
-      "tasks": 15,
-      "runs": 15,
+      "tasks": 17,
+      "runs": 17,
       "passed": 0,
       "passRate": 0,
       "byCategory": {
@@ -583,7 +673,7 @@
           "passed": 0
         },
         "design": {
-          "runs": 3,
+          "runs": 5,
           "passed": 0
         },
         "edit": {
@@ -866,6 +956,52 @@
       },
       {
         "task": "design-criteria",
+        "category": "design",
+        "network": "Net1",
+        "run": 1,
+        "pass": false,
+        "checks": [
+          {
+            "name": "submits one proposal",
+            "pass": false,
+            "detail": "0 submitted"
+          }
+        ],
+        "steps": 1,
+        "toolCalls": 0,
+        "toolErrors": 0,
+        "ms": 0,
+        "metrics": {},
+        "violatingProposals": 0,
+        "checkFailures": 0,
+        "error": null,
+        "answer": "I cannot tell from here; please check the model."
+      },
+      {
+        "task": "design-sizing",
+        "category": "design",
+        "network": "Net1",
+        "run": 1,
+        "pass": false,
+        "checks": [
+          {
+            "name": "submits one proposal",
+            "pass": false,
+            "detail": "0 submitted"
+          }
+        ],
+        "steps": 1,
+        "toolCalls": 0,
+        "toolErrors": 0,
+        "ms": 0,
+        "metrics": {},
+        "violatingProposals": 0,
+        "checkFailures": 0,
+        "error": null,
+        "answer": "I cannot tell from here; please check the model."
+      },
+      {
+        "task": "design-fire",
         "category": "design",
         "network": "Net1",
         "run": 1,

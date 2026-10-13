@@ -129,6 +129,8 @@ fn study(m: &ws_model::Model, req: &Study) -> Result<Vec<u8>, String> {
             .and_then(|r| serde_json::to_vec(&r).map_err(|e| e.to_string())),
         Study::Criticality { options } => ws_study::studies::criticality(m, options)
             .and_then(|r| serde_json::to_vec(&r).map_err(|e| e.to_string())),
+        Study::Sizing { options } => ws_study::sizing::size_pipes(m, options)
+            .and_then(|r| serde_json::to_vec(&r).map_err(|e| e.to_string())),
     }
 }
 
@@ -214,6 +216,9 @@ enum Study {
     Criticality {
         options: ws_study::studies::CriticalityOptions,
     },
+    Sizing {
+        options: ws_study::sizing::SizingOptions,
+    },
 }
 
 #[derive(serde::Deserialize)]
@@ -223,7 +228,7 @@ struct StudyRequest {
     study: Study,
 }
 
-/// Run a study (fire flow or criticality) on a model; the reply is the results as JSON.
+/// Run a study (fire flow, criticality or pipe sizing) on a model; the reply is the results as JSON.
 ///
 /// # Safety
 /// `ptr..ptr+len` must be readable memory the host wrote.

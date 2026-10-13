@@ -6,7 +6,7 @@
  */
 
 import type { Document, UnitSystem } from '@waterstudio/core';
-import type { EpanetFiles, RunResults } from '@waterstudio/engine-client';
+import type { EpanetFiles, RunResults, StudyCall, StudyCallResult } from '@waterstudio/engine-client';
 import { validate, type JsonSchema } from './schema.ts';
 
 /** Results as tools see them. */
@@ -32,6 +32,8 @@ export interface AgentContext {
   analyse(): Promise<RunView>;
   /** EPANET's report and output file for the model as it is now. */
   files(statusLog: boolean): Promise<EpanetFiles>;
+  /** Run an engine study (fire flow, criticality, pipe sizing) on the model as it is now, if the host can. */
+  study?<C extends StudyCall>(call: C): Promise<StudyCallResult<C>>;
 }
 
 export type Scope = 'read' | 'analyse' | 'draft' | 'propose';

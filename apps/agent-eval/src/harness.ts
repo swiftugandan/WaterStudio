@@ -5,6 +5,7 @@
 
 import {
   AssistantSession,
+  DESIGN_TOOLS,
   DRAFT_TOOLS,
   READ_TOOLS,
   ToolRegistry,
@@ -136,7 +137,7 @@ export async function runTask(task: Task, agent: Agent, run = 1, opts: RunOption
   }
   const propose = task.mode === 'propose';
   const scopes: Scope[] = propose ? ['read', 'analyse', 'draft', 'propose'] : ['read', 'analyse'];
-  const registry = new ToolRegistry([...READ_TOOLS, ...(propose ? DRAFT_TOOLS : [])]);
+  const registry = new ToolRegistry([...READ_TOOLS, ...(propose ? [...DRAFT_TOOLS, ...DESIGN_TOOLS] : [])]);
   const inner = agent.provider(task);
   let steps = 0;
   const provider: Provider = {

@@ -1,6 +1,6 @@
 /**
- * Studies: fire flow at hydrants and the criticality of links, run on the engine pool
- * (ws-study). Results are tables that sort worst first, select the elements that fail
+ * Studies: fire flow at hydrants, the criticality of links and pipe sizing, run on the
+ * engine pool (ws-study). Results are tables that sort worst first, select the elements that fail
  * on the map, and copy to the clipboard.
  */
 
@@ -11,8 +11,9 @@ import { useApp, useAppContext } from '../app/context.tsx';
 import { copyText, tsv } from '../app/files.ts';
 import type { AppState } from '../app/state.ts';
 import { runCriticality, runFireFlow } from '../app/studies.ts';
+import { SizingStudy } from './SizingStudy.tsx';
 
-type Tab = 'fire' | 'criticality' | 'segments';
+type Tab = 'fire' | 'criticality' | 'sizing' | 'segments';
 
 const f = (v: number | null, d = 2) => (v === null || !Number.isFinite(v) ? '–' : v.toFixed(d));
 
@@ -514,6 +515,7 @@ export function StudiesPanel() {
             [
               ['fire', 'Fire flow'],
               ['criticality', 'Criticality'],
+              ['sizing', 'Pipe sizing'],
               ['segments', 'Segments'],
             ] as const
           ).map(([id, label]) => (
@@ -532,13 +534,23 @@ export function StudiesPanel() {
       </div>
       <div
         role="tabpanel"
-        aria-label={tab === 'fire' ? 'Fire flow' : tab === 'criticality' ? 'Criticality' : 'Segments'}
+        aria-label={
+          tab === 'fire'
+            ? 'Fire flow'
+            : tab === 'criticality'
+              ? 'Criticality'
+              : tab === 'sizing'
+                ? 'Pipe sizing'
+                : 'Segments'
+        }
         className="studies-body"
       >
         {tab === 'fire' ? (
           <FireFlow state={state} />
         ) : tab === 'criticality' ? (
           <Criticality state={state} />
+        ) : tab === 'sizing' ? (
+          <SizingStudy state={state} />
         ) : (
           <Segments state={state} />
         )}

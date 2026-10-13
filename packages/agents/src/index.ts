@@ -10,6 +10,7 @@ export {
   type ToolOutcome,
 } from './registry.ts';
 export { fieldValue, READ_TOOLS, WARNINGS } from './tools.ts';
+export { criteriaLimits, DESIGN_TOOLS, repairFireFlow, sizePipes } from './design.ts';
 export {
   anthropicProvider,
   DEFAULT_SETTINGS,
@@ -55,6 +56,9 @@ export {
 export {
   describeChanges,
   draftContext,
+  submitDraft,
+  setValues,
+  type Unmet,
   DRAFT_TOOLS,
   isDraftContext,
   type AgentHost,

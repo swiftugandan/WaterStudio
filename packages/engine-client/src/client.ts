@@ -7,7 +7,7 @@
  * only what changed since its revision, or a snapshot the first time (ADR 0020).
  */
 
-import type { CriticalityResult, FireFlowResult, StudyRequest, StudyResult } from './study.ts';
+import type { AnyStudyResult, StudyRequest, StudyResult } from './study.ts';
 import type { model, SessionRef } from '@waterstudio/core';
 import {
   EngineError,
@@ -70,7 +70,7 @@ interface Replies {
   'run-hydraulics': HydraulicReport;
   'run-files': EpanetFiles;
   check: string | null;
-  study: FireFlowResult[] | CriticalityResult[];
+  study: AnyStudyResult;
   msx: RunResults;
   'session-open': null;
   'session-patch': null;
@@ -218,10 +218,11 @@ export class EngineClient {
     model: Source;
     options: Extract<StudyRequest, { kind: K }>['options'];
   }): Promise<Timed<StudyResult<Extract<StudyRequest, { kind: K }>>>> {
+    // The engine answers each kind with that kind's result.
     return this.on(request.model, (model) => ({
       kind: 'study',
       request: { ...request, model } as StudyRequest,
-    }));
+    })) as Promise<Timed<StudyResult<Extract<StudyRequest, { kind: K }>>>>;
   }
 
   /** The error EPANET would refuse the model with (bad controls or rules, say), or null. */

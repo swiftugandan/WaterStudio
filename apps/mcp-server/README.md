@@ -19,9 +19,12 @@ Node 22.18 or later runs it directly from the TypeScript sources.
 - Read: project summary, element queries (`pressure < 20 and type = junction`), one element, results slices, time
   series, the design criteria and the elements that break them, the status report, the proposals so far with
   their independent check.
-- Analyse: run the hydraulic and water-quality simulation.
+- Analyse: run the hydraulic and water-quality simulation; a fire flow study at any junctions.
 - Draft: set properties, add nodes and links, delete elements, review and discard its draft. The draft is a private
   copy of the network; the read tools look at it.
+- Design: `size_pipes` (least-cost standard sizes against the design criteria or given limits) and
+  `repair_fire_flow` (the least-cost enlargements that let every hydrant supply a fire flow) run the engine's sizing
+  study and set the sizes found in the draft.
 - Propose: `submit_proposal` diffs the draft against the network and attaches the engine's results before and after.
   A draft that still breaks a design criterion is refused unless the agent says why in `unmet`.
 

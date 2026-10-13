@@ -620,6 +620,87 @@ export const getStatusReport = defineTool<{ max_chars?: number }>({
   },
 });
 
+const r3 = (v: number | null): number | null =>
+  v === null || !Number.isFinite(v) ? null : Math.round(v * 1000) / 1000;
+
+/** Junction IDs, or every junction when none are given; unknown IDs are refused. */
+export function junctionIds(doc: Document, ids: readonly string[] | undefined): string[] {
+  if (!ids) return [...doc.nodeHandles()].filter((h) => doc.kind(h) === 'junction').map((h) => doc.id(h));
+  const bad = ids.filter((id) => {
+    const h = doc.findNode(id);
+    return h === undefined || doc.kind(h) !== 'junction';
+  });
+  if (bad.length > 0) throw new Error(`These are not junctions: ${bad.slice(0, 20).join(', ')}.`);
+  return [...new Set(ids)];
+}
+
+export const fireFlowStudy = defineTool<{
+  hydrants?: string[];
+  flow: number;
+  residual: number;
+  system_min?: number;
+  time_hours?: number;
+  top?: number;
+}>({
+  name: 'fire_flow_study',
+  description:
+    'Fire flow at hydrants, one at a time: whether each junction given (default: every junction) delivers the ' +
+    'design fire flow keeping the residual pressure at the hydrant and, if given, system_min at every other ' +
+    'junction, at a time of day; and the largest flow it can deliver. Failing hydrants first. Flows in the ' +
+    "model's flow units, pressures in its pressure units. Use repair_fire_flow to size pipes for the failures.",
+  input: {
+    type: 'object',
+    properties: {
+      hydrants: { type: 'array', items: { type: 'string' }, maxItems: 5000 },
+      flow: { type: 'number', minimum: 0, description: 'Design fire flow.' },
+      residual: { type: 'number', description: 'Lowest pressure at the hydrant while it flows.' },
+      system_min: { type: 'number', description: 'Lowest pressure at every other junction meanwhile.' },
+      time_hours: { type: 'number', minimum: 0, description: 'Hours into the demand patterns (default 0).' },
+      top: { type: 'integer', minimum: 1, maximum: 200, description: 'Hydrants to list (default 20).' },
+    },
+    required: ['flow', 'residual'],
+    additionalProperties: false,
+  },
+  scope: 'analyse',
+  run: async (args, ctx) => {
+    if (!ctx.study) throw new Error('Studies are not available in this session.');
+    if (!(args.flow > 0)) throw new Error('The fire flow must be more than 0.');
+    const hydrants = junctionIds(ctx.doc, args.hydrants);
+    if (hydrants.length === 0) throw new Error('The network has no junctions.');
+    const results = await ctx.study({
+      kind: 'fireFlow',
+      options: {
+        hydrants,
+        flow: args.flow,
+        residual: args.residual,
+        ...(args.system_min !== undefined ? { systemMin: args.system_min } : {}),
+        time: Math.round((args.time_hours ?? 0) * 3600),
+      },
+    });
+    const sorted = [...results].sort(
+      (a, b) => Number(a.meets) - Number(b.meets) || a.availableFlow - b.availableFlow,
+    );
+    const failing = results.filter((r) => !r.meets);
+    return {
+      units: { flow: unitLabel('flow', ctx.units), pressure: unitLabel('pressure', ctx.units) },
+      hydrants: results.length,
+      meet: results.length - failing.length,
+      fail: failing.length,
+      failing: failing.slice(0, 500).map((r) => r.id),
+      results: sorted.slice(0, args.top ?? 20).map((r) => ({
+        id: r.id,
+        meets: r.meets,
+        availableFlow: r3(r.availableFlow),
+        staticPressure: r3(r.staticPressure),
+        residualPressure: r3(r.residualPressure),
+        lowestElsewhere: r3(r.criticalPressure),
+        lowestAt: r.criticalNode,
+        ...(r.error ? { error: r.error } : {}),
+      })),
+    };
+  },
+});
+
 export const READ_TOOLS: Tool<never>[] = [
   getProjectSummary,
   queryElements,
@@ -631,4 +712,5 @@ export const READ_TOOLS: Tool<never>[] = [
   checkCriteria,
   runAnalysis,
   getStatusReport,
+  fireFlowStudy,
 ];

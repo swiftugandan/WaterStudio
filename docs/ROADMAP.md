@@ -123,7 +123,10 @@ Gate: MSX examples within tolerance; all performance budgets met; agent evaluati
 
 Gate: agent tasks meet the agreed pass rate with no criteria violations in accepted proposals.
 
-- [ ] Layout from streets, least-cost pipe sizing, calibration, fire-flow repair
+- [x] Least-cost pipe sizing and fire-flow repair: an engine study (enlarge by shortfall removed per cost, then
+  trim), the `size_pipes`, `repair_fire_flow` and `fire_flow_study` tools, a Pipe sizing study whose result goes to
+  Proposals, and two costed evaluation tasks (ADR 0022)
+- [ ] Layout from streets, calibration
 - [x] Design criteria profile (Options, saved in the project) checked by people, agents and the checker alike
   (ADR 0021)
 - [x] Independent checker role: every proposal applied to the current network, solved before and after and judged

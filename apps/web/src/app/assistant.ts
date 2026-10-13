@@ -8,6 +8,7 @@ import {
   AssistantSession,
   DEFAULT_SETTINGS,
   draftContext,
+  DESIGN_TOOLS,
   DRAFT_TOOLS,
   providerFor,
   READ_TOOLS,
@@ -21,6 +22,7 @@ import {
   type SessionEvent,
 } from '@waterstudio/agents';
 import { EngineSync, toModel, type Store } from '@waterstudio/core';
+import type { StudyCallResult } from '@waterstudio/engine-client';
 import type { AppState } from './state.ts';
 import { ctime } from './time.ts';
 
@@ -142,6 +144,10 @@ export function agentHost(state: AppState, author: string): AgentHost {
           statusLog,
         })
       ).value,
+    // The engine answers each kind of study with that kind's result.
+    study: async (doc, call, store) =>
+      (await state.engine.study({ ...call, model: store ? syncOf(store) : toModel(doc) }))
+        .value as StudyCallResult<typeof call>,
     submit: (p) => state.submitProposal(p),
   };
 }
@@ -159,7 +165,7 @@ export class Conversation {
   private session: AssistantSession | null = null;
   private settingsKey = '';
   private abort: AbortController | null = null;
-  private readonly registry = new ToolRegistry([...READ_TOOLS, ...DRAFT_TOOLS]);
+  private readonly registry = new ToolRegistry([...READ_TOOLS, ...DRAFT_TOOLS, ...DESIGN_TOOLS]);
   private readonly state: AppState;
   /** The settings of the last message, for sending a proposal back later. */
   private settings: StoredSettings | null = null;

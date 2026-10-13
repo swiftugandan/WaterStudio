@@ -7,7 +7,7 @@
  * `ws_free(ptr, 8 + length)`.
  */
 
-import type { CriticalityResult, FireFlowResult, StudyRequest } from './study.ts';
+import type { StudyRequest, StudyResult } from './study.ts';
 import type { model } from '@waterstudio/core';
 import {
   EngineError,
@@ -60,7 +60,7 @@ export interface Engine {
   sessionExportBytes(): Uint8Array | null;
   /** Hold a model from `sessionExportBytes`. */
   sessionOpenBytes(snapshot: Uint8Array): void;
-  study(req: StudyRequest): FireFlowResult[] | CriticalityResult[];
+  study<R extends StudyRequest>(req: R): StudyResult<R>;
   /** Hydraulics and an EPANET-MSX analysis: the run's results with the species added. */
   msx(req: MsxRequest): RunResults;
   /** Size of the instance's linear memory, which grows to a run's peak and never shrinks. */
@@ -148,7 +148,7 @@ export async function instantiateEngine(source: BufferSource | WebAssembly.Modul
         (whole) => call(x.ws_study, json({ ...study, model: whole })),
         (ref) => session({ op: 'study', ...ref, study }),
       );
-      return JSON.parse(decoder.decode(body)) as FireFlowResult[] | CriticalityResult[];
+      return JSON.parse(decoder.decode(body)) as StudyResult<typeof req>;
     },
     memoryBytes: () => x.memory.buffer.byteLength,
     check: (m) => {

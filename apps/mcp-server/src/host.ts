@@ -33,7 +33,7 @@ import {
   type DocData,
   type Document,
 } from '@waterstudio/core';
-import type { RunResults } from '@waterstudio/engine-client';
+import type { RunResults, StudyCallResult } from '@waterstudio/engine-client';
 import { instantiateEngine, type Engine } from '@waterstudio/engine-client/wasm';
 import { isSqlite, readProject } from '@waterstudio/project';
 
@@ -140,6 +140,9 @@ export class Host {
         Promise.resolve(
           this.engine.runFiles({ model: toModel(doc), inpName: this.fileName, date: ctime(), statusLog }),
         ),
+      // The engine answers each kind of study with that kind's result.
+      study: (doc, call) =>
+        Promise.resolve(this.engine.study({ ...call, model: toModel(doc) }) as StudyCallResult<typeof call>),
       submit: (p) => this.submit(p),
     };
   }

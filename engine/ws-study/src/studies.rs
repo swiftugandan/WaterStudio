@@ -47,7 +47,7 @@ pub struct FireFlowResult {
 }
 
 /// The model as a single-period analysis at a time of day.
-fn at_time(model: &Model, time: i64) -> Model {
+pub(crate) fn at_time(model: &Model, time: i64) -> Model {
     let mut m = model.clone();
     let start = ws_model_pattern_start(&m);
     m.times.lines.retain(|l| {

@@ -117,7 +117,7 @@ describe.skipIf(!have)('WebAssembly engine', async () => {
     expect(() => e().run(model)).toThrow(EngineError);
   });
 
-  it('runs fire flow and criticality studies', () => {
+  it('runs fire flow, criticality and pipe sizing studies', () => {
     const text = readFileSync(new URL('apps/web/public/samples/Net1.inp', root), 'utf8');
     const { model } = e().readInp(text);
     const ff = e().study({ kind: 'fireFlow', model, options: { hydrants: ['32'], flow: 500, residual: 20 } });
@@ -125,6 +125,17 @@ describe.skipIf(!have)('WebAssembly engine', async () => {
     expect(ff[0]).toMatchObject({ id: '32', meets: true, error: null });
     const cr = e().study({ kind: 'criticality', model, options: { links: ['111'], pressure: 100 } });
     expect(cr[0]).toMatchObject({ id: '111', failed: false });
+    const sz = e().study({
+      kind: 'sizing',
+      model,
+      options: {
+        pipes: ['111', '121', '122'],
+        sizes: [6, 8, 10, 12, 14, 16].map((diameter, i) => ({ diameter, unitCost: 50 + 15 * i })),
+        limits: { minPressure: 108 },
+      },
+    });
+    expect(sz).toMatchObject({ meets: true, breachesAfter: 0, changes: [{ id: '122', from: 6, to: 12 }] });
+    expect(sz.before[0]).toMatchObject({ kind: 'minPressure', id: '32', limit: 108, hydrant: null });
   });
 
   it('checks a model without solving it', () => {

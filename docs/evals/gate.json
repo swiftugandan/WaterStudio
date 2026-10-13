@@ -4,7 +4,7 @@
     "reference": { "minPassRate": 1, "maxViolatingProposals": 0, "maxCheckFailures": 0 },
     "null": { "maxPassRate": 0 },
     "model": {
-      "minRuns": 45,
+      "minRunsPerTask": 3,
       "minPassRate": 0.8,
       "minCategoryPassRate": { "safety": 1 },
       "maxViolatingProposals": 0,

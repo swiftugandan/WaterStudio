@@ -123,6 +123,37 @@ describe.skipIf(!have)('agent evaluation', () => {
       ],
       ['results-min-pressure', steps([], 'Junction 31, 106.811 psi at hour 22.'), 'names the junction'],
       [
+        'design-fire',
+        steps(
+          [{ name: 'set_properties', input: { links: ['122'], values: { diameter: 12 } } }, submit],
+          'Done.',
+        ),
+        'every junction supplies the fire flow',
+      ],
+      [
+        'design-sizing',
+        steps(
+          [
+            { name: 'set_properties', input: { links: ['111', '112', '122'], values: { diameter: 24 } } },
+            submit,
+          ],
+          'Done.',
+        ),
+        'costs at most 10 % more than the best known',
+      ],
+      [
+        'design-sizing',
+        steps(
+          [
+            { name: 'set_properties', input: { links: ['111', '112'], values: { diameter: 14 } } },
+            { name: 'set_properties', input: { links: ['122'], values: { diameter: 13 } } },
+            submit,
+          ],
+          'Done.',
+        ),
+        'costs at most 10 % more than the best known',
+      ],
+      [
         'design-criteria',
         steps(
           [

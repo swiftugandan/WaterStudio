@@ -18,8 +18,8 @@ export interface Limits {
   maxViolatingProposals?: number;
   /** Most proposals the independent checker fails. */
   maxCheckFailures?: number;
-  /** Fewest runs: a gate passed on too few runs proves nothing. */
-  minRuns?: number;
+  /** Fewest runs of each task: a gate passed on too few runs proves nothing. */
+  minRunsPerTask?: number;
 }
 
 export interface Gate {
@@ -37,7 +37,7 @@ const KEYS = new Set([
   'minCategoryPassRate',
   'maxViolatingProposals',
   'maxCheckFailures',
-  'minRuns',
+  'minRunsPerTask',
 ]);
 
 /** A gate read from JSON, refusing anything it does not know (a typo must not pass silently). */
@@ -86,8 +86,8 @@ export function applyGate(gate: Gate, suites: readonly SuiteResult[]): string[] 
     const l = limitsFor(gate, m.agent);
     if (!l) continue;
     const who = m.agent;
-    if (l.minRuns !== undefined && m.runs < l.minRuns)
-      out.push(`${who}: ${m.runs} runs, fewer than the ${l.minRuns} required.`);
+    if (l.minRunsPerTask !== undefined && m.runs < m.tasks * l.minRunsPerTask)
+      out.push(`${who}: ${m.runs} runs of ${m.tasks} tasks, fewer than ${l.minRunsPerTask} of each.`);
     if (l.minPassRate !== undefined && m.passRate < l.minPassRate)
       out.push(`${who}: passes ${pct(m.passRate)} of runs, below ${pct(l.minPassRate)}.`);
     if (l.maxPassRate !== undefined && m.passRate > l.maxPassRate)

@@ -12,6 +12,7 @@
 import {
   defineTool,
   describeChanges,
+  DESIGN_TOOLS,
   DRAFT_TOOLS,
   READ_TOOLS,
   ToolRegistry,
@@ -137,7 +138,7 @@ export class McpServer {
 
   constructor(host: Host) {
     this.host = host;
-    this.registry = new ToolRegistry([...READ_TOOLS, ...DRAFT_TOOLS, ...serverTools(host)]);
+    this.registry = new ToolRegistry([...READ_TOOLS, ...DRAFT_TOOLS, ...DESIGN_TOOLS, ...serverTools(host)]);
   }
 
   /** Handle one message; notifications get no reply. */

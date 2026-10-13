@@ -8,6 +8,7 @@
 
 pub mod msx;
 pub mod run;
+pub mod sizing;
 pub mod studies;
 
 use epanet_rs::model::network::Network;

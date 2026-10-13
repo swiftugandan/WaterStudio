@@ -13,7 +13,14 @@ import {
   type RunView,
 } from '@waterstudio/agents';
 import type { Document } from '@waterstudio/core';
-import { linkFrame, nodeFrame, type LinkVariable, type NodeVariable } from '@waterstudio/engine-client';
+import {
+  linkFrame,
+  nodeFrame,
+  type FireFlowOptions,
+  type FireFlowResult,
+  type LinkVariable,
+  type NodeVariable,
+} from '@waterstudio/engine-client';
 import type { Host } from '@waterstudio/mcp-server/host';
 
 export interface Check {
@@ -223,4 +230,29 @@ export function pipeUpsizing(doc: Document, p: Proposal): { only: boolean; cost:
     pipes.push(it.id);
   }
   return { only: only && pipes.length > 0, cost, pipes };
+}
+
+/** What the pipes a proposal resizes cost at the new sizes (length × cost per length). */
+export function resizeCost(doc: Document, p: Proposal, unitCost: ReadonlyMap<number, number>): number {
+  let cost = 0;
+  for (const it of p.items) {
+    if (it.op !== 'set' || it.field !== 'diameter' || it.kind !== 'pipe') continue;
+    const h = doc.findLink(it.id);
+    const unit = unitCost.get(Number(it.to));
+    if (h === undefined || unit === undefined) return Infinity; // not a standard size
+    cost += unit * doc.num(h, 'length');
+  }
+  return cost;
+}
+
+/** Fire flow at every junction of a document, through the host's engine. */
+export async function fireFlowAll(
+  g: Grading,
+  doc: Document,
+  options: Omit<FireFlowOptions, 'hydrants'>,
+): Promise<FireFlowResult[]> {
+  const host = g.host.ctx.host;
+  if (!host.study) throw new Error('the host runs no studies');
+  const hydrants = [...doc.nodeHandles()].filter((h) => doc.kind(h) === 'junction').map((h) => doc.id(h));
+  return host.study(doc, { kind: 'fireFlow', options: { ...options, hydrants } });
 }

@@ -1728,3 +1728,11 @@ button.link {
 .check-findings li.note {
   color: var(--ws-color-text-secondary);
 }
+
+/* Pipe sizing study */
+.sizes-input {
+  min-width: 0;
+  font-family: var(--ws-font-mono);
+  font-size: var(--ws-font-size-sm);
+  resize: vertical;
+}

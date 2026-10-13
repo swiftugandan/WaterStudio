@@ -3,7 +3,7 @@
  * through generated declarations (@waterstudio/core), so the two sides cannot drift.
  */
 
-import type { CriticalityResult, FireFlowResult, StudyRequest } from './study.ts';
+import type { AnyStudyResult, StudyRequest } from './study.ts';
 import type { model, SessionRef } from '@waterstudio/core';
 import type { RunResults } from './results.ts';
 
@@ -87,7 +87,7 @@ export type EngineReply =
   | { kind: 'run-hydraulics'; value: HydraulicReport }
   | { kind: 'run-files'; value: EpanetFiles }
   | { kind: 'check'; value: string | null }
-  | { kind: 'study'; value: FireFlowResult[] | CriticalityResult[] }
+  | { kind: 'study'; value: AnyStudyResult }
   | { kind: 'msx'; value: RunResults }
   | { kind: 'session-open'; value: null }
   | { kind: 'session-patch'; value: null };

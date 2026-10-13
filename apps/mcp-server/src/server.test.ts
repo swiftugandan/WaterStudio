@@ -146,4 +146,54 @@ describe.skipIf(!have)('MCP server', () => {
       /minimum pressure is above the maximum/,
     );
   });
+
+  it('finds fire flow failures, repairs them and sizes pipes to the criteria in the draft', async () => {
+    const path = join(dir, 'sizing.json');
+    writeFileSync(path, JSON.stringify({ minPressure: 108, maxVelocity: 2.5, maxHeadloss: 3 }));
+    const host = await Host.open(net, { accept: false, proposalsFile: null, criteria: criteriaFile(path) });
+    const s = new McpServer(host);
+    const sizes = [6, 8, 10, 12, 14, 16, 18, 20, 24].map((diameter, i) => ({
+      diameter,
+      unit_cost: [50, 60, 75, 90, 110, 130, 150, 170, 210][i]!,
+    }));
+    const fire = { flow: 2500, residual: 20, system_min: 20 };
+    const study = (await tool(s, 'fire_flow_study', fire)).structuredContent;
+    expect(study).toMatchObject({ hydrants: 9, fail: 2, failing: ['31', '32'] });
+    // Failing first, the least available flow first.
+    expect((study['results'] as unknown[]).slice(0, 2)).toMatchObject([
+      { id: '32', meets: false, lowestAt: '31' },
+      { id: '31', meets: false },
+    ]);
+    // Repair: the hydrants default to those failing; the sizes found go into the draft.
+    expect((await tool(s, 'repair_fire_flow', { ...fire, sizes })).structuredContent).toMatchObject({
+      hydrants: ['31', '32'],
+      meets: true,
+      cost: 950400,
+      changes: [
+        { pipe: '121', from: 8, to: 12 },
+        { pipe: '122', from: 6, to: 12 },
+      ],
+      applied: true,
+      breachesAfter: 0,
+      draftChanges: 2,
+    });
+    const repaired = (await tool(s, 'fire_flow_study', { ...fire, hydrants: ['31', '32'] }))
+      .structuredContent;
+    expect(repaired).toMatchObject({ fail: 0 });
+    await tool(s, 'discard_draft');
+
+    // Sizing to the project's criteria, then submitted: the independent check passes it.
+    expect((await tool(s, 'size_pipes', { sizes })).structuredContent).toMatchObject({
+      limits: { minPressure: 108, maxVelocity: 2.5, maxHeadloss: 3 },
+      meets: true,
+      breachesBefore: 4,
+      breachesAfter: 0,
+      changes: [{ pipe: '111' }, { pipe: '112' }, { pipe: '122' }],
+    });
+    expect((await tool(s, 'submit_proposal', { title: 'Sized', rationale: 'By size_pipes.' })).isError).toBe(
+      false,
+    );
+    expect((await host.checked('P1')).verdict).toBe('pass');
+    expect((await tool(s, 'size_pipes', { sizes, pipes: ['9'] })).isError).toBe(true);
+  });
 });
