@@ -4,7 +4,14 @@
  * the network and running the engine on the result.
  */
 
-import { applyChangeset, Sandbox, touchedIds, type Proposal, type RunView } from '@waterstudio/agents';
+import {
+  applyChangeset,
+  Sandbox,
+  touchedIds,
+  type CheckReport,
+  type Proposal,
+  type RunView,
+} from '@waterstudio/agents';
 import type { Document } from '@waterstudio/core';
 import { linkFrame, nodeFrame, type LinkVariable, type NodeVariable } from '@waterstudio/engine-client';
 import type { Host } from '@waterstudio/mcp-server/host';
@@ -158,6 +165,8 @@ export interface Grading {
   run(doc: Document): Promise<RunView>;
   /** The network as the task began, with a proposal applied (a copy). */
   applied(p: Proposal): { doc: Document; conflicts: number };
+  /** The independent check of a proposal against the task's design criteria (ADR 0021). */
+  checked(p: Proposal): Promise<CheckReport>;
 }
 
 export function grading(host: Host, t: Transcript): Grading {
@@ -175,6 +184,7 @@ export function grading(host: Host, t: Transcript): Grading {
       const r = applyChangeset(sb.store, p.items, p.title);
       return { doc: sb.store.doc, conflicts: r.conflicts.length };
     },
+    checked: (p) => host.checked(p.id),
   };
 }
 

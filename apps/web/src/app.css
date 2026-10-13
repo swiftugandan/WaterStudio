@@ -1688,3 +1688,43 @@ button.link {
   flex-wrap: wrap;
   gap: var(--ws-space-2);
 }
+
+/* The independent check of a proposal (ADR 0021). */
+.proposal-check h4 {
+  margin: var(--ws-space-3) 0 var(--ws-space-1);
+  font-size: var(--ws-font-size-sm);
+  font-weight: var(--ws-font-weight-semibold);
+}
+.verdict {
+  display: inline-block;
+  padding: 0 var(--ws-space-2);
+  border-radius: var(--ws-radius-sm);
+  font-size: var(--ws-font-size-xs);
+  font-weight: var(--ws-font-weight-semibold);
+}
+.verdict.pass {
+  background: var(--ws-color-success-bg);
+  color: var(--ws-color-success-text);
+}
+.verdict.concerns,
+.verdict.checking {
+  background: var(--ws-color-warning-bg);
+  color: var(--ws-color-warning-text);
+}
+.verdict.fail {
+  background: var(--ws-color-danger-bg);
+  color: var(--ws-color-danger-text);
+}
+.check-findings {
+  margin: var(--ws-space-1) 0;
+  padding-left: var(--ws-space-4);
+}
+.check-findings li.fail {
+  color: var(--ws-color-danger-text);
+}
+.check-findings li.concern {
+  color: var(--ws-color-warning-text);
+}
+.check-findings li.note {
+  color: var(--ws-color-text-secondary);
+}

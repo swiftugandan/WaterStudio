@@ -24,6 +24,7 @@ export function captureProject(s: AppState): ProjectData {
     scenarios: set.scenarios.length > 0 ? storeScenarios(doc, set) : null,
     isolationValves: doc.data.isolationValves,
     msx: doc.data.msx,
+    criteria: doc.data.criteria,
     settings: settings as Record<string, unknown>,
   };
 }

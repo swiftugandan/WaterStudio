@@ -1,0 +1,82 @@
+name: Release
+
+# A version tag (v1.1.0, ...) is released only if the agent evaluation passes the gate in
+# docs/evals/gate.json with a model evaluated (ADR 0021). Without the WS_EVAL_API_KEY
+# secret no model can run, so no release is made. The release is created as a draft for
+# a person to publish.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Model ID
+        default: claude-sonnet-5-5
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  agent-gate:
+    name: Agent evaluation gate
+    runs-on: ubuntu-24.04
+    env:
+      MODEL: ${{ inputs.model || 'claude-sonnet-5-5' }}
+      WS_EVAL_API_KEY: ${{ secrets.WS_EVAL_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Require the evaluation key
+        if: env.WS_EVAL_API_KEY == ''
+        run: |
+          echo "::error::A release needs the agent evaluation, and the repository has no WS_EVAL_API_KEY secret."
+          exit 1
+      - name: Install the pinned toolchain
+        working-directory: engine
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: engine
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:engine
+      - name: Evaluate and gate
+        run: >
+          node apps/agent-eval/src/main.ts --agent reference --agent null --agent anthropic --model "$MODEL"
+          --repeat 3 --out release-eval.json --markdown release-eval.md
+          --gate docs/evals/gate.json --require-model
+      - name: Summary
+        if: always()
+        run: cat release-eval.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: release-eval
+          path: release-eval.*
+          retention-days: 400
+
+  release:
+    name: Draft release
+    needs: agent-gate
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-eval
+      - name: Create the draft release with the evaluation attached
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes
+          --title "WaterStudio $GITHUB_REF_NAME" release-eval.json release-eval.md

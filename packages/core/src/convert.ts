@@ -3,6 +3,7 @@
  * the Rust engine through generated types). `toModel(fromModel(m))` equals `m`.
  */
 
+import { emptyCriteria } from './criteria.ts';
 import type { Document, DocData } from './document.ts';
 import type {
   Link as MLink,
@@ -157,6 +158,7 @@ export function fillFromModel(tx: Tx, model: Model): void {
     extraSections: model.extraSections,
     isolationValves: [],
     msx: null,
+    criteria: emptyCriteria(),
   };
   for (const [k, v] of Object.entries(data)) tx.setDoc(k as keyof DocData, v as never);
 }

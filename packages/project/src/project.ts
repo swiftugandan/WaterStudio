@@ -4,7 +4,7 @@
  * IDs, not the session's handles, so a project opens the same in any session.
  */
 
-import type { Document, DocKey, model, MsxInput, ScenarioSet } from '@waterstudio/core';
+import type { Criteria, Document, DocKey, model, MsxInput, ScenarioSet } from '@waterstudio/core';
 
 /** A reference to an element by ID: `node:<id>` or `link:<id>` (node and link IDs may coincide). */
 export type ElementRef = `node:${string}` | `link:${string}`;
@@ -33,6 +33,8 @@ export interface ProjectData {
   /** Isolation valves as (link ID, node ID). */
   isolationValves: { link: string; node: string }[];
   msx: MsxInput | null;
+  /** The design criteria (absent in projects saved before they existed). */
+  criteria?: Criteria;
   /** How the project was being viewed (map theme, time step, ...), as the app chooses. */
   settings: Record<string, unknown>;
 }

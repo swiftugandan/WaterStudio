@@ -71,6 +71,12 @@ function serverTools(host: Host): Tool<never>[] {
         title: p.title,
         status: p.status,
         changes: p.items.length,
+        check: p.check
+          ? {
+              verdict: p.check.verdict,
+              findings: p.check.findings.filter((f) => f.severity !== 'note').map((f) => f.text),
+            }
+          : 'checking',
       })),
       file: host.opts.proposalsFile,
     }),
@@ -82,7 +88,9 @@ function serverTools(host: Host): Tool<never>[] {
         name: 'accept_proposal',
         description:
           'Apply a pending proposal to the network itself (allowed because the server was started with --accept). ' +
-          'Changes whose element has changed since are skipped and listed.',
+          'It is checked again first against the network as it is now and the design criteria; one that fails ' +
+          'the independent check is refused and left for a person. Changes whose element has changed since are ' +
+          'skipped and listed.',
         input: {
           type: 'object',
           properties: { id: { type: 'string' } },
@@ -90,11 +98,12 @@ function serverTools(host: Host): Tool<never>[] {
           additionalProperties: false,
         },
         scope: 'propose',
-        run: (args) => {
+        run: async (args) => {
           const p = host.proposals.find((x) => x.id === args.id);
-          const r = host.accept(args.id);
+          const r = await host.accept(args.id);
           host.ctx.reset();
           return {
+            verdict: r.check.verdict,
             applied: r.applied,
             conflicts: r.conflicts.map((c) => ({ change: c.index + 1, reason: c.reason })),
             proposal: p ? describeChanges(p.items, 20) : null,

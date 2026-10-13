@@ -17,11 +17,24 @@ Node 22.18 or later runs it directly from the TypeScript sources.
 ## What the agent can do
 
 - Read: project summary, element queries (`pressure < 20 and type = junction`), one element, results slices, time
-  series, design-limit violations, the status report, the proposals so far.
+  series, the design criteria and the elements that break them, the status report, the proposals so far with
+  their independent check.
 - Analyse: run the hydraulic and water-quality simulation.
 - Draft: set properties, add nodes and links, delete elements, review and discard its draft. The draft is a private
   copy of the network; the read tools look at it.
 - Propose: `submit_proposal` diffs the draft against the network and attaches the engine's results before and after.
+  A draft that still breaks a design criterion is refused unless the agent says why in `unmet`.
+
+## Design criteria and the independent check
+
+A `.wsproj` project carries its design criteria (set in WaterStudio's Options, Criteria tab). For an `.inp` file,
+give them with `--criteria FILE`, a JSON object of limits in the network's units, for example
+`{"minPressure": 20, "maxVelocity": 2}` (`minPressure`, `maxPressure`, `maxVelocity`, `maxHeadloss`, `minResidual`,
+`maxAge`; anything else is refused).
+
+Every proposal is checked as soon as it is submitted, independently of the agent (ADR 0021): its changes are
+applied to the network, both versions are solved, and the results are compared against the criteria. The verdict
+(pass, concerns or fail) and findings are written with the proposal and shown by `list_proposals`.
 
 ## Who applies a change
 
@@ -30,4 +43,5 @@ By default, nobody but the engineer: proposals are written to `network.proposals
 review the changes and accept all or some of them.
 
 With `--accept`, the agent may also `accept_proposal` and `save_network` to a new `.inp` file (never over the one it
-opened). `.wsproj` projects open read-only: the agent proposes, the engineer accepts in WaterStudio.
+opened). A proposal is checked again before it is applied, and one that fails the independent check is refused: a
+person must review it. `.wsproj` projects open read-only: the agent proposes, the engineer accepts in WaterStudio.

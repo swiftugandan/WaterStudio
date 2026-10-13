@@ -558,6 +558,72 @@ test('the assistant proposes a change in a draft, and the engineer reviews and a
   expect(await diameter()).toBe(18);
 });
 
+test('design criteria are set in Options and every proposal is checked against them', async ({ page }) => {
+  await ready(page);
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Project' }).click();
+  await page.getByRole('button', { name: 'Options', exact: true }).click();
+  const options = page.locator('.panel.options');
+  await options.getByRole('tab', { name: 'Criteria' }).click();
+  const field = (name: string) => options.getByRole('textbox', { name });
+  await field('Minimum pressure').fill('200');
+  await field('Maximum pressure').fill('150');
+  await field('Maximum pressure').press('Enter');
+  await expect(options.locator('.field-error')).toContainText('The minimum pressure is above the maximum.');
+  await field('Minimum pressure').fill('');
+  await field('Minimum pressure').press('Enter');
+  await field('Maximum pressure').press('Enter');
+  await field('Maximum velocity').fill('3');
+  await field('Maximum velocity').press('Enter');
+  expect(
+    await ws(
+      page,
+      (w) => (w.state.store.doc.data as unknown as { criteria: Record<string, unknown> }).criteria,
+    ),
+  ).toMatchObject({ minPressure: null, maxPressure: 150, maxVelocity: 3 });
+  const audit = await new AxeBuilder({ page })
+    .include('.panel.options')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  expect(audit.violations.map((v) => v.id)).toEqual([]);
+
+  // A proposal that narrows the main pipe from the source breaks the velocity limit.
+  const file = {
+    format: 'waterstudio-proposals',
+    version: 1,
+    network: 'Net1.inp',
+    proposals: [
+      {
+        id: 'P1',
+        title: 'Narrow pipe 10',
+        rationale: 'Saves money.',
+        author: 'MCP agent',
+        created: 0,
+        items: [{ op: 'set', table: 'link', kind: 'pipe', id: '10', field: 'diameter', from: 18, to: 6 }],
+        evidence: { before: null, after: null, errors: [] },
+        status: 'pending',
+      },
+    ],
+  };
+  await page.getByRole('tablist', { name: 'Ribbon' }).getByRole('tab', { name: 'Analysis' }).click();
+  await page.getByRole('button', { name: 'Show proposals' }).click();
+  const panel = page.locator('.panel.proposals');
+  const chooser = page.waitForEvent('filechooser');
+  await panel.getByRole('button', { name: 'Open proposals file' }).click();
+  await (
+    await chooser
+  ).setFiles({ name: 'p.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(file)) });
+  const check = panel.getByRole('region', { name: 'Independent check' });
+  await expect(check.locator('.verdict')).toHaveText('Fails');
+  await expect(check.locator('.check-findings')).toContainText('Maximum velocity (3)');
+  await expect(check.getByRole('table')).toContainText('Maximum velocity');
+  await expect(panel.locator('.proposal-status')).toContainText('fails the check');
+  const a2 = await new AxeBuilder({ page })
+    .include('.panel.proposals')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  expect(a2.violations.map((v) => v.id)).toEqual([]);
+});
+
 test('proposals an agent left through the MCP server open for review', async ({ page }) => {
   await ready(page);
   const file = {
@@ -1331,6 +1397,7 @@ test('the editors have no WCAG 2.2 AA violations', async ({ page }) => {
     'Energy',
     'Report',
     'Defaults',
+    'Criteria',
     'Summary',
   ]) {
     await page.locator('.panel.options').getByRole('tab', { name: tab }).click();

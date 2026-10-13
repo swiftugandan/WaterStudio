@@ -5,6 +5,9 @@
  */
 
 import {
+  CRITERIA,
+  CRITERION_LABEL,
+  criteriaError,
   displayOption,
   getfloat,
   OPTION_SPECS,
@@ -15,6 +18,7 @@ import {
   readQuality,
   unitLabel,
   writeOption,
+  type Criterion,
   type OptionSpec,
   type QualityOption,
 } from '@waterstudio/core';
@@ -31,6 +35,7 @@ const TABS = [
   ['times', 'Times', ['Times']],
   ['energy', 'Energy', ['Energy']],
   ['report', 'Report', ['Report']],
+  ['criteria', 'Criteria', []],
   ['defaults', 'Defaults', []],
   ['title', 'Summary', []],
 ] as const;
@@ -446,6 +451,70 @@ function DefaultsEditor({ state }: { state: AppState }) {
   );
 }
 
+const CRITERION_HELP: Record<Criterion, string> = {
+  minPressure: 'Lowest pressure any junction may have at any report time.',
+  maxPressure: 'Highest pressure any junction may have at any report time.',
+  maxVelocity: 'Highest flow velocity in any pipe.',
+  maxHeadloss: 'Highest unit head loss in any pipe.',
+  minResidual: 'Lowest disinfectant concentration at any junction (with a chemical quality analysis).',
+  maxAge: 'Highest water age at any junction (with a water age analysis).',
+};
+
+/**
+ * Project › Criteria: the design criteria a design is checked against, by people
+ * (Find violations, an agent's check) and by the independent checker of proposals.
+ */
+function CriteriaEditor({ state }: { state: AppState }) {
+  const c = state.store.doc.data.criteria;
+  const u = state.units;
+  const quality = readQuality(state.store.doc.data.options);
+  const unit: Record<Criterion, string> = {
+    minPressure: unitLabel('pressure', u),
+    maxPressure: unitLabel('pressure', u),
+    maxVelocity: unitLabel('velocity', u),
+    maxHeadloss: u.si ? 'm/km' : 'ft/kft',
+    minResidual: quality.kind === 'chemical' && quality.units ? quality.units : '',
+    maxAge: 'h',
+  };
+  return (
+    <section className="field-group" aria-label="Design criteria">
+      <h3>Design criteria</h3>
+      {CRITERIA.map((k) => (
+        <InputRow
+          key={k}
+          label={CRITERION_LABEL[k]}
+          help={CRITERION_HELP[k]}
+          {...(unit[k] ? { unit: unit[k] } : {})}
+          numeric
+          value={c[k] === null ? '' : String(c[k])}
+          placeholder="Not checked"
+          onCommit={(t) => {
+            const text = t.trim();
+            let v: number | null = null;
+            if (text !== '') {
+              const n = getfloat(text);
+              if (n === undefined) return `${CRITERION_LABEL[k]} must be a number.`;
+              v = n;
+            }
+            if (v === c[k]) return undefined;
+            const next = { ...c, [k]: v };
+            const error = criteriaError(next);
+            if (error) return error;
+            state.store.transact(`Set ${CRITERION_LABEL[k].toLowerCase()}`, (tx) =>
+              tx.setDoc('criteria', next),
+            );
+            return undefined;
+          }}
+        />
+      ))}
+      <p className="muted">
+        Leave a limit empty to not check it. Saved with the project, not in the .inp file. Agents check their
+        proposals against these limits, and an independent check runs on every proposal.
+      </p>
+    </section>
+  );
+}
+
 function Group({ state, group }: { state: AppState; group: string }) {
   return (
     <section className="field-group" aria-label={group}>
@@ -488,6 +557,8 @@ export function OptionsPanel() {
           <TitleEditor state={state} />
         ) : tab === 'defaults' ? (
           <DefaultsEditor state={state} />
+        ) : tab === 'criteria' ? (
+          <CriteriaEditor state={state} />
         ) : (
           current[2].map((g) => <Group key={g} state={state} group={g} />)
         )}

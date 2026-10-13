@@ -29,3 +29,4 @@ export * from './data.ts';
 export * from './scenario.ts';
 export * from './scenarios.ts';
 export * from './segments.ts';
+export * from './criteria.ts';

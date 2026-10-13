@@ -2,8 +2,9 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { proposalsFromText } from '@waterstudio/agents';
+import { emptyCriteria } from '@waterstudio/core';
 import { afterAll, describe, expect, it } from 'vitest';
-import { DEFAULT_WASM, Host, proposalsPath } from './host.ts';
+import { criteriaFile, DEFAULT_WASM, Host, proposalsPath } from './host.ts';
 import { McpServer, parseLine, PROTOCOL } from './server.ts';
 
 const have = existsSync(DEFAULT_WASM);
@@ -85,6 +86,7 @@ describe.skipIf(!have)('MCP server', () => {
     await tool(s, 'set_properties', { links: ['10'], values: { diameter: 20 } });
     await tool(s, 'submit_proposal', { title: 'Larger 10', rationale: 'x' });
     expect((await tool(s, 'accept_proposal', { id: 'P1' })).structuredContent).toMatchObject({
+      verdict: 'pass',
       applied: 1,
       conflicts: [],
     });
@@ -93,5 +95,55 @@ describe.skipIf(!have)('MCP server', () => {
     const out = join(dir, 'Net1-sized.inp');
     expect((await tool(s, 'save_network', { path: out })).structuredContent).toMatchObject({ saved: out });
     expect(readFileSync(out, 'utf8')).toMatch(/\n 10\s+10\s+11\s+10530(\.0+)?\s+20(\.0+)?\s/);
+  });
+
+  it('checks every proposal against the design criteria and will not accept one that fails', async () => {
+    const path = join(dir, 'criteria.json');
+    writeFileSync(path, JSON.stringify({ maxVelocity: 3 }));
+    const host = await Host.open(net, { accept: true, proposalsFile: null, criteria: criteriaFile(path) });
+    const s = new McpServer(host);
+    expect((await tool(s, 'get_design_criteria')).structuredContent).toMatchObject({
+      maxVelocity: { limit: 3 },
+      minPressure: { limit: null },
+    });
+    await tool(s, 'set_properties', { links: ['10'], values: { diameter: 6 } });
+    // Breaking a criterion without saying why is refused at submission.
+    expect((await tool(s, 'submit_proposal', { title: 'Narrow 10', rationale: 'x' })).isError).toBe(true);
+    const sub = await tool(s, 'submit_proposal', {
+      title: 'Narrow 10',
+      rationale: 'x',
+      unmet: [{ criterion: 'maxVelocity', reason: 'Testing the checker.' }],
+    });
+    expect(sub.isError).toBe(false);
+    const check = await host.checked('P1');
+    expect(check.verdict).toBe('fail');
+    expect(check.findings.map((f) => f.text).join(' ')).toContain(
+      'Maximum velocity (3) was met and now is not',
+    );
+    expect((await tool(s, 'list_proposals')).structuredContent).toMatchObject({
+      proposals: [{ id: 'P1', check: { verdict: 'fail' } }],
+    });
+    const refused = await tool(s, 'accept_proposal', { id: 'P1' });
+    expect(refused.isError).toBe(true);
+    expect(host.store.doc.num(host.store.doc.findLink('10')!, 'diameter')).toBe(18);
+    expect(host.proposals[0]!.status).toBe('pending');
+  });
+
+  it('reads design criteria files strictly', () => {
+    const path = join(dir, 'bad.json');
+    writeFileSync(path, JSON.stringify({ maxSpeed: 3 }));
+    expect(() => criteriaFile(path)).toThrow(/unknown criterion maxSpeed/);
+    writeFileSync(path, JSON.stringify({ minPressure: '20' }));
+    expect(() => criteriaFile(path)).toThrow(/minPressure must be a number or null/);
+    writeFileSync(path, JSON.stringify({ minPressure: 20, maxPressure: 10 }));
+    const inconsistent = criteriaFile(path);
+    expect(inconsistent).toMatchObject({ minPressure: 20, maxPressure: 10, maxVelocity: null });
+  });
+
+  it('refuses design criteria that cannot be used', async () => {
+    const criteria = { ...emptyCriteria(), minPressure: 20, maxPressure: 10 };
+    await expect(Host.open(net, { accept: false, proposalsFile: null, criteria })).rejects.toThrow(
+      /minimum pressure is above the maximum/,
+    );
   });
 });

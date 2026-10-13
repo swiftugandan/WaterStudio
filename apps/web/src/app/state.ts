@@ -10,6 +10,7 @@ import type { CalibrationData, CalibrationVariable } from './calibration.ts';
 import {
   EngineSync,
   fillFromModel,
+  type Document,
   Scenarios,
   Store,
   toModel,
@@ -32,10 +33,14 @@ import { restoreScenarios, type ProjectData } from '@waterstudio/project';
 import { readSettings } from './project.ts';
 import {
   applyChangeset,
+  independentCheck,
   proposalsFromText,
+  providerFor,
+  reviewProposal,
   type ApplyResult,
   type Proposal,
   type ProposalDraft,
+  type ProviderSettings,
 } from '@waterstudio/agents';
 import { Conversation } from './assistant.ts';
 import { Emitter } from './emitter.ts';
@@ -249,7 +254,82 @@ export class AppState extends Emitter {
       `${p.author} proposed ${id}: ${p.title} (${p.items.length} changes). Review it in Proposals.`,
     );
     this.emit();
+    void this.checkProposal(id);
     return id;
+  }
+
+  /** Proposals the independent checker is working on. */
+  checking = new Set<string>();
+
+  /** The engine's run of a document: the open one by its resident model, others whole. */
+  private async solve(doc: Document): Promise<RunResults> {
+    return (await this.engine.run(doc === this.store.doc ? this.sync : toModel(doc))).value;
+  }
+
+  /**
+   * The independent check of a proposal (ADR 0021): its changes applied to the network
+   * as it is now, solved and checked against the design criteria, whoever made it.
+   */
+  async checkProposal(id: string): Promise<void> {
+    const p = this.proposals.find((x) => x.id === id);
+    if (!p || this.checking.has(id)) return;
+    const generation = this.generation;
+    this.checking.add(id);
+    this.emit();
+    try {
+      const check = await independentCheck({
+        base: this.store.doc,
+        items: p.items,
+        criteria: this.store.doc.data.criteria,
+        run: (doc) => this.solve(doc),
+      });
+      if (generation !== this.generation) return; // another network was opened
+      const review = this.proposals.find((x) => x.id === id)?.check?.review;
+      this.setProposal(id, { check: review ? { ...check, review } : check });
+      if (check.verdict !== 'pass')
+        this.log(
+          check.verdict === 'fail' ? 'warning' : 'info',
+          `Independent check of ${id}: ${check.verdict === 'fail' ? 'it fails' : 'concerns'}; see Proposals.`,
+        );
+    } catch (e) {
+      this.log('error', `Independent check of ${id} failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      this.checking.delete(id);
+      this.emit();
+    }
+  }
+
+  /**
+   * A second assistant's review of a proposal: a session that sees only its changes, the
+   * design criteria and the engine, never the producer's rationale (ADR 0021).
+   */
+  async reviewProposal(id: string, settings: ProviderSettings): Promise<void> {
+    const p = this.proposals.find((x) => x.id === id);
+    if (!p?.check || this.checking.has(id)) return;
+    const generation = this.generation;
+    this.checking.add(id);
+    this.emit();
+    try {
+      const review = await reviewProposal({
+        provider: providerFor(settings),
+        author: `Checker (${settings.model})`,
+        base: this.store.doc,
+        items: p.items,
+        check: p.check,
+        units: this.units,
+        fileName: this.fileName,
+        run: (doc) => this.solve(doc),
+      });
+      if (generation !== this.generation) return;
+      const current = this.proposals.find((x) => x.id === id);
+      if (current?.check) this.setProposal(id, { check: { ...current.check, review } });
+      this.log('info', `${review.author} reviewed ${id}: ${review.verdict}.`);
+    } catch (e) {
+      this.log('error', `Review of ${id} failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      this.checking.delete(id);
+      this.emit();
+    }
   }
 
   /** Add the proposals in a file a headless agent wrote (the MCP server); returns how many. */
@@ -263,6 +343,7 @@ export class AppState extends Emitter {
       return { ...p, id };
     });
     this.proposals = [...this.proposals, ...added];
+    for (const p of added) if (p.status === 'pending' && !p.check) void this.checkProposal(p.id);
     this.log(
       network && network !== this.fileName ? 'warning' : 'info',
       `Loaded ${added.length} proposals from ${name}` +
@@ -411,6 +492,7 @@ export class AppState extends Emitter {
     this.openModel(p.model, p.fileName || name.replace(/\.wsproj$/i, '.inp'), [], {
       isolationValves: p.isolationValves,
       msx: p.msx,
+      ...(p.criteria ? { criteria: p.criteria } : {}),
     });
     this.projectName = name;
     if (p.scenarios) this.scenarios.load(restoreScenarios(this.store.doc, p.scenarios));

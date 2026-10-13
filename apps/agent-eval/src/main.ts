@@ -8,7 +8,7 @@
  * The key is read from WS_EVAL_API_KEY and sent only to the endpoint given.
  */
 
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { DEFAULT_SETTINGS, type ProviderSettings } from '@waterstudio/agents';
 import {
@@ -20,6 +20,7 @@ import {
   type Agent,
   type SuiteResult,
 } from './harness.ts';
+import { applyGate, readGate } from './gate.ts';
 import { TASKS } from './tasks.ts';
 
 const USAGE = `Usage: ws-eval [options]
@@ -30,6 +31,8 @@ const USAGE = `Usage: ws-eval [options]
   --repeat N       run every task N times (default 1)
   --out FILE       write the results as JSON
   --markdown FILE  write a Markdown report
+  --gate FILE      fail (exit 1) unless the results meet the gate (docs/evals/gate.json)
+  --require-model  with --gate: fail unless a model was evaluated (for releases)
 The API key is read from WS_EVAL_API_KEY.`;
 
 const { values } = parseArgs({
@@ -41,6 +44,8 @@ const { values } = parseArgs({
     repeat: { type: 'string' },
     out: { type: 'string' },
     markdown: { type: 'string' },
+    gate: { type: 'string' },
+    'require-model': { type: 'boolean' },
     help: { type: 'boolean', short: 'h' },
   },
 });
@@ -65,6 +70,11 @@ function agentFor(name: string): Agent {
   };
   return modelAgent(settings);
 }
+
+// Read the gate first, so a bad gate file fails before an expensive run.
+const gate = values.gate ? readGate(JSON.parse(readFileSync(values.gate, 'utf8'))) : null;
+if (gate && values['require-model']) gate.requireModel = true;
+if (values['require-model'] && !gate) throw new Error('--require-model needs --gate.');
 
 const pattern = values.tasks ? new RegExp(values.tasks) : null;
 const tasks = TASKS.filter((t) => !pattern || pattern.test(t.id));
@@ -91,3 +101,9 @@ for (const name of values.agent ?? ['reference']) {
 if (values.out)
   writeFileSync(values.out, `${JSON.stringify(suites.length === 1 ? suites[0] : suites, null, 2)}\n`);
 if (values.markdown) writeFileSync(values.markdown, markdown(suites));
+if (gate) {
+  const failures = applyGate(gate, suites);
+  for (const f of failures) console.error(`GATE  ${f}`);
+  console.error(failures.length ? `The gate fails (${failures.length}).` : 'The gate passes.');
+  if (failures.length) process.exitCode = 1;
+}

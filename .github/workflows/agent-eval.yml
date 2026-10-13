@@ -2,7 +2,8 @@ name: Agent evaluation
 
 # Nightly, and on demand: the task set through the assistant loop, graded against the
 # engine. The reference and null baselines always run (they check the tasks and graders);
-# a model runs when the repository has the WS_EVAL_API_KEY secret.
+# a model runs when the repository has the WS_EVAL_API_KEY secret. Both are held to
+# docs/evals/gate.json, the gate releases must also pass (release.yml, ADR 0021).
 
 on:
   schedule:
@@ -41,12 +42,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:engine
       - name: Baselines
-        run: node apps/agent-eval/src/main.ts --agent reference --agent null --out baselines.json --markdown baselines.md
+        run: >
+          node apps/agent-eval/src/main.ts --agent reference --agent null --out baselines.json --markdown baselines.md
+          --gate docs/evals/gate.json
       - name: Model
         if: env.WS_EVAL_API_KEY != ''
         run: >
           node apps/agent-eval/src/main.ts --agent anthropic --model "$MODEL" --repeat "$REPEAT"
-          --out model.json --markdown model.md
+          --out model.json --markdown model.md --gate docs/evals/gate.json
       - name: Summary
         if: always()
         run: cat baselines.md model.md >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true

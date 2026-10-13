@@ -12,10 +12,13 @@ import {
   type Document,
   LINK_KINDS,
   NODE_KINDS,
+  type Criterion,
   type LinkKind,
   type NodeKind,
 } from '@waterstudio/core';
 import { linkFrame, nodeFrame, type RunResults } from '@waterstudio/engine-client';
+import type { CheckReport } from './checker.ts';
+import type { Assessment } from './criteria.ts';
 import { decode, encode } from '@waterstudio/project';
 
 export type ElementTable = 'node' | 'link';
@@ -43,6 +46,10 @@ export interface Kpis {
 export interface Evidence {
   before: Kpis | null;
   after: Kpis | null;
+  /** The design criteria checked before and after (absent when none are set). */
+  criteria?: { before: Assessment | null; after: Assessment | null };
+  /** Criteria the change still does not meet, each with the producer's reason. */
+  unmet?: { criterion: Criterion; reason: string }[];
   /** Why a run failed, if one did. */
   errors: string[];
 }
@@ -58,6 +65,8 @@ export interface Proposal {
   created: number;
   items: ChangeItem[];
   evidence: Evidence;
+  /** The independent checker's report, once it has run (ADR 0021). */
+  check?: CheckReport;
   status: ProposalStatus;
   /** The reviewer's comment when sending it back or rejecting it. */
   comment?: string;

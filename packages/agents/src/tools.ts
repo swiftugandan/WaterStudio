@@ -5,8 +5,14 @@
  */
 
 import {
+  CRITERIA,
+  CRITERION_LABEL,
+  emptyCriteria,
   fieldsOf,
   keywordMatches,
+  setCriteria,
+  type Criteria,
+  type Criterion,
   LINK_KINDS,
   NODE_KINDS,
   sectionGet,
@@ -24,6 +30,7 @@ import {
   type NodeVariable,
   type RunResults,
 } from '@waterstudio/engine-client';
+import { assess } from './criteria.ts';
 import { matches, parseQuery, queryFields, QueryError, type Value } from './query.ts';
 import { defineTool, type AgentContext, type RunView, type Tool } from './registry.ts';
 
@@ -450,6 +457,13 @@ export const getTimeseries = defineTool<{ ids: string[]; variable: string; table
   },
 });
 
+const LIMIT_ARGS = {
+  min_pressure: 'minPressure',
+  max_pressure: 'maxPressure',
+  max_velocity: 'maxVelocity',
+  max_headloss: 'maxHeadloss',
+} as const satisfies Record<string, Criterion>;
+
 export const findViolations = defineTool<{
   min_pressure?: number;
   max_pressure?: number;
@@ -461,6 +475,7 @@ export const findViolations = defineTool<{
   description:
     'Check results against design limits over every report period: junction pressures below a minimum or ' +
     "above a maximum, pipe velocities and unit head losses above a maximum. Values are in the model's units. " +
+    "With no limits given, checks the project's design criteria (see get_design_criteria). " +
     'For each limit: how many elements break it, and the worst ones with the time it happens.',
   input: {
     type: 'object',
@@ -481,79 +496,69 @@ export const findViolations = defineTool<{
   scope: 'read',
   run: (args, ctx) => {
     const view = needResults(ctx);
-    const r = view.results;
-    const doc = ctx.doc;
-    const k = args.top ?? 10;
-    type Check = {
-      name: string;
-      table: Table;
-      variable: string;
-      kinds: string[];
-      limit: number;
-      below: boolean;
-    };
-    const checks: Check[] = [];
-    if (args.min_pressure !== undefined)
-      checks.push({
-        name: 'min_pressure',
-        table: 'node',
-        variable: 'pressure',
-        kinds: ['junction'],
-        limit: args.min_pressure,
-        below: true,
-      });
-    if (args.max_pressure !== undefined)
-      checks.push({
-        name: 'max_pressure',
-        table: 'node',
-        variable: 'pressure',
-        kinds: ['junction'],
-        limit: args.max_pressure,
-        below: false,
-      });
-    if (args.max_velocity !== undefined)
-      checks.push({
-        name: 'max_velocity',
-        table: 'link',
-        variable: 'velocity',
-        kinds: ['pipe'],
-        limit: args.max_velocity,
-        below: false,
-      });
-    if (args.max_headloss !== undefined)
-      checks.push({
-        name: 'max_headloss',
-        table: 'link',
-        variable: 'headloss',
-        kinds: ['pipe'],
-        limit: args.max_headloss,
-        below: false,
-      });
-    if (checks.length === 0) throw new Error('Give at least one limit.');
-    const out: Record<string, unknown> = { stale: view.stale };
-    for (const c of checks) {
-      const handles = c.table === 'node' ? view.nodes : view.links;
-      const worst = new Map<number, { value: number; period: number }>();
-      for (let p = 0; p < r.times.length; p++) {
-        const f =
-          c.table === 'node'
-            ? nodeFrame(r, c.variable as NodeVariable, p)
-            : linkFrame(r, c.variable as LinkVariable, p);
-        handles.forEach((h, i) => {
-          const x = f[i]!;
-          if (!(c.below ? x < c.limit : x > c.limit)) return;
-          if (!doc.has(h) || !c.kinds.includes(doc.kind(h))) return;
-          const w = worst.get(h);
-          if (!w || (c.below ? x < w.value : x > w.value)) worst.set(h, { value: x, period: p });
-        });
-      }
-      const list = [...worst.entries()]
-        .sort((a, b) => (c.below ? a[1].value - b[1].value : b[1].value - a[1].value))
-        .slice(0, k)
-        .map(([h, w]) => ({ id: doc.id(h), value: round(w.value), atHours: hours(r, w.period) }));
-      out[c.name] = { limit: c.limit, elements: worst.size, worst: list };
+    const given: Partial<Criteria> = {};
+    for (const [arg, c] of Object.entries(LIMIT_ARGS)) {
+      const v = args[arg as keyof typeof LIMIT_ARGS];
+      if (v !== undefined) given[c] = v;
     }
+    const limits = Object.keys(given).length > 0 ? given : ctx.doc.data.criteria;
+    if (setCriteria({ ...emptyCriteria(), ...limits }).length === 0)
+      throw new Error('Give at least one limit: the project has no design criteria set.');
+    const a = assess(ctx.doc, view, limits, args.top ?? 10);
+    const out: Record<string, unknown> = { stale: view.stale };
+    const name = (c: Criterion) =>
+      Object.entries(LIMIT_ARGS).find(([, k]) => k === c)?.[0] ??
+      c.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
+    for (const c of a.checked)
+      out[name(c.criterion)] = { limit: c.limit, elements: c.elements, worst: c.worst };
+    for (const s of a.skipped) out[name(s.criterion)] = { skipped: s.reason };
     return out;
+  },
+});
+
+export const getDesignCriteria = defineTool<Record<string, never>>({
+  name: 'get_design_criteria',
+  description:
+    "The project's design criteria: the limits a design is checked against (pressures, velocity, unit head " +
+    "loss, disinfectant residual, water age), in the model's units. Unset limits are null and not checked. " +
+    'Proposals are checked against these by an independent checker.',
+  input: { type: 'object', properties: {}, additionalProperties: false },
+  scope: 'read',
+  run: (_args, ctx) => {
+    const c = ctx.doc.data.criteria;
+    const u = ctx.units;
+    const units: Record<Criterion, string> = {
+      minPressure: unitLabel('pressure', u),
+      maxPressure: unitLabel('pressure', u),
+      maxVelocity: unitLabel('velocity', u),
+      maxHeadloss: u.si ? 'm/km' : 'ft/kft',
+      minResidual: 'quality units',
+      maxAge: 'hours',
+    };
+    return Object.fromEntries(
+      CRITERIA.map((k) => [k, { label: CRITERION_LABEL[k], limit: c[k], units: units[k] }]),
+    );
+  },
+});
+
+export const checkCriteria = defineTool<{ top?: number }>({
+  name: 'check_criteria',
+  description:
+    "Check the latest results against the project's design criteria: for each limit that is set, whether it " +
+    'is met and, if not, how many elements break it and the worst ones. Run run_analysis first.',
+  input: {
+    type: 'object',
+    properties: { top: { type: 'integer', minimum: 1, maximum: 50, description: 'Default 5.' } },
+    additionalProperties: false,
+  },
+  scope: 'read',
+  run: (args, ctx) => {
+    const view = needResults(ctx);
+    const criteria = ctx.doc.data.criteria;
+    if (setCriteria(criteria).length === 0)
+      return { pass: true, note: 'The project has no design criteria set; nothing was checked.' };
+    const a = assess(ctx.doc, view, criteria, args.top ?? 5);
+    return { stale: view.stale, pass: a.pass, checked: a.checked, skipped: a.skipped };
   },
 });
 
@@ -622,6 +627,8 @@ export const READ_TOOLS: Tool<never>[] = [
   getResultsSlice,
   getTimeseries,
   findViolations,
+  getDesignCriteria,
+  checkCriteria,
   runAnalysis,
   getStatusReport,
 ];

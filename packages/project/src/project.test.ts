@@ -1,5 +1,6 @@
 import init from '@sqlite.org/sqlite-wasm';
 import {
+  emptyCriteria,
   addLink,
   addNode,
   loadModel,
@@ -41,6 +42,7 @@ function capture(store: Store, sc: Scenarios): ProjectData {
     scenarios: storeScenarios(store.doc, sc.toJSON()),
     isolationValves: [{ link: 'P', node: 'A' }],
     msx: { name: 'x.msx', text: '[SPECIES]\nBULK CL MG\n' },
+    criteria: { ...emptyCriteria(), minPressure: 20, maxVelocity: 2.5 },
     settings: { theme: 'dark', time: 3, colourBy: { node: 'pressure' } },
   };
 }
@@ -101,6 +103,7 @@ describe('project file', () => {
     expect(back.scenarios).toEqual(data.scenarios);
     expect(back.isolationValves).toEqual(data.isolationValves);
     expect(back.msx).toEqual(data.msx);
+    expect(back.criteria).toEqual(data.criteria);
     expect(back.settings).toEqual(data.settings);
     expect(back.fileName).toBe('test.inp');
 

@@ -48,7 +48,7 @@ Passes, with the exception noted under 2.5.7 (dock splitters) and the known thir
 | 3.3.7 Redundant entry | Defaults (Options › Defaults) avoid retyping common values; Copy and Paste properties carry an element's values to others. |
 | 3.3.8 Accessible authentication | No authentication; the assistant's API key is a pasteable field. |
 | 4.1.2 Name, role, value | Toggles use `aria-pressed`, tabs `aria-selected`, listboxes `aria-activedescendant` and `aria-selected`. **Known issue:** dockview renders each tab's close button inside the tab element (nested interactive), excluded from axe and tracked upstream; the same panels can be closed from the View tab. |
-| 4.1.3 Status messages | Run status, query and import results, copy and apply confirmations and the outcome of accepting a proposal use `role="status"`; the assistant's log and the proposal count are `aria-live`. |
+| 4.1.3 Status messages | Run status, query and import results, copy and apply confirmations and the outcome of accepting a proposal use `role="status"`; the assistant's log, the proposal count and the independent check's verdict are `aria-live`. |
 
 ## Not covered yet
 

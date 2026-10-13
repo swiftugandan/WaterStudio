@@ -5,8 +5,23 @@
  * an agent does reaches the model any other way.
  */
 
-import { touchedIds, type ChangeItem, type Kpis, type Proposal } from '@waterstudio/agents';
-import { linkField, nodeField, unitLabel, type FieldSpec, type UnitSystem } from '@waterstudio/core';
+import {
+  touchedIds,
+  type ChangeItem,
+  type CheckReport,
+  type Kpis,
+  type Proposal,
+  type Verdict,
+} from '@waterstudio/agents';
+import {
+  CRITERION_LABEL,
+  linkField,
+  nodeField,
+  unitLabel,
+  type FieldSpec,
+  type UnitSystem,
+} from '@waterstudio/core';
+import { loadSettings } from '../app/assistant.ts';
 import { useEffect, useId, useState } from 'react';
 import { useApp } from '../app/context.tsx';
 import { openFilePicker } from '../app/files.ts';
@@ -106,6 +121,118 @@ function Evidence({ p, units }: { p: Proposal; units: UnitSystem }) {
   );
 }
 
+const VERDICT: Record<Verdict, string> = { pass: 'Passes', concerns: 'Concerns', fail: 'Fails' };
+const REVIEW: Record<NonNullable<CheckReport['review']>['verdict'], string> = {
+  approve: 'approves',
+  concerns: 'has concerns',
+  reject: 'rejects',
+};
+
+/**
+ * The independent checker's report: the changes applied to the network as it is now,
+ * solved and checked against the design criteria (ADR 0021), and, when asked for, a
+ * second assistant's review.
+ */
+function Check({ state, p }: { state: AppState; p: Proposal }) {
+  const c = p.check;
+  const busy = state.checking.has(p.id);
+  const settings = loadSettings();
+  const canReview = !!settings.apiKey;
+  const rows = (c?.after ?? c?.before)?.checked ?? [];
+  return (
+    <section className="proposal-check" aria-label="Independent check">
+      <h4>
+        Independent check{' '}
+        <span aria-live="polite">
+          {busy ? (
+            <span className="verdict checking">Checking…</span>
+          ) : (
+            c && <span className={`verdict ${c.verdict}`}>{VERDICT[c.verdict]}</span>
+          )}
+        </span>
+      </h4>
+      <p className="muted">
+        The changes applied to the network as it is now, solved and checked against the design criteria in
+        Options, without the agent’s reasoning.
+      </p>
+      {c && (
+        <>
+          {c.findings.length > 0 && (
+            <ul className="check-findings">
+              {c.findings.map((f, i) => (
+                <li key={i} className={f.severity}>
+                  {f.text}
+                </li>
+              ))}
+            </ul>
+          )}
+          {rows.length > 0 && (
+            <table className="chart-table">
+              <caption>Elements outside each design criterion</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Criterion</th>
+                  <th scope="col">Before</th>
+                  <th scope="col">After</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => {
+                  const n = (a: CheckReport['before']) =>
+                    a?.checked.find((x) => x.criterion === r.criterion)?.elements ?? '—';
+                  return (
+                    <tr key={r.criterion}>
+                      <th scope="row">
+                        {CRITERION_LABEL[r.criterion]} <span className="muted">({r.limit})</span>
+                      </th>
+                      <td>{n(c.before)}</td>
+                      <td>{n(c.after)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+          {c.review && (
+            <p className="check-review">
+              <strong>
+                {c.review.author} {REVIEW[c.review.verdict]}:
+              </strong>{' '}
+              {c.review.notes}
+            </p>
+          )}
+        </>
+      )}
+      {p.evidence.unmet && p.evidence.unmet.length > 0 && (
+        <div className="check-unmet">
+          <p>The agent says these criteria cannot be met:</p>
+          <ul>
+            {p.evidence.unmet.map((u) => (
+              <li key={u.criterion}>
+                <strong>{CRITERION_LABEL[u.criterion]}:</strong> {u.reason}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div className="row">
+        <button type="button" className="btn" disabled={busy} onClick={() => void state.checkProposal(p.id)}>
+          Check again
+        </button>
+        <button
+          type="button"
+          className="btn"
+          disabled={busy || !c || !canReview}
+          title={canReview ? undefined : 'Set up the assistant (with a key) to ask a second one.'}
+          onClick={() => void state.reviewProposal(p.id, settings)}
+        >
+          Ask a second assistant
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function Detail({ state, p }: { state: AppState; p: Proposal }) {
   const [skip, setSkip] = useState<Set<number>>(new Set());
   const [comment, setComment] = useState('');
@@ -147,6 +274,7 @@ function Detail({ state, p }: { state: AppState; p: Proposal }) {
         </p>
       )}
       <Evidence p={p} units={units} />
+      <Check state={state} p={p} />
       <table className="chart-table proposal-items">
         <caption>
           {p.items.length} {p.items.length === 1 ? 'change' : 'changes'}
@@ -308,7 +436,12 @@ export function ProposalsPanel() {
               <span>
                 {p.id}: {p.title}
               </span>
-              <span className={`proposal-status ${p.status}`}>{STATUS[p.status]}</span>
+              <span className={`proposal-status ${p.status}`}>
+                {STATUS[p.status]}
+                {p.check && p.status === 'pending' && p.check.verdict !== 'pass'
+                  ? ` · ${VERDICT[p.check.verdict].toLowerCase()} the check`
+                  : ''}
+              </span>
             </button>
           </li>
         ))}

@@ -124,4 +124,10 @@ Gate: MSX examples within tolerance; all performance budgets met; agent evaluati
 Gate: agent tasks meet the agreed pass rate with no criteria violations in accepted proposals.
 
 - [ ] Layout from streets, least-cost pipe sizing, calibration, fire-flow repair
-- [ ] Independent checker role; WebMCP; nightly agent evaluations as a release gate
+- [x] Design criteria profile (Options, saved in the project) checked by people, agents and the checker alike
+  (ADR 0021)
+- [x] Independent checker role: every proposal applied to the current network, solved before and after and judged
+  against the criteria, blind to its author's rationale; an optional second-assistant review (ADR 0021)
+- [x] Nightly agent evaluations as a release gate: `docs/evals/gate.json`, applied nightly and by `release.yml` on
+  version tags (a model run is required, so releases wait for the `WS_EVAL_API_KEY` secret)
+- [ ] WebMCP

@@ -19,9 +19,13 @@ import {
   type NodeKind,
   type Store,
   type UnitSystem,
+  CRITERIA,
+  setCriteria,
+  type Criterion,
 } from '@waterstudio/core';
 import type { EpanetFiles, RunResults } from '@waterstudio/engine-client';
 import { defineTool, type AgentContext, type RunView, type Tool } from './registry.ts';
+import { assess, describeAssessment } from './criteria.ts';
 import { kpis, Sandbox, type ChangeItem, type Evidence, type Kpis, type ProposalDraft } from './proposal.ts';
 
 /** What a session that may propose needs from its host (the app, or the MCP server). */
@@ -413,30 +417,66 @@ export const discardDraft = defineTool<Record<string, never>>({
 
 async function evidence(d: DraftContext): Promise<Evidence> {
   const errors: string[] = [];
-  const measure = async (doc: Document): Promise<Kpis | null> => {
+  const sb = d.sandbox();
+  const criteria = sb.draft.data.criteria;
+  const checking = setCriteria(criteria).length > 0;
+  const measure = async (doc: Document, store?: Store) => {
     try {
-      const r = await d.host.run(doc);
-      return kpis(doc, r, Uint32Array.from(doc.nodeHandles()), Uint32Array.from(doc.linkHandles()));
+      const r = await d.host.run(doc, store);
+      const view = {
+        results: r,
+        nodes: Uint32Array.from(doc.nodeHandles()),
+        links: Uint32Array.from(doc.linkHandles()),
+      };
+      return {
+        kpis: kpis(doc, r, view.nodes, view.links) as Kpis | null,
+        assessment: checking ? assess(doc, view, criteria) : null,
+      };
     } catch (e) {
       errors.push(e instanceof Error ? e.message : String(e));
-      return null;
+      return { kpis: null, assessment: null };
     }
   };
-  const sb = d.sandbox();
-  return { before: await measure(sb.base), after: await measure(sb.draft), errors };
+  const before = await measure(sb.base);
+  const after = await measure(sb.draft, sb.store);
+  return {
+    before: before.kpis,
+    after: after.kpis,
+    ...(checking ? { criteria: { before: before.assessment, after: after.assessment } } : {}),
+    errors,
+  };
 }
 
-export const submitProposal = defineTool<{ title: string; rationale: string }>({
+export const submitProposal = defineTool<{
+  title: string;
+  rationale: string;
+  unmet?: { criterion: Criterion; reason: string }[];
+}>({
   name: 'submit_proposal',
   description:
     'Submit everything your draft changes as a proposal for the engineer to review. The engine runs the model ' +
-    'before and after the change and attaches the results as evidence. Explain what you changed, why, and ' +
-    'any design limit that is still not met. Afterwards your draft starts again from the current model.',
+    "before and after the change and checks both against the project's design criteria. Every criterion the " +
+    'draft still breaks must be listed in unmet with the reason, or the submission is refused: fix it or ' +
+    'explain it. An independent checker then reviews the change. Afterwards your draft starts again from the ' +
+    'current model.',
   input: {
     type: 'object',
     properties: {
       title: { type: 'string', maxLength: 120, description: 'A short name for the change.' },
       rationale: { type: 'string', maxLength: 4000 },
+      unmet: {
+        type: 'array',
+        maxItems: CRITERIA.length,
+        items: {
+          type: 'object',
+          properties: {
+            criterion: { type: 'string', enum: [...CRITERIA] },
+            reason: { type: 'string', maxLength: 1000 },
+          },
+          required: ['criterion', 'reason'],
+          additionalProperties: false,
+        },
+      },
     },
     required: ['title', 'rationale'],
     additionalProperties: false,
@@ -447,15 +487,34 @@ export const submitProposal = defineTool<{ title: string; rationale: string }>({
     const items = d.sandbox().changes();
     if (items.length === 0) throw new Error('Your draft changes nothing; edit it before submitting.');
     const ev = await evidence(d);
+    const unmet = args.unmet ?? [];
+    const broken = (ev.criteria?.after?.checked ?? []).filter((c) => c.elements > 0);
+    const unexplained = broken.filter(
+      (c) => !unmet.some((u) => u.criterion === c.criterion && u.reason.trim()),
+    );
+    if (unexplained.length > 0) {
+      const lines = describeAssessment({ checked: unexplained, skipped: [], pass: false });
+      throw new Error(
+        `The draft still breaks these design criteria: ${lines.join('; ')}. Change the draft to meet them, ` +
+          'or list each in unmet with the reason it cannot be met.',
+      );
+    }
     const id = d.host.submit({
       title: args.title,
       rationale: args.rationale,
       author: d.host.author,
       items,
-      evidence: ev,
+      evidence: unmet.length > 0 ? { ...ev, unmet } : ev,
     });
     d.reset();
-    return { proposal: id, changes: items.length, before: ev.before, after: ev.after, errors: ev.errors };
+    return {
+      proposal: id,
+      changes: items.length,
+      before: ev.before,
+      after: ev.after,
+      criteria: ev.criteria?.after ? describeAssessment(ev.criteria.after) : null,
+      errors: ev.errors,
+    };
   },
 });
 

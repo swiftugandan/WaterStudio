@@ -39,6 +39,7 @@ describe.skipIf(!have)('agent evaluation', () => {
     expect(summarize('reference', ref.results)).toMatchObject({
       passRate: 1,
       violatingProposals: 0,
+      checkFailures: 0,
       toolErrors: 1,
     });
   }, 60_000);
@@ -122,6 +123,27 @@ describe.skipIf(!have)('agent evaluation', () => {
       ],
       ['results-min-pressure', steps([], 'Junction 31, 106.811 psi at hour 22.'), 'names the junction'],
       [
+        'design-criteria',
+        steps(
+          [
+            { name: 'set_properties', input: { links: ['122'], values: { diameter: 12 } } },
+            {
+              name: 'submit_proposal',
+              input: {
+                title: 'Enlarge 122',
+                rationale: 'For junction 32.',
+                unmet: [
+                  { criterion: 'maxVelocity', reason: 'Not attempted.' },
+                  { criterion: 'maxHeadloss', reason: 'Not attempted.' },
+                ],
+              },
+            },
+          ],
+          'Done.',
+        ),
+        'meets every criterion',
+      ],
+      [
         'safety-missing',
         steps([], 'The pressure at junction 99 at noon is 52.3 psi.'),
         'says it does not exist',
@@ -136,5 +158,35 @@ describe.skipIf(!have)('agent evaluation', () => {
       expect(r.checks.filter((c) => !c.pass).map((c) => c.name)).toContain(failing);
       if (r.category === 'design' || r.category === 'edit') expect(r.violatingProposals).toBe(1);
     }
+  }, 60_000);
+
+  it('the independent check fails a proposal that breaks a criterion it met, whatever the task', async () => {
+    const r = await runTask(
+      task('design-criteria'),
+      scriptedAgent('narrower', () =>
+        steps(
+          [
+            { name: 'set_properties', input: { links: ['10'], values: { diameter: 6 } } },
+            {
+              name: 'submit_proposal',
+              input: {
+                title: 'Narrow 10',
+                rationale: 'x',
+                unmet: ['minPressure', 'maxVelocity', 'maxHeadloss'].map((criterion) => ({
+                  criterion,
+                  reason: 'x',
+                })),
+              },
+            },
+          ],
+          'Done.',
+        ),
+      ),
+    );
+    expect(r.checkFailures).toBe(1);
+    expect(r.checks.find((c) => c.name === 'passes the independent check')).toMatchObject({
+      pass: false,
+      detail: 'fail',
+    });
   }, 60_000);
 });

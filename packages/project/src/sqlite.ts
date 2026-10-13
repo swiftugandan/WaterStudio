@@ -7,7 +7,7 @@
  *   meta(key, value)                 format, version, application, saved, fileName, title
  *   model(json)                      one row: the canonical model
  *   scenarios(ord, id, name, parent, json)
- *   extras(key, json)                scenarioBase, activeScenario, isolationValves, msx
+ *   extras(key, json)                scenarioBase, activeScenario, isolationValves, msx, criteria
  *   settings(key, json)              how the project was being viewed
  *   nodes(id, kind, x, y, elevation)                       view
  *   links(id, kind, from_node, to_node, length, diameter)  view
@@ -17,7 +17,7 @@
  */
 
 import type { Database, Sqlite3Static } from '@sqlite.org/sqlite-wasm';
-import type { model } from '@waterstudio/core';
+import { readCriteria, type model } from '@waterstudio/core';
 import type { ProjectData, StoredScenario, StoredScenarios } from './project.ts';
 
 /** `PRAGMA application_id`: "WSPR". */
@@ -142,6 +142,8 @@ export function writeProject(sqlite3: Sqlite3Static, data: ProjectData, meta: Pr
           bind: ['isolationValves', encode(data.isolationValves)],
         });
       if (data.msx) t.exec({ sql: 'INSERT INTO extras VALUES (?, ?)', bind: ['msx', encode(data.msx)] });
+      if (data.criteria)
+        t.exec({ sql: 'INSERT INTO extras VALUES (?, ?)', bind: ['criteria', encode(data.criteria)] });
       for (const [k, v] of Object.entries(data.settings))
         t.exec({ sql: 'INSERT INTO settings VALUES (?, ?)', bind: [k, encode(v)] });
     });
@@ -234,6 +236,7 @@ export function readProject(sqlite3: Sqlite3Static, bytes: Uint8Array): ProjectD
       scenarios,
       isolationValves: (extras.get('isolationValves') ?? []) as ProjectData['isolationValves'],
       msx: (extras.get('msx') ?? null) as ProjectData['msx'],
+      ...(extras.has('criteria') ? { criteria: readCriteria(extras.get('criteria')) } : {}),
       settings,
       meta: { application: meta.get('application') ?? '', saved: meta.get('saved') ?? '' },
     };

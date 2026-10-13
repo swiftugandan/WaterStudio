@@ -7,6 +7,7 @@
  * agent references survive renames and deletions.
  */
 
+import { emptyCriteria, type Criteria } from './criteria.ts';
 import type { Control, Curve, KeywordSection, Label, Pattern, RawSection, Rule } from './generated/model.ts';
 import {
   LINK_COLUMNS,
@@ -37,6 +38,8 @@ export interface DocData {
   isolationValves: IsolationValve[];
   /** The EPANET-MSX input that goes with the network, if any (its own file beside the .inp). */
   msx: MsxInput | null;
+  /** The design criteria the network is checked against (the project's, not EPANET's). */
+  criteria: Criteria;
 }
 
 /** An EPANET-MSX input file: its name and text. */
@@ -71,6 +74,7 @@ export function emptyDocData(): DocData {
     extraSections: [],
     isolationValves: [],
     msx: null,
+    criteria: emptyCriteria(),
   };
 }
 

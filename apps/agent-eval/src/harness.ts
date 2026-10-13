@@ -16,6 +16,7 @@ import {
   type ProviderSettings,
   type Scope,
 } from '@waterstudio/agents';
+import { emptyCriteria } from '@waterstudio/core';
 import { fileURLToPath } from 'node:url';
 import { Host } from '@waterstudio/mcp-server/host';
 import { grading, type Check, type ToolCall, type Transcript } from './grade.ts';
@@ -110,6 +111,8 @@ export interface TaskResult {
   metrics: Record<string, number>;
   /** Proposals whose engine results break the task's criteria (design and edit tasks). */
   violatingProposals: number;
+  /** Proposals the independent checker fails (ADR 0021), in any task. */
+  checkFailures: number;
   error: string | null;
   answer: string;
 }
@@ -125,6 +128,7 @@ export async function runTask(task: Task, agent: Agent, run = 1, opts: RunOption
     accept: false,
     proposalsFile: null,
     ...(opts.wasm ? { wasm: opts.wasm } : {}),
+    ...(task.criteria ? { criteria: { ...emptyCriteria(), ...task.criteria } } : {}),
   });
   if (task.setup) {
     task.setup(host);
@@ -182,6 +186,15 @@ export async function runTask(task: Task, agent: Agent, run = 1, opts: RunOption
   } catch (e) {
     checks = [{ name: 'grader ran', pass: false, detail: e instanceof Error ? e.message : String(e) }];
   }
+  // Every proposal goes through the independent check, as in the app.
+  let checkFailures = 0;
+  for (const p of host.proposals) {
+    try {
+      if ((await host.checked(p.id)).verdict === 'fail') checkFailures++;
+    } catch {
+      checkFailures++;
+    }
+  }
   const pass = checks.length > 0 && checks.every((c) => c.pass);
   const judged = task.category === 'design' || task.category === 'edit';
   return {
@@ -197,6 +210,7 @@ export async function runTask(task: Task, agent: Agent, run = 1, opts: RunOption
     ms: t.ms,
     metrics,
     violatingProposals: judged && !pass ? t.proposals.length : 0,
+    checkFailures,
     error: t.error,
     answer: t.answer.length > 4000 ? `${t.answer.slice(0, 4000)}…` : t.answer,
   };
@@ -212,6 +226,7 @@ export interface Summary {
   meanSteps: number;
   toolErrors: number;
   violatingProposals: number;
+  checkFailures: number;
 }
 
 export function summarize(agent: string, results: TaskResult[]): Summary {
@@ -232,6 +247,7 @@ export function summarize(agent: string, results: TaskResult[]): Summary {
     meanSteps: results.length ? results.reduce((a, r) => a + r.steps, 0) / results.length : 0,
     toolErrors: results.reduce((a, r) => a + r.toolErrors, 0),
     violatingProposals: results.reduce((a, r) => a + r.violatingProposals, 0),
+    checkFailures: results.reduce((a, r) => a + r.checkFailures, 0),
   };
 }
 
@@ -271,15 +287,15 @@ const CATEGORIES: Category[] = ['lookup', 'results', 'diagnosis', 'design', 'edi
 export function markdown(suites: SuiteResult[]): string {
   const pct = (p: number, r: number) => (r ? `${p}/${r}` : '—');
   const lines = [
-    `| Agent | Pass | ${CATEGORIES.join(' | ')} | Mean steps | Tool errors | Violating proposals |`,
-    `| --- | --- | ${CATEGORIES.map(() => '---').join(' | ')} | --- | --- | --- |`,
+    `| Agent | Pass | ${CATEGORIES.join(' | ')} | Mean steps | Tool errors | Violating proposals | Failed checks |`,
+    `| --- | --- | ${CATEGORIES.map(() => '---').join(' | ')} | --- | --- | --- | --- |`,
   ];
   for (const s of suites) {
     const m = s.summary;
     const cats = CATEGORIES.map((c) => pct(m.byCategory[c]?.passed ?? 0, m.byCategory[c]?.runs ?? 0));
     lines.push(
       `| ${m.agent} (${s.date}) | ${pct(m.passed, m.runs)} | ${cats.join(' | ')} | ${m.meanSteps.toFixed(1)} | ` +
-        `${m.toolErrors} | ${m.violatingProposals} |`,
+        `${m.toolErrors} | ${m.violatingProposals} | ${m.checkFailures} |`,
     );
   }
   lines.push('', `| Task | ${suites.map((s) => s.summary.agent).join(' | ')} |`);

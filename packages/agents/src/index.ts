@@ -60,3 +60,20 @@ export {
   type AgentHost,
   type DraftContext,
 } from './draft.ts';
+export {
+  assess,
+  describeAssessment,
+  type Assessment,
+  type Breach,
+  type CriterionResult,
+} from './criteria.ts';
+export {
+  independentCheck,
+  proposed,
+  reviewProposal,
+  type CheckFinding,
+  type CheckInput,
+  type CheckReport,
+  type Review,
+  type Verdict,
+} from './checker.ts';

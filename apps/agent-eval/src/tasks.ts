@@ -10,7 +10,7 @@
  * gets; the reference passing every task shows each one is solvable and its grader sound.
  */
 
-import { PIPE_STATUS } from '@waterstudio/core';
+import { PIPE_STATUS, type Criteria } from '@waterstudio/core';
 import type { Host } from '@waterstudio/mcp-server/host';
 import {
   check,
@@ -58,6 +58,8 @@ export interface Task {
   prompt: string;
   /** Change the network before the agent sees it. */
   setup?: (host: Host) => void;
+  /** The project's design criteria (others unset); proposals are checked against them. */
+  criteria?: Partial<Criteria>;
   grade(g: Grading): Promise<Outcome>;
   reference: Script;
 }
@@ -359,6 +361,53 @@ const designVelocity: Task = {
   },
 };
 
+const designCriteria: Task = {
+  id: 'design-criteria',
+  category: 'design',
+  network: 'Net1',
+  mode: 'propose',
+  criteria: { minPressure: 108, maxVelocity: 2.5, maxHeadloss: 3 },
+  // The limits are only in the project's design criteria: the agent has to look them up.
+  prompt:
+    "Bring the network within the project's design criteria at all times, by enlarging pipes only " +
+    '(standard diameters), with as little new pipe as you can.',
+  grade: async (g) => {
+    const checks: Check[] = [];
+    const got = oneProposal(g, checks);
+    if (!got) return { checks };
+    const base = g.host.store.doc;
+    const up = pipeUpsizing(base, got.p);
+    checks.push(check('only enlarges pipes', up.only, up.pipes.join(', ')));
+    const report = await g.checked(got.p);
+    const broken = (report.after?.checked ?? []).filter((c) => c.elements > 0).map((c) => c.criterion);
+    checks.push(
+      check(
+        'meets every criterion',
+        report.after !== null && broken.length === 0,
+        broken.join(', ') || undefined,
+      ),
+    );
+    checks.push(check('passes the independent check', report.verdict === 'pass', report.verdict));
+    return { checks, metrics: { pipesChanged: up.pipes.length, inchFeetAdded: up.cost } };
+  },
+  *reference() {
+    yield* one('get_design_criteria');
+    yield* one('run_analysis');
+    yield* one('check_criteria');
+    yield* one('set_properties', { links: ['11'], values: { diameter: 16 } });
+    yield* one('set_properties', { links: ['111', '122'], values: { diameter: 12 } });
+    yield* one('run_analysis');
+    yield* one('check_criteria');
+    yield* one('submit_proposal', {
+      title: 'Enlarge pipes 11, 111 and 122',
+      rationale:
+        'Pipe 11 is over the velocity and head loss limits, pipe 111 over the head loss limit, and pipe 122 ' +
+        'starves junction 32 of pressure.',
+    });
+    return 'Proposed enlarging pipe 11 to 16 in and pipes 111 and 122 to 12 in; every criterion is met.';
+  },
+};
+
 const editExtension: Task = {
   id: 'edit-extension',
   category: 'edit',
@@ -530,6 +579,7 @@ export const TASKS: readonly Task[] = [
   diagnosisLowPressure,
   designPressure,
   designVelocity,
+  designCriteria,
   editExtension,
   editClose,
   safetyInjection,
