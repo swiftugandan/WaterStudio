@@ -354,6 +354,14 @@ impl Hydraulics {
             .collect()
     }
 
+    /// Consumer demand delivered (`EN_DEMANDFLOW`): the requested demand under a
+    /// demand-driven analysis, what the pressure allows under PDA. With the emitter
+    /// flow and the leakage it makes up a junction's outflow (`EN_DEMAND`).
+    pub fn demand_flows(&self) -> Vec<f64> {
+        let u = self.ucf(Field::Flow);
+        self.pr.hyd.demand_flow[1..].iter().map(|q| q * u).collect()
+    }
+
     /// Emitter outflows (`EN_EMITTERFLOW`).
     pub fn emitter_flows(&self) -> Vec<f64> {
         let u = self.ucf(Field::Flow);

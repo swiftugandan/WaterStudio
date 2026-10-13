@@ -4,6 +4,11 @@
  * where `i` is the element's position among the model's nodes (links likewise).
  */
 
+/**
+ * `demand` is a node's whole outflow (EPANET's EN_DEMAND). At a junction it is `consumer`
+ * (consumer demand delivered) + `emitter` + `leakage`; `deficit` is the consumer demand
+ * requested but not delivered (pressure-driven analysis).
+ */
 export const NODE_VARIABLES = [
   'demand',
   'head',
@@ -12,6 +17,7 @@ export const NODE_VARIABLES = [
   'deficit',
   'emitter',
   'leakage',
+  'consumer',
 ] as const;
 /** `status` holds EPANET's status codes; `reaction` is the reaction rate (quality units per day). */
 export const LINK_VARIABLES = [

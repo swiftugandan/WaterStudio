@@ -324,6 +324,7 @@ function CommandButton({
 
 const VAR_LABEL: Record<string, string> = {
   demand: 'Demand',
+  consumer: 'Consumer demand',
   head: 'Head',
   pressure: 'Pressure',
   deficit: 'Demand deficit',

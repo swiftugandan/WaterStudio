@@ -31,7 +31,9 @@ budget on both renderers (**met for Canvas 2D in CI; WebGPU measured on real GPU
 - [x] Multiple demand categories per junction
 - [x] Tank volume curves and overflow
 - [x] FAVAD pipe leakage
-- [ ] Outflow breakdown in results (demand, deficit, emitter, leakage)
+- [x] Outflow breakdown in results: each node's outflow (EPANET's demand) and, at a junction, the consumer demand
+  delivered, emitter flow and leakage that make it up, with the demand not delivered under PDA; result columns
+  for the map, tables and graphs, and the breakdown under the demand in the inspector
 - [x] EPANET head-error and flow-change convergence criteria
 - [x] Energy: pump energy, efficiency, cost, demand charge (computed; reporting in Phase 2)
 - [x] Determinism: native and WebAssembly bit-identical (ADR 0003), gated in CI

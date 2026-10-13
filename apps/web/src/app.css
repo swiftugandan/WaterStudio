@@ -433,6 +433,19 @@ input[type='search'] {
   margin: 0;
   font-variant-numeric: tabular-nums;
 }
+/* A junction's outflow, part by part, under its demand. */
+.results-values dl div.part dt {
+  padding-left: var(--ws-space-3);
+}
+.results-values dl div.part dt::before {
+  content: '+ ';
+}
+.results-values dl div.shortfall dt::before {
+  content: '';
+}
+.results-values dl div.shortfall dd {
+  color: var(--ws-color-warning-text);
+}
 
 .results-head {
   display: flex;

@@ -32,6 +32,7 @@ export const VARIABLE_QUANTITY: Record<NodeVariable | LinkVariable, Quantity | '
   pressure: 'pressure',
   deficit: 'flow',
   emitter: 'flow',
+  consumer: 'flow',
   leakage: 'flow',
   flow: 'flow',
   velocity: 'velocity',

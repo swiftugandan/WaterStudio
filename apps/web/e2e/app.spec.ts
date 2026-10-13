@@ -62,6 +62,44 @@ const ws = <T>(page: Page, fn: (w: WS) => T): Promise<T> =>
     fn.toString(),
   );
 
+test("shows a junction's outflow as consumer demand, emitter flow and leakage", async ({ page }) => {
+  await ready(page);
+  // Pressure-driven demands that cannot all be met, an emitter and pipe leakage.
+  const inp = `[RESERVOIRS]\n R 60\n[JUNCTIONS]\n J1 10 30\n J2 20 80\n
+[PIPES]\n P1 R J1 2000 6 100\n P2 J1 J2 2000 4 100\n[EMITTERS]\n J1 0.8\n
+[LEAKAGE]\n P1 2 0\n P2 1 0.5\n[COORDINATES]\n R 0 0\n J1 100 0\n J2 200 0\n
+[OPTIONS]\n Units GPM\n Demand Model PDA\n Minimum Pressure 0\n Required Pressure 40\n[END]\n`;
+  await page.evaluate(
+    (text) =>
+      (
+        globalThis as unknown as { waterstudio: { state: { openInp(t: string, n: string): Promise<void> } } }
+      ).waterstudio.state.openInp(text, 'pda.inp'),
+    inp,
+  );
+  await expect(page.locator('.statusbar')).toContainText('3 nodes · 2 links');
+  await page.keyboard.press('F5');
+  await expect(page.getByTestId('run-status')).toContainText('Solved');
+  const at = await nodeOnScreen(page, 'J2');
+  await page.mouse.click(at.x, at.y);
+  const results = page.getByRole('region', { name: 'Results at this time' });
+  for (const part of ['Consumer demand', 'Emitter flow', 'Leakage', 'Not delivered']) {
+    await expect(results).toContainText(part);
+  }
+  const value = async (label: string) =>
+    Number(
+      (await results
+        .locator('div', { has: page.locator('dt', { hasText: new RegExp(`^${label}$`) }) })
+        .locator('dd')
+        .textContent())!.split(' ')[0],
+    );
+  const total = await value('Demand');
+  const parts = (await value('Consumer demand')) + (await value('Emitter flow')) + (await value('Leakage'));
+  expect(Math.abs(total - parts)).toBeLessThan(0.05);
+  expect(await value('Not delivered')).toBeGreaterThan(0);
+  const axe = await new AxeBuilder({ page }).include('.results-values').analyze();
+  expect(axe.violations).toEqual([]);
+});
+
 test('opens Net1, runs it, and shows EPANET-identical results', async ({ page }) => {
   await ready(page);
   await page.keyboard.press('F5');

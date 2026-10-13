@@ -9,9 +9,11 @@
 use serde::Serialize;
 use ws_solver::{OUTPUT_LINK_VARIABLES, OUTPUT_NODE_VARIABLES, RunOptions, run_epanet};
 
-/// Node result variables, in column order.
-pub const NODE_VARIABLES: [&str; 7] = [
-    "demand", "head", "pressure", "quality", "deficit", "emitter", "leakage",
+/// Node result variables, in column order. `demand` is a node's whole outflow (EPANET's
+/// `EN_DEMAND`); at a junction it is `consumer` (the consumer demand delivered) plus
+/// `emitter` plus `leakage`, and `deficit` is the consumer demand not delivered.
+pub const NODE_VARIABLES: [&str; 8] = [
+    "demand", "head", "pressure", "quality", "deficit", "emitter", "leakage", "consumer",
 ];
 /// Link result variables, in column order. `status` holds EPANET's internal status
 /// codes (0 XHEAD .. 10 OVERFLOWING); `reaction` is the reaction rate in quality
@@ -65,7 +67,7 @@ pub fn run_model(
     model: &ws_model::Model,
     files: Option<&RunOptions>,
 ) -> Result<RunResults, String> {
-    let mut extra_nodes: [Vec<f32>; 3] = Default::default();
+    let mut extra_nodes: [Vec<f32>; 4] = Default::default();
     let mut extra_links: Vec<f32> = Vec::new();
     let mut order: Vec<usize> = Vec::new();
     let opts = files.cloned().unwrap_or_default();
@@ -73,11 +75,12 @@ pub fn run_model(
         if order.is_empty() {
             order = h.node_model_index().to_vec();
         }
-        for (col, values) in
-            extra_nodes
-                .iter_mut()
-                .zip([h.demand_deficits(), h.emitter_flows(), h.node_leakages()])
-        {
+        for (col, values) in extra_nodes.iter_mut().zip([
+            h.demand_deficits(),
+            h.emitter_flows(),
+            h.node_leakages(),
+            h.demand_flows(),
+        ]) {
             push_nodes(col, values.into_iter().map(|v| v as f32), &order);
         }
         extra_links.extend(h.leakages().into_iter().map(|v| v as f32));
@@ -221,6 +224,41 @@ mod tests {
     }
 
     #[test]
+    fn a_junctions_outflow_is_consumer_demand_emitter_flow_and_leakage() {
+        // Pressure-driven demands that cannot all be met, an emitter and pipe leakage.
+        let text = "[RESERVOIRS]\n R 60\n[JUNCTIONS]\n J1 10 30\n J2 20 80\n\
+[PIPES]\n P1 R J1 2000 6 100\n P2 J1 J2 2000 4 100\n\
+[EMITTERS]\n J1 0.8\n[LEAKAGE]\n P1 2 0\n P2 1 0.5\n\
+[OPTIONS]\n Units GPM\n Demand Model PDA\n Minimum Pressure 0\n Required Pressure 40\n\
+[TIMES]\n Duration 0\n[END]\n";
+        let r = run_model(&ws_io::read_inp(text).model, None).unwrap();
+        let col = |name: &str| {
+            let v = NODE_VARIABLES.iter().position(|n| *n == name).unwrap();
+            r.nodes[v].clone()
+        };
+        let (demand, consumer, emitter, leakage, deficit) = (
+            col("demand"),
+            col("consumer"),
+            col("emitter"),
+            col("leakage"),
+            col("deficit"),
+        );
+        for i in 1..=2 {
+            // Model order: R, J1, J2.
+            let parts = consumer[i] + emitter[i] + leakage[i];
+            assert!(
+                (demand[i] - parts).abs() < 1e-3,
+                "J{i}: {demand:?} vs {parts}"
+            );
+            assert!(leakage[i] > 0.0);
+        }
+        assert!(emitter[1] > 0.0);
+        // Not all the requested 80 gpm reaches J2: delivered plus deficit is the request.
+        assert!(deficit[2] > 0.0);
+        assert!((consumer[2] + deficit[2] - 80.0).abs() < 1e-3);
+    }
+
+    #[test]
     fn encoding_round_trips() {
         let r = run();
         let bytes = encode(&r, "test").unwrap();
@@ -228,7 +266,7 @@ mod tests {
         let header: serde_json::Value = serde_json::from_slice(&bytes[4..4 + hlen]).unwrap();
         assert_eq!(header["nodeCount"], 3);
         let start = (4 + hlen).div_ceil(4) * 4;
-        let n_values = 7 * 3 * 3 + 9 * 2 * 3;
+        let n_values = 8 * 3 * 3 + 9 * 2 * 3;
         assert_eq!(bytes.len(), start + 4 * n_values);
         let head0 = f32::from_le_bytes(bytes[start + 4 * 9..start + 4 * 10].try_into().unwrap());
         assert_eq!(head0, 200.0);

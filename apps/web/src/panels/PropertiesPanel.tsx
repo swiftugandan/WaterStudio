@@ -169,6 +169,10 @@ function FieldEditor({ spec, handles, state }: { spec: FieldSpec; handles: numbe
   );
 }
 
+/** A junction's outflow and what it is made of, shown under its demand. */
+const OUTFLOW_PARTS = ['consumer', 'emitter', 'leakage'] as const;
+const BREAKDOWN = new Set<string>([...OUTFLOW_PARTS, 'deficit']);
+
 function ResultValues({ state, handle }: { state: AppState; handle: number }) {
   const r = state.run;
   if (r.status !== 'done' || !r.results || !r.nodes || !r.links) return null;
@@ -176,27 +180,42 @@ function ResultValues({ state, handle }: { state: AppState; handle: number }) {
   const isNode = doc.isNode(handle);
   const idx = (isNode ? r.nodes : r.links).indexOf(handle);
   if (idx < 0) return null;
-  const vars: string[] = isNode ? nodeVariables(r.results) : linkVariables(r.results);
+  const junction = isNode && doc.nodeKind(handle) === 'junction';
+  // A junction's breakdown follows its demand; other nodes have no consumers, emitters
+  // or leakage, so their zeros are left out.
+  const vars: string[] = isNode
+    ? nodeVariables(r.results).filter((v) => !BREAKDOWN.has(v))
+    : linkVariables(r.results);
   const u = state.units;
+  const value = (v: string) =>
+    (isNode
+      ? nodeFrame(r.results!, v as NodeVar, state.period)
+      : linkFrame(r.results!, v as LinkVar, state.period))[idx]!;
+  const row = (v: string, label: string, className?: string) => {
+    const val = value(v);
+    const unit = variableUnit(v, u, r.results);
+    return (
+      <div key={v} className={className}>
+        <dt>{label}</dt>
+        <dd>
+          {v === 'status' ? (STATUS[val] ?? val) : val.toFixed(state.prefs.places(v))}{' '}
+          {v === 'status' ? '' : unit}
+        </dd>
+      </div>
+    );
+  };
   return (
     <section className="results-values" aria-label="Results at this time">
       <h3>Results{state.stale ? ' (out of date)' : ''}</h3>
       <dl>
-        {vars.map((v) => {
-          const frame = isNode
-            ? nodeFrame(r.results!, v as NodeVar, state.period)
-            : linkFrame(r.results!, v as LinkVar, state.period);
-          const unit = variableUnit(v, u, r.results);
-          const val = frame[idx]!;
-          return (
-            <div key={v}>
-              <dt>{variableLabel(v)}</dt>
-              <dd>
-                {v === 'status' ? (STATUS[val] ?? val) : val.toFixed(state.prefs.places(v))}{' '}
-                {v === 'status' ? '' : unit}
-              </dd>
-            </div>
-          );
+        {vars.flatMap((v) => {
+          const out = [row(v, variableLabel(v))];
+          if (v === 'demand' && junction) {
+            for (const p of OUTFLOW_PARTS) out.push(row(p, variableLabel(p), 'part'));
+            // Consumer demand requested but not delivered (pressure-driven analysis).
+            if (value('deficit') > 0) out.push(row('deficit', 'Not delivered', 'part shortfall'));
+          }
+          return out;
         })}
       </dl>
     </section>
