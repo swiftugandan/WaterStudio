@@ -9,3 +9,7 @@
 # level (what affects results), so we report a reservoir's zeros (ADR 0016).
 ../fixtures/features.inp        node.19 node.20 node.21 node.24
 ../fixtures/report-summary.inp  node.19 node.20 node.21 node.24
+# Zero-diameter tanks in the input-error files: one read cleanly, others left by a bad
+# level or diameter (the reservoir EPANET makes of such a tank line).
+../input-errors/nodes.inp       node.20 node.21
+../input-errors/sections.inp    node.20 node.21
