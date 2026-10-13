@@ -126,23 +126,34 @@ impl std::fmt::Display for MirrorError {
 
 impl std::error::Error for MirrorError {}
 
-/// A model held by slot and patched in place.
+/// A model held with each element's slot and patched in place. A change to an element
+/// replaces it where it is; an element added or deleted is put in or taken out at its
+/// slot's position, so the model is always in slot order and is never rebuilt.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Mirror {
     epoch: u32,
     rev: u32,
-    nodes: Vec<Option<Node>>,
-    links: Vec<Option<Link>>,
-    /// Everything but the nodes and links.
-    rest: Model,
+    model: Model,
+    /// The slot of each of `model.nodes`, increasing.
+    node_slots: Vec<u32>,
+    /// The slot of each of `model.links`, increasing.
+    link_slots: Vec<u32>,
 }
 
-fn place<T>(slots: &mut Vec<Option<T>>, slot: u32, value: Option<T>) {
-    let i = slot as usize;
-    if slots.len() <= i {
-        slots.resize_with(i + 1, || None);
+/// Put `value` (or nothing) at `slot` in a list kept in slot order.
+fn place<T>(items: &mut Vec<T>, slots: &mut Vec<u32>, slot: u32, value: Option<T>) {
+    match (slots.binary_search(&slot), value) {
+        (Ok(i), Some(v)) => items[i] = v,
+        (Ok(i), None) => {
+            items.remove(i);
+            slots.remove(i);
+        }
+        (Err(i), Some(v)) => {
+            items.insert(i, v);
+            slots.insert(i, slot);
+        }
+        (Err(_), None) => {}
     }
-    slots[i] = value;
 }
 
 impl Mirror {
@@ -151,7 +162,7 @@ impl Mirror {
         let Snapshot {
             epoch,
             rev,
-            mut model,
+            model,
             node_slots,
             link_slots,
         } = s;
@@ -168,19 +179,13 @@ impl Mirror {
         if !increasing(&node_slots) || !increasing(&link_slots) {
             return Err(MirrorError::Malformed("slots out of order".into()));
         }
-        let mut m = Mirror {
+        Ok(Mirror {
             epoch,
             rev,
-            ..Mirror::default()
-        };
-        for (slot, node) in node_slots.into_iter().zip(model.nodes.drain(..)) {
-            place(&mut m.nodes, slot, Some(node));
-        }
-        for (slot, link) in link_slots.into_iter().zip(model.links.drain(..)) {
-            place(&mut m.links, slot, Some(link));
-        }
-        m.rest = model;
-        Ok(m)
+            model,
+            node_slots,
+            link_slots,
+        })
     }
 
     /// The document and revision the mirror holds.
@@ -203,15 +208,15 @@ impl Mirror {
     /// Apply a patch made from the mirror's revision.
     pub fn apply(&mut self, p: ModelPatch) -> Result<(), MirrorError> {
         self.expect(p.epoch, p.from)?;
+        let m = &mut self.model;
         for s in p.nodes {
-            place(&mut self.nodes, s.slot, s.node);
+            place(&mut m.nodes, &mut self.node_slots, s.slot, s.node);
         }
         for s in p.links {
-            place(&mut self.links, s.slot, s.link);
+            place(&mut m.links, &mut self.link_slots, s.slot, s.link);
         }
-        let r = &mut self.rest;
         macro_rules! replace {
-            ($($f:ident),*) => {$(if let Some(v) = p.$f { r.$f = v; })*};
+            ($($f:ident),*) => {$(if let Some(v) = p.$f { m.$f = v; })*};
         }
         replace!(
             title,
@@ -233,28 +238,18 @@ impl Mirror {
     }
 
     /// The model as it stands, elements in slot order.
-    pub fn model(&self) -> Model {
-        Model {
-            nodes: self.nodes.iter().flatten().cloned().collect(),
-            links: self.links.iter().flatten().cloned().collect(),
-            ..self.rest.clone()
-        }
+    pub fn model(&self) -> &Model {
+        &self.model
     }
 
     /// A snapshot that opens an identical mirror (to carry it to a new engine instance).
     pub fn snapshot(&self) -> Snapshot {
-        let slots = |n: usize, has: &dyn Fn(usize) -> bool| -> Vec<u32> {
-            (0..n)
-                .filter(|&i| has(i))
-                .filter_map(|i| u32::try_from(i).ok())
-                .collect()
-        };
         Snapshot {
             epoch: self.epoch,
             rev: self.rev,
-            model: self.model(),
-            node_slots: slots(self.nodes.len(), &|i| self.nodes[i].is_some()),
-            link_slots: slots(self.links.len(), &|i| self.links[i].is_some()),
+            model: self.model.clone(),
+            node_slots: self.node_slots.clone(),
+            link_slots: self.link_slots.clone(),
         }
     }
 }
@@ -321,7 +316,7 @@ mod tests {
         let s = snapshot();
         let m = Mirror::open(s.clone()).unwrap();
         assert_eq!(m.snapshot(), s);
-        assert_eq!(m.model(), s.model);
+        assert_eq!(m.model(), &s.model);
     }
 
     #[test]
@@ -353,7 +348,7 @@ mod tests {
             ..ModelPatch::default()
         })
         .unwrap();
-        let model = m.model();
+        let model = m.model().clone();
         let ids: Vec<&str> = model.nodes.iter().map(|n| n.id.as_str()).collect();
         assert_eq!(ids, ["A", "Back", "C", "New"]);
         assert_eq!(model.links[0].to, "Back");

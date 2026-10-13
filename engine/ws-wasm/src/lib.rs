@@ -313,15 +313,21 @@ enum Session {
 fn session(cmd: Session) -> Result<Vec<u8>, String> {
     SESSION.with(|cell| {
         let mut held = cell.borrow_mut();
-        let model = |held: &Option<ws_model::Mirror>, epoch: u32, rev: u32| match held {
-            Some(m) => m
-                .expect(epoch, rev)
-                .map(|()| m.model())
-                .map_err(|e| e.to_string()),
-            None => Err(format!(
-                "stale session: the engine holds no document, not {epoch} at {rev}"
-            )),
-        };
+        fn model(
+            held: &Option<ws_model::Mirror>,
+            epoch: u32,
+            rev: u32,
+        ) -> Result<&ws_model::Model, String> {
+            match held {
+                Some(m) => m
+                    .expect(epoch, rev)
+                    .map(|()| m.model())
+                    .map_err(|e| e.to_string()),
+                None => Err(format!(
+                    "stale session: the engine holds no document, not {epoch} at {rev}"
+                )),
+            }
+        }
         match cmd {
             Session::Open { snapshot } => {
                 *held = Some(ws_model::Mirror::open(snapshot).map_err(|e| e.to_string())?);
@@ -338,23 +344,23 @@ fn session(cmd: Session) -> Result<Vec<u8>, String> {
                 Some(m) => serde_json::to_vec(&m.snapshot()).map_err(|e| e.to_string()),
                 None => Ok(b"null".to_vec()),
             },
-            Session::Run { epoch, rev } => run(&model(&held, epoch, rev)?),
-            Session::Check { epoch, rev } => check(&model(&held, epoch, rev)?),
+            Session::Run { epoch, rev } => run(model(&held, epoch, rev)?),
+            Session::Check { epoch, rev } => check(model(&held, epoch, rev)?),
             Session::Study {
                 epoch,
                 rev,
                 study: s,
-            } => study(&model(&held, epoch, rev)?, &s),
+            } => study(model(&held, epoch, rev)?, &s),
             Session::Files {
                 epoch,
                 rev,
                 options,
-            } => files(&model(&held, epoch, rev)?, &options),
+            } => files(model(&held, epoch, rev)?, &options),
             Session::Msx {
                 epoch,
                 rev,
                 options,
-            } => msx(&model(&held, epoch, rev)?, &options),
+            } => msx(model(&held, epoch, rev)?, &options),
         }
     })
 }

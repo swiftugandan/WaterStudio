@@ -56,6 +56,10 @@ export interface Engine {
   sessionPatch(p: model.ModelPatch): void;
   /** The held model, to carry it to another instance; null if none. */
   sessionExport(): model.Snapshot | null;
+  /** The held model as the engine's own JSON, never parsed here; null if none. */
+  sessionExportBytes(): Uint8Array | null;
+  /** Hold a model from `sessionExportBytes`. */
+  sessionOpenBytes(snapshot: Uint8Array): void;
   study(req: StudyRequest): FireFlowResult[] | CriticalityResult[];
   /** Hydraulics and an EPANET-MSX analysis: the run's results with the species added. */
   msx(req: MsxRequest): RunResults;
@@ -164,5 +168,17 @@ export async function instantiateEngine(source: BufferSource | WebAssembly.Modul
     sessionOpen: (snapshot) => void session({ op: 'open', snapshot }),
     sessionPatch: (patch) => void session({ op: 'patch', patch }),
     sessionExport: () => JSON.parse(decoder.decode(session({ op: 'export' }))) as model.Snapshot | null,
+    sessionExportBytes: () => {
+      const body = call(x.ws_session, json({ op: 'export' }));
+      return body.length === 4 && decoder.decode(body) === 'null' ? null : body;
+    },
+    sessionOpenBytes: (snapshot) => {
+      const head = encoder.encode('{"op":"open","snapshot":');
+      const cmd = new Uint8Array(head.length + snapshot.length + 1);
+      cmd.set(head);
+      cmd.set(snapshot, head.length);
+      cmd[cmd.length - 1] = 0x7d; // }
+      call(x.ws_session, cmd);
+    },
   };
 }

@@ -18,9 +18,11 @@ one pipe. The plan's worker protocol already called for a snapshot once and op d
   lives, comes back with it on undo and orders the model. A patch replaces slots (`NodeSlot`, `LinkSlot`; `null`
   for a deleted element) and whole sections (patterns, curves, controls, rules, settings) that changed. IDs would
   not do: renaming a node changes the IDs its links name, and a rename is an edit like any other.
-- **`ws_model::Mirror`** holds a model by slot. A `Snapshot` (the model and each element's slot) opens it, and a
-  `ModelPatch` from exactly its revision moves it to the next one. Anything else is refused as stale. The types
-  are generated to TypeScript with the model, so the two sides cannot drift.
+- **`ws_model::Mirror`** holds a model with each element's slot. A `Snapshot` (the model and the slots) opens
+  it, and a `ModelPatch` from exactly its revision moves it to the next one: a changed element is replaced where
+  it is, an added or deleted one is put in or taken out at its slot's position, so the model is never rebuilt
+  and the engine runs it in place. Anything else is refused as stale. The types are generated to TypeScript with
+  the model, so the two sides cannot drift.
 - **The engine holds one mirror per instance.** `ws_session` opens, patches and exports it, and runs a hydraulic
   run, check, study, report files or MSX analysis on it by `(epoch, revision)`. A request for another document or
   revision fails with a message starting `stale session`. The other entry points still take a whole model.
@@ -32,15 +34,17 @@ one pipe. The plan's worker protocol already called for a snapshot once and op d
   worker, a patch from the revision that worker holds, or a snapshot. Workers handle messages in order, so the
   request that follows sees the result. A stale reply (an engine that lost its model) clears what the client
   believes that worker holds, and the request is retried once. A worker that recycles its instance to return
-  memory (ADR 0018) carries the model to the new one.
+  memory (ADR 0018) carries the model to the new one as the engine's own JSON. Since that costs a model's
+  transfer, an instance holding a model is recycled above 256 MB rather than 64 MB: a 24-hour run of 10,000
+  nodes peaks near 80 MB and stays, one of 100,000 near 800 MB and is recycled.
 - **The app uses it** for analyses, report files, MSX, studies and the assistant's draft runs. Scenario
   comparisons and other one-off models are still sent whole.
 
 ## Consequences
 
 - After an edit, a 24-hour run of 10,000 nodes sends one pipe instead of the network. Measured in the e2e suite:
-  360 ms against 408 ms with the whole network (median of three). The engine's own work is unchanged; the
-  saving is the conversion, the JSON and its parsing, and it grows with the number of runs.
+  213 ms against 321 ms with the whole network (median of three), gated so the resident run stays the faster.
+  The saving is the conversion, the JSON and its parsing, and it grows with the number of runs.
 - A study over the pool sends the network once per worker rather than once per chunk, and its chunks carry only
   their hydrants or links.
 - The engine still builds its solver project from the model on each run. Keeping the built project and applying

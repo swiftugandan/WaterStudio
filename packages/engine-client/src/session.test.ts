@@ -83,6 +83,10 @@ describe.skipIf(!have)('resident models (ADR 0020)', async () => {
     const next = await fresh();
     next.sessionOpen(e.sessionExport()!);
     expect(next.run(ref()).link.flow).toEqual(resident.link.flow);
+    const again = await fresh();
+    again.sessionOpenBytes(next.sessionExportBytes()!);
+    expect(again.run(ref()).link.flow).toEqual(resident.link.flow);
+    expect((await fresh()).sessionExportBytes()).toBeNull();
     expect((await fresh()).sessionExport()).toBeNull();
   });
 
