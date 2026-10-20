@@ -3,7 +3,7 @@
  * colour classes, and per-element flags (selected, hovered, hidden).
  */
 
-import { colormaps, palette, themes, type ThemeName } from '@waterstudio/ui';
+import { colormaps, palette, themes, type ThemeName } from '@waterstudio/ui/tokens';
 
 export interface Theme {
   /** A colour, or 'transparent' to let a basemap show through. */
